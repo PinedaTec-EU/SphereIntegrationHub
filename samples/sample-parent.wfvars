@@ -1,0 +1,8 @@
+# secutiry credentials
+jwt: "mocked-jwt-token"
+accountLogin: "sample.user@example.com"
+accountPassword: "PinedaTest$Pwd|123"
+
+# workflow metadata
+tag: "welcome"
+requestedBy: "samples"

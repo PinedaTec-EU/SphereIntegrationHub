@@ -1,0 +1,5 @@
+{
+  "appId": "mocked-account-id",
+  "login": "{{input.accountLogin}}",
+  "createdAt": "{{system:datetime.utcnow}}"
+}

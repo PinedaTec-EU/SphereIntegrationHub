@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SphereIntegrationHub.cli/SphereIntegrationHub.cli.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SphereIntegrationHub.Tests/SphereIntegrationHub.Tests.csproj" />
+  </Folder>
+</Solution>
