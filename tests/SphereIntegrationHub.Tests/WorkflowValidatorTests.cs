@@ -304,4 +304,58 @@ public sealed class WorkflowValidatorTests
 
         Assert.Contains(errors, e => e.Contains("closeOnSuccessAttempts", StringComparison.OrdinalIgnoreCase));
     }
+
+    [Fact]
+    public void Validate_FlagsDuplicateWorkflowReferences()
+    {
+        var definition = new WorkflowDefinition
+        {
+            Version = "1.0",
+            Id = "01",
+            Name = "test",
+            References = new WorkflowReference
+            {
+                Workflows = new List<WorkflowReferenceItem>
+                {
+                    new() { Name = "child", Path = "child.workflow" },
+                    new() { Name = "child", Path = "duplicate.workflow" }
+                }
+            }
+        };
+
+        var document = new WorkflowDocument(definition, "/tmp/test.workflow", new Dictionary<string, string>());
+        var validator = new WorkflowValidator(new WorkflowLoader());
+        var errors = validator.Validate(document);
+
+        Assert.Contains(errors, e => e.Contains("Duplicate reference name", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validate_FlagsMissingApiReference()
+    {
+        var definition = new WorkflowDefinition
+        {
+            Version = "1.0",
+            Id = "01",
+            Name = "test",
+            Stages = new List<WorkflowStageDefinition>
+            {
+                new()
+                {
+                    Name = "stage",
+                    Kind = WorkflowStageKind.Endpoint,
+                    ApiRef = "missing",
+                    Endpoint = "/endpoint",
+                    HttpVerb = "GET",
+                    ExpectedStatus = 200
+                }
+            }
+        };
+
+        var document = new WorkflowDocument(definition, "/tmp/test.workflow", new Dictionary<string, string>());
+        var validator = new WorkflowValidator(new WorkflowLoader());
+        var errors = validator.Validate(document);
+
+        Assert.Contains(errors, e => e.Contains("apiRef", StringComparison.OrdinalIgnoreCase));
+    }
 }
