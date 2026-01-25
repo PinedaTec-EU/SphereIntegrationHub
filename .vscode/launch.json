@@ -1,0 +1,83 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "inputs": [
+        {
+            "id": "workflow",
+            "type": "pickString",
+            "description": "Environment",
+            "options": [
+                "create-account.workflow",
+                "GetOrCreate_Organization.workflow",
+                "login.workflow"
+            ],
+            "default": "dev"
+        },
+        {
+            "id": "environment",
+            "type": "pickString",
+            "description": "Environment",
+            "options": [
+                "local",
+                "dev",
+                "pre",
+                "prod"
+            ],
+        }
+    ],
+    "configurations": [
+        {
+            "name": "SphereIntegrationHub.cli Debug",
+            "preLaunchTask": "build",
+            "type": "dotnet",
+            "request": "launch",
+            "projectPath": "${workspaceFolder}/src/SphereIntegrationHub.cli/SphereIntegrationHub.cli.csproj"
+        },
+        {
+            "name": "SphereIntegrationHub.cli --dry-run",
+            "preLaunchTask": "build",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/SphereIntegrationHub.cli/bin/Debug/net9.0/SphereIntegrationHub.cli.dll",
+            "args": [
+                "--dry-run",
+                "--verbose",
+                "--env",
+                "local",
+                "--workflow",
+                "${workspaceFolder}/src/resources/workflows/${input:workflow}",
+            ]
+        },
+        {
+            "name": "SphereIntegrationHub.cli [mocked, input]",
+            "preLaunchTask": "build",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/SphereIntegrationHub.cli/bin/Debug/net9.0/SphereIntegrationHub.cli.dll",
+            "args": [
+                "--verbose",
+                "--mocked",
+                "--env",
+                "local",
+                "--workflow",
+                "${workspaceFolder}/src/resources/workflows/${input:workflow}"
+            ]
+        },
+        {
+            "name": "SphereIntegrationHub.cli online",
+            "preLaunchTask": "build",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/SphereIntegrationHub.cli/bin/Debug/net9.0/SphereIntegrationHub.cli.dll",
+            "args": [
+                "--verbose",
+                "--env",
+                "${input:environment}",
+                "--workflow",
+                "${workspaceFolder}/src/resources/workflows/${input:workflow}"
+            ]
+        }
+    ]
+}

@@ -1,0 +1,79 @@
+{
+	"version": "2.0.0",
+	"inputs": [
+		{
+			"id": "publishDir",
+			"type": "promptString",
+			"description": "Publish output folder (relative to workspace)",
+			"default": "dist/windows"
+		}
+	],
+	"tasks": [
+		{
+			"type": "shell",
+			"label": "build",
+			"command": "dotnet build ${workspaceFolder}/SphereIntegrationHub.slnx",
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"dependsOn": [],
+			"group": {
+				"kind": "build",
+				"isDefault": false
+			}
+		},
+		{
+			"type": "shell",
+			"label": "build-increase-version",
+			"command": "dotnet build ${workspaceFolder}/SphereIntegrationHub.slnx",
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"dependsOn": [
+				"Increase version"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		},
+		{
+			"label": "Increase version",
+			"command": "dotnet",
+			"type": "shell",
+			"args": [
+				"${workspaceFolder}/tools/increase.asm.version/increase.asm.version.dll",
+				"${workspaceFolder}",
+				"0.0.0.1"
+			],
+			"group": "none",
+			"presentation": {
+				"reveal": "always"
+			},
+			"problemMatcher": "$msCompile"
+		},
+		{
+			"label": "publish tool cli (win-x64 single-file)",
+			"command": "dotnet",
+			"type": "process",
+			"presentation": {
+				"reveal": "always"
+			},
+			"args": [
+				"publish",
+				"${workspaceFolder}/src/SphereIntegrationHub.cli/SphereIntegrationHub.cli.csproj",
+				"-c",
+				"Release",
+				"-r",
+				"win-x64",
+				"/p:PublishSingleFile=true",
+				"/p:SelfContained=true",
+				"/p:DebugType=None",
+				"/p:DebugSymbols=false",
+				"-o",
+				"${workspaceFolder}/releases/${input:publishDir}/windows"
+			],
+			"problemMatcher": "$msCompile"
+		}
+	]
+}

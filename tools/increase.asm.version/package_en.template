@@ -1,0 +1,31 @@
+﻿<?xml version="1.0"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
+	<metadata>
+		<id>${id}</id>
+		<version>${ReleaseVersion}</version>
+		<authors>${authors}</authors>
+		<owners>${owners}</owners>
+		<title>${title}</title>
+		<requireLicenseAcceptance>${requireLicenseAcceptance}</requireLicenseAcceptance>
+		<description>${description}</description>
+		<copyright>${copyright}</copyright>
+		<readme>doc/${readme}</readme>
+		<icon>images/${icon}</icon>
+		<tags>${tags}</tags>
+		<dependencies>
+			<!--Si tu componente requiere de otros packages adicionales peudes referenciarlos aqui, pueden ser de tu feed local o Nuget.org-->
+			${dependency_list}
+						<!--<group targetFramework="net461">
+				<dependency id="JetBrains.Annotations" version="2019.1.3" />
+			</group>
+			<group targetFramework="net462">
+				<dependency id="JetBrains.Annotations" version="2019.1.3" />
+			</group> -->
+		</dependencies>
+	</metadata>
+	<files>
+		<!-- El archivo nuspec debe estar en la misma ruta que la dll, puedes ajustar esto en Teamcity o en los Paths-->
+		<file src="${readme}" target="doc/${readme}" />
+		<file src="${icon}" target="images/${icon}" />
+	</files>
+</package>

@@ -1,0 +1,7 @@
+**/resources/cache/*
+**/resources/workflows/*
+**/resources/*.*
+.DS_Store
+**/bin
+**/obj
+**/releases

@@ -1,0 +1,19 @@
+{
+    "files.exclude": {
+        "**/.store": true,
+        "**/.vs": true,
+        "**/bin": true,
+        "**/obj": true,
+        "**.DS_Store": true
+    },
+    "chatgpt.openOnStartup": true,
+    "dotnet.defaultSolution": "SphereIntegrationHub.slnx",
+    "editor.formatOnSave": true,
+    "dotnet.formatting.organizeImportsOnFormat": true,
+    "csharpOrganizeUsings.removeUnnecessaryUsings": true,
+    "[csharp]": {
+        "editor.codeActionsOnSave": [
+            "source.organizeImports"
+        ]
+    }
+}
