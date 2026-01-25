@@ -621,8 +621,8 @@ throw new InvalidOperationException("Invalid token.");
 
 // Después:
 throw new InvalidOperationException(
-    $"Invalid token '{token}'. Expected format: {{{{root.path.to.value}}}}. " +
-    $"Available roots: input, global, stage, context, env, system, response."
+    $"Invalid token '{token}'. Expected format: {{root.path.to.value}}. " +
+    "Available roots: input, global, stage, context, env, system, response."
 );
 ```
 
