@@ -22,7 +22,7 @@ public sealed class CliPlanPrinterTests
             {
                 new(
                     "stageA",
-                    WorkflowStageKind.Endpoint,
+                    WorkflowStageKinds.Endpoint,
                     "api",
                     "/endpoint",
                     "GET",

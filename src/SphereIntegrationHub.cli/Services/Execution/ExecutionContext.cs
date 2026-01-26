@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 namespace SphereIntegrationHub.Services;
 
-internal sealed class ExecutionContext
+public sealed class ExecutionContext
 {
     public ExecutionContext(
         IReadOnlyDictionary<string, string> inputs,

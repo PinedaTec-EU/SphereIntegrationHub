@@ -39,11 +39,23 @@ internal sealed class WorkflowConfigLoader : IWorkflowConfigLoader
         activity?.SetTag(TelemetryConstants.TagFilePath, configPath);
         if (!File.Exists(configPath))
         {
-            return new WorkflowConfig();
+            return new WorkflowConfig
+            {
+                ConfigPath = configPath
+            };
         }
 
         var yaml = File.ReadAllText(configPath);
         var config = _deserializer.Deserialize<WorkflowConfig>(yaml);
-        return config ?? new WorkflowConfig();
+        if (config is null)
+        {
+            return new WorkflowConfig
+            {
+                ConfigPath = configPath
+            };
+        }
+
+        config.ConfigPath = configPath;
+        return config;
     }
 }

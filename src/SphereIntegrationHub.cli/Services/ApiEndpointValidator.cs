@@ -1,3 +1,4 @@
+using System;
 using System.Text.Json;
 
 using SphereIntegrationHub.Definitions;
@@ -38,7 +39,7 @@ public sealed class ApiEndpointValidator
             return errors;
         }
 
-        foreach (var stage in workflow.Stages.Where(stage => stage.Kind == WorkflowStageKind.Endpoint))
+        foreach (var stage in workflow.Stages.Where(stage => IsHttpStage(stage.Kind)))
         {
             if (string.IsNullOrWhiteSpace(stage.ApiRef) || string.IsNullOrWhiteSpace(stage.Endpoint) || string.IsNullOrWhiteSpace(stage.HttpVerb))
             {
@@ -95,6 +96,12 @@ public sealed class ApiEndpointValidator
         }
 
         return errors;
+    }
+
+    private static bool IsHttpStage(string kind)
+    {
+        return string.Equals(kind, WorkflowStageKinds.Endpoint, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(kind, WorkflowStageKinds.Http, StringComparison.OrdinalIgnoreCase);
     }
 
     private static void ValidateRequiredParameters(

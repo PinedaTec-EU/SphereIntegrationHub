@@ -15,14 +15,14 @@ public sealed class TemplateResolver
         _systemProvider = systemProvider ?? new SystemTimeProvider();
     }
 
-    public string ResolveTemplate(string template, TemplateContext context, ResponseContext? responseContext = null)
+    public string ResolveTemplate(string? template, TemplateContext context, ResponseContext? responseContext = null)
     {
         using var activity = Telemetry.ActivitySource.StartActivity(TelemetryConstants.ActivityTemplateResolve);
         activity?.SetTag(TelemetryConstants.TagTemplateLength, template?.Length ?? 0);
 
         if (string.IsNullOrEmpty(template))
         {
-            return template;
+            return string.Empty;
         }
 
         return TokenRegex.Replace(template, match =>
@@ -270,7 +270,13 @@ public sealed class TemplateResolver
             return false;
         }
 
-        return stageOutputs.TryGetValue(outputKey, out value);
+        if (stageOutputs.TryGetValue(outputKey, out var found) && found is not null)
+        {
+            value = found;
+            return true;
+        }
+
+        return false;
     }
 
     private static bool TryResolveStageWorkflowOutput(
@@ -293,7 +299,13 @@ public sealed class TemplateResolver
             return false;
         }
 
-        return stageOutputs.TryGetValue(outputKey, out value);
+        if (stageOutputs.TryGetValue(outputKey, out var found) && found is not null)
+        {
+            value = found;
+            return true;
+        }
+
+        return false;
     }
 
     private static bool TryResolveStageWorkflowResult(
@@ -316,7 +328,13 @@ public sealed class TemplateResolver
             return false;
         }
 
-        return stageResults.TryGetValue(resultKey, out value);
+        if (stageResults.TryGetValue(resultKey, out var found) && found is not null)
+        {
+            value = found;
+            return true;
+        }
+
+        return false;
     }
 
     private static string ResolveResponse(string[] segments, ResponseContext? responseContext, string token)

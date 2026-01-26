@@ -1,9 +1,46 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
 using SphereIntegrationHub.Definitions;
 
 namespace SphereIntegrationHub.Services;
 
 public static class ApiBaseUrlResolver
 {
+    public static Dictionary<string, string> BuildApiBaseUrlLookup(
+        WorkflowDefinition definition,
+        ApiCatalogVersion catalogVersion,
+        string environment)
+    {
+        var apiBaseUrls = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (definition.References?.Apis is null || definition.References.Apis.Count == 0)
+        {
+            return apiBaseUrls;
+        }
+
+        foreach (var apiReference in definition.References.Apis)
+        {
+            var apiDefinition = catalogVersion.Definitions.FirstOrDefault(def =>
+                string.Equals(def.Name, apiReference.Definition, StringComparison.OrdinalIgnoreCase));
+            if (apiDefinition is null)
+            {
+                throw new InvalidOperationException(
+                    $"API definition '{apiReference.Definition}' was not found in catalog version '{catalogVersion.Version}'.");
+            }
+
+            if (!TryResolveBaseUrl(catalogVersion, apiDefinition, environment, out var baseUrl))
+            {
+                throw new InvalidOperationException(
+                    $"Environment '{environment}' was not found for API definition '{apiDefinition.Name}' in catalog version '{catalogVersion.Version}'.");
+            }
+
+            apiBaseUrls[apiReference.Name] = CombineBaseUrl(baseUrl!, apiDefinition.BasePath);
+        }
+
+        return apiBaseUrls;
+    }
+
     public static bool TryResolveBaseUrl(
         ApiCatalogVersion catalogVersion,
         ApiDefinition definition,
@@ -54,5 +91,17 @@ public static class ApiBaseUrlResolver
 
         baseUrl = null;
         return false;
+    }
+
+    private static string CombineBaseUrl(string baseUrl, string? basePath)
+    {
+        if (string.IsNullOrWhiteSpace(basePath))
+        {
+            return baseUrl;
+        }
+
+        var trimmedBaseUrl = baseUrl.TrimEnd('/');
+        var trimmedBasePath = basePath.Trim('/');
+        return $"{trimmedBaseUrl}/{trimmedBasePath}";
     }
 }

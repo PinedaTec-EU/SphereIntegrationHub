@@ -25,7 +25,7 @@ public sealed class ApiEndpointValidatorLoggerTests
                 new()
                 {
                     Name = "create",
-                    Kind = WorkflowStageKind.Endpoint,
+                    Kind = WorkflowStageKinds.Endpoint,
                     ApiRef = "accounts",
                     Endpoint = "/accounts/{id}",
                     HttpVerb = "GET"

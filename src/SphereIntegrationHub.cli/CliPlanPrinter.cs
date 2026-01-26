@@ -1,3 +1,5 @@
+using System;
+
 using SphereIntegrationHub.Definitions;
 using SphereIntegrationHub.Services;
 
@@ -38,7 +40,7 @@ internal sealed class CliPlanPrinter : ICliPlanPrinter
             foreach (var stage in plan.Stages)
             {
                 writer.WriteLine($"{prefix}  - {stage.Name} [{stage.Kind}]");
-                if (stage.Kind == WorkflowStageKind.Endpoint)
+                if (IsHttpStage(stage.Kind))
                 {
                     writer.WriteLine($"{prefix}    Api: {stage.ApiRef}");
                     writer.WriteLine($"{prefix}    Endpoint: {stage.Endpoint}");
@@ -127,6 +129,12 @@ internal sealed class CliPlanPrinter : ICliPlanPrinter
             PrintKeyValues($"{prefix}Init-stage context:", plan.InitContext, writer);
             PrintKeyValues($"{prefix}End-stage context:", plan.EndContext, writer);
         }
+    }
+
+    private static bool IsHttpStage(string kind)
+    {
+        return string.Equals(kind, WorkflowStageKinds.Endpoint, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(kind, WorkflowStageKinds.Http, StringComparison.OrdinalIgnoreCase);
     }
 
     private static void PrintKeyValues(string title, IReadOnlyDictionary<string, string>? values, TextWriter writer)

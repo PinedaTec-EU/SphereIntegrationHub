@@ -156,6 +156,7 @@ public sealed class CliPipelineTests
         Directory.CreateDirectory(workflows);
 
         var workflowPath = Path.Combine(workflows, "main.workflow");
+        var configPath = Path.Combine(workflows, CliConstants.WorkflowConfigFileName);
         var swaggerPath = Path.Combine(root, "swagger.json");
         var catalogPath = Path.Combine(root, "api-catalog.json");
 
@@ -257,6 +258,7 @@ public sealed class CliPipelineTests
 
         var workflowYaml = string.Join(Environment.NewLine, workflowLines);
         File.WriteAllText(workflowPath, workflowYaml);
+        File.WriteAllText(configPath, "plugins:\n  - http\n");
 
         if (includeWorkflowStageResilience)
         {

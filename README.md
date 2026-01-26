@@ -12,6 +12,7 @@ Documentation:
 - [`variables and context`](.doc/variables.md)
 - [`dry-run validation`](.doc/dry-run.md)
 - [`open telemetry`](.doc/telemetry.md)
+- [`plugins`](.doc/plugins.md)
 
 ## Catalog
 
@@ -31,13 +32,31 @@ Workflows are YAML files with main sections:
 - `references` for workflows and API definitions
 - `input` for required variables
 - `initStage` for workflow-specific variables or context defaults
-- `stages` (endpoint/workflow calls)
+- `stages` (plugin-driven calls)
 - `endStage` for workflow output and context updates
 
 Templates support `{{env:NAME}}` to read environment variables anywhere values are resolved.
 Use `references.environmentFile` (or CLI `--envfile`) to load a `.env` file for those variables.
 Inputs from `.wfvars` can be scoped by environment and version (see `variables and context`).
-Stages can declare `delaySeconds` (0-60) to delay execution. Retry and circuit breaker settings apply only to `Endpoint` stages.
+Stages can declare `delaySeconds` (0-60) to delay execution. Retry and circuit breaker settings apply only to `endpoint`/`http` stages.
+
+## Workflow plugins
+
+Plugins are enabled via `workflows.config` next to your workflow files. The core requires at least one plugin besides the built-in `workflow` plugin.
+
+`workflows.config` example:
+
+```yaml
+features:
+  openTelemetry: true
+openTelemetry:
+  serviceName: "SphereIntegrationHub.cli"
+  endpoint: "http://localhost:4317"
+  consoleExporter: false
+  debugConsole: false
+plugins:
+  - http
+```
 
 ### Example workflow (login)
 
@@ -60,7 +79,7 @@ input:
     required: true
 stages:
   - name: "login"
-    kind: "Endpoint"
+    kind: "http"
     apiRef: "example-service"
     endpoint: "/api/auth/login"
     httpVerb: "POST"
@@ -168,7 +187,7 @@ references:
       path: "./login.workflow"
 stages:
   - name: "authenticate"
-    kind: "Workflow"
+    kind: "workflow"
     workflowRef: "login"  # Reuse login workflow
 ```
 

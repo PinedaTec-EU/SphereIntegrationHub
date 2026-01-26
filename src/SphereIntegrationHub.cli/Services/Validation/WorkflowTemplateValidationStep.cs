@@ -1,6 +1,8 @@
-using SphereIntegrationHub.Definitions;
 using System;
 using System.Collections.Generic;
+
+using SphereIntegrationHub.Definitions;
+using SphereIntegrationHub.Services.Plugins;
 
 namespace SphereIntegrationHub.Services;
 
@@ -14,6 +16,7 @@ internal sealed class WorkflowTemplateValidationStep : IWorkflowValidationStep
             context.EnvironmentVariables,
             context.Loader,
             context.MockPayloadService,
+            context.StagePlugins,
             errors);
     }
 
@@ -23,6 +26,7 @@ internal sealed class WorkflowTemplateValidationStep : IWorkflowValidationStep
         IReadOnlyDictionary<string, string> environmentVariables,
         WorkflowLoader loader,
         MockPayloadService mockPayloadService,
+        StagePluginRegistry stagePlugins,
         List<string> errors)
     {
         var inputNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -62,7 +66,12 @@ internal sealed class WorkflowTemplateValidationStep : IWorkflowValidationStep
         {
             foreach (var stage in definition.Stages)
             {
-                if (stage.Kind == WorkflowStageKind.Endpoint)
+                if (!stagePlugins.TryGetByKind(stage.Kind, out var plugin))
+                {
+                    continue;
+                }
+
+                if (plugin.Capabilities.OutputKind == StageOutputKind.Endpoint)
                 {
                     var outputs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                     {
@@ -78,7 +87,8 @@ internal sealed class WorkflowTemplateValidationStep : IWorkflowValidationStep
 
                     endpointOutputs[stage.Name] = outputs;
                 }
-                else if (stage.Kind == WorkflowStageKind.Workflow && !string.IsNullOrWhiteSpace(stage.WorkflowRef))
+                else if (plugin.Capabilities.OutputKind == StageOutputKind.Workflow &&
+                    !string.IsNullOrWhiteSpace(stage.WorkflowRef))
                 {
                     if (workflowRefs.TryGetValue(stage.WorkflowRef, out var referencePath))
                     {
@@ -156,16 +166,19 @@ internal sealed class WorkflowTemplateValidationStep : IWorkflowValidationStep
                     }
                 }
 
+                stagePlugins.TryGetByKind(stage.Kind, out var plugin);
+                var allowResponse = plugin?.Capabilities.AllowsResponseTokens ?? false;
+
                 if (!string.IsNullOrWhiteSpace(stage.Message))
                 {
-                    ValidateTemplate(stage.Message, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' message", errors, allowResponse: stage.Kind == WorkflowStageKind.Endpoint);
+                    ValidateTemplate(stage.Message, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' message", errors, allowResponse: allowResponse);
                 }
 
                 if (stage.Output is not null)
                 {
                     foreach (var output in stage.Output.Values)
                     {
-                        ValidateTemplate(output, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' output", errors, allowResponse: stage.Kind == WorkflowStageKind.Endpoint);
+                        ValidateTemplate(output, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' output", errors, allowResponse: allowResponse);
                     }
                 }
 
@@ -192,7 +205,14 @@ internal sealed class WorkflowTemplateValidationStep : IWorkflowValidationStep
 
                 if (stage.Mock is not null)
                 {
-                    ValidateMockDefinition(stage, workflowPath, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, mockPayloadService, errors);
+                    if (plugin is null)
+                    {
+                        errors.Add($"Stage '{stage.Name}' mock is defined but no plugin was loaded for kind '{stage.Kind}'.");
+                    }
+                    else
+                    {
+                        ValidateMockDefinition(stage, plugin, workflowPath, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, mockPayloadService, errors);
+                    }
                 }
             }
         }
@@ -505,6 +525,7 @@ internal sealed class WorkflowTemplateValidationStep : IWorkflowValidationStep
 
     private static void ValidateMockDefinition(
         WorkflowStageDefinition stage,
+        IStagePlugin plugin,
         string workflowPath,
         HashSet<string> inputs,
         HashSet<string> globals,
@@ -519,7 +540,13 @@ internal sealed class WorkflowTemplateValidationStep : IWorkflowValidationStep
             errors.Add($"Stage '{stage.Name}' mock status must be a positive integer.");
         }
 
-        if (stage.Kind == WorkflowStageKind.Endpoint)
+        if (plugin.Capabilities.MockKind == StageMockKind.None)
+        {
+            errors.Add($"Stage '{stage.Name}' mock is not supported for kind '{stage.Kind}'.");
+            return;
+        }
+
+        if (plugin.Capabilities.MockKind == StageMockKind.Endpoint)
         {
             if (stage.Mock?.Output is not null && stage.Mock.Output.Count > 0)
             {
@@ -559,7 +586,7 @@ internal sealed class WorkflowTemplateValidationStep : IWorkflowValidationStep
                 errors.Add($"Stage '{stage.Name}' mock payload is not valid JSON: {error}");
             }
         }
-        else if (stage.Kind == WorkflowStageKind.Workflow)
+        else if (plugin.Capabilities.MockKind == StageMockKind.Workflow)
         {
             if (stage.Mock?.Payload is not null)
             {

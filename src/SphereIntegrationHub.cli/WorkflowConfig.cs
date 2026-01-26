@@ -1,9 +1,15 @@
+using System.Collections.Generic;
+
 namespace SphereIntegrationHub.cli;
 
 internal sealed class WorkflowConfig
 {
     public WorkflowFeaturesConfig Features { get; set; } = new();
     public OpenTelemetryConfig OpenTelemetry { get; set; } = new();
+    public List<string> Plugins { get; set; } = new();
+
+    [YamlDotNet.Serialization.YamlIgnore]
+    public string? ConfigPath { get; set; }
 }
 
 internal sealed class WorkflowFeaturesConfig

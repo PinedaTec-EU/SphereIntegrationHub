@@ -18,7 +18,7 @@ public sealed class WorkflowExecutorMockedJumpTests
                 new()
                 {
                     Name = "self",
-                    Kind = WorkflowStageKind.Endpoint,
+                    Kind = WorkflowStageKinds.Endpoint,
                     ExpectedStatus = 200,
                     JumpOnStatus = new Dictionary<int, string> { [200] = "self" },
                     Mock = new WorkflowStageMockDefinition
@@ -41,7 +41,7 @@ public sealed class WorkflowExecutorMockedJumpTests
             new List<ApiDefinition>());
 
         using var httpClient = new HttpClient();
-        var executor = new WorkflowExecutor(httpClient, new DynamicValueService());
+        var executor = new WorkflowExecutor(httpClient, new DynamicValueService(), TestStagePlugins.CreateRegistry());
 
         await Assert.ThrowsAsync<MockedSelfJumpException>(() => executor.ExecuteAsync(
             document,

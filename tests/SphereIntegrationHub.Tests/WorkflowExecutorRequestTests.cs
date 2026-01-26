@@ -41,7 +41,7 @@ public sealed class WorkflowExecutorRequestTests
                 new()
                 {
                     Name = "create-account",
-                    Kind = WorkflowStageKind.Endpoint,
+                    Kind = WorkflowStageKinds.Endpoint,
                     ApiRef = "accounts",
                     Endpoint = "/api/accounts",
                     HttpVerb = "POST",
@@ -74,7 +74,7 @@ public sealed class WorkflowExecutorRequestTests
             });
 
         using var httpClient = new HttpClient();
-        var executor = new WorkflowExecutor(httpClient, new DynamicValueService());
+        var executor = new WorkflowExecutor(httpClient, new DynamicValueService(), TestStagePlugins.CreateRegistry());
 
         await executor.ExecuteAsync(
             document,

@@ -22,7 +22,7 @@ public sealed class WorkflowExecutorResilienceTests
         var document = BuildDocument(new WorkflowStageDefinition
         {
             Name = "call",
-            Kind = WorkflowStageKind.Endpoint,
+            Kind = WorkflowStageKinds.Endpoint,
             ApiRef = "accounts",
             Endpoint = "/api/accounts",
             HttpVerb = "GET",
@@ -44,6 +44,7 @@ public sealed class WorkflowExecutorResilienceTests
         var executor = new WorkflowExecutor(
             httpClient,
             new DynamicValueService(),
+            TestStagePlugins.CreateRegistry(),
             endpointInvoker: invoker,
             logger: logger);
 
@@ -87,7 +88,7 @@ public sealed class WorkflowExecutorResilienceTests
             new WorkflowStageDefinition
             {
                 Name = "first",
-                Kind = WorkflowStageKind.Endpoint,
+                Kind = WorkflowStageKinds.Endpoint,
                 ApiRef = "accounts",
                 Endpoint = "/api/accounts/first",
                 HttpVerb = "GET",
@@ -103,7 +104,7 @@ public sealed class WorkflowExecutorResilienceTests
             new WorkflowStageDefinition
             {
                 Name = "second",
-                Kind = WorkflowStageKind.Endpoint,
+                Kind = WorkflowStageKinds.Endpoint,
                 ApiRef = "accounts",
                 Endpoint = "/api/accounts/second",
                 HttpVerb = "GET",
@@ -134,6 +135,7 @@ public sealed class WorkflowExecutorResilienceTests
         var executor = new WorkflowExecutor(
             httpClient,
             new DynamicValueService(),
+            TestStagePlugins.CreateRegistry(),
             endpointInvoker: invoker,
             logger: logger);
 
@@ -182,7 +184,7 @@ public sealed class WorkflowExecutorResilienceTests
                 new()
                 {
                     Name = "call",
-                    Kind = WorkflowStageKind.Endpoint,
+                    Kind = WorkflowStageKinds.Endpoint,
                     ApiRef = "accounts",
                     Endpoint = "/api/accounts",
                     HttpVerb = "GET",
@@ -214,7 +216,7 @@ public sealed class WorkflowExecutorResilienceTests
             });
 
         using var httpClient = new HttpClient();
-        var executor = new WorkflowExecutor(httpClient, new DynamicValueService());
+        var executor = new WorkflowExecutor(httpClient, new DynamicValueService(), TestStagePlugins.CreateRegistry());
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => executor.ExecuteAsync(
             document,
@@ -273,7 +275,7 @@ public sealed class WorkflowExecutorResilienceTests
                 new()
                 {
                     Name = "first",
-                    Kind = WorkflowStageKind.Endpoint,
+                    Kind = WorkflowStageKinds.Endpoint,
                     ApiRef = "accounts",
                     Endpoint = "/api/accounts/first",
                     HttpVerb = "GET",
@@ -292,7 +294,7 @@ public sealed class WorkflowExecutorResilienceTests
                 new()
                 {
                     Name = "second",
-                    Kind = WorkflowStageKind.Endpoint,
+                    Kind = WorkflowStageKinds.Endpoint,
                     ApiRef = "accounts",
                     Endpoint = "/api/accounts/second",
                     HttpVerb = "GET",
@@ -328,7 +330,7 @@ public sealed class WorkflowExecutorResilienceTests
             });
 
         using var httpClient = new HttpClient();
-        var executor = new WorkflowExecutor(httpClient, new DynamicValueService());
+        var executor = new WorkflowExecutor(httpClient, new DynamicValueService(), TestStagePlugins.CreateRegistry());
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => executor.ExecuteAsync(
             document,

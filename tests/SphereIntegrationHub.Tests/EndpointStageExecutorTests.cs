@@ -36,7 +36,7 @@ public sealed class EndpointStageExecutorTests
         var stage = new WorkflowStageDefinition
         {
             Name = "create",
-            Kind = WorkflowStageKind.Endpoint,
+            Kind = WorkflowStageKinds.Endpoint,
             ApiRef = "api",
             Endpoint = "/path",
             HttpVerb = "GET",
@@ -101,7 +101,7 @@ public sealed class EndpointStageExecutorTests
         var stage = new WorkflowStageDefinition
         {
             Name = "create",
-            Kind = WorkflowStageKind.Endpoint,
+            Kind = WorkflowStageKinds.Endpoint,
             ApiRef = "api",
             Endpoint = "/path",
             HttpVerb = "GET",
@@ -162,7 +162,7 @@ public sealed class EndpointStageExecutorTests
         var stage = new WorkflowStageDefinition
         {
             Name = "mocked",
-            Kind = WorkflowStageKind.Endpoint,
+            Kind = WorkflowStageKinds.Endpoint,
             ApiRef = "api",
             Endpoint = "/path",
             HttpVerb = "GET",

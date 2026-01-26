@@ -51,7 +51,7 @@ public sealed class ApiSwaggerCacheService
                     $"Environment '{environment}' was not found for API definition '{definition.Name}' in catalog version '{catalogVersion.Version}'.");
             }
 
-            var swaggerUri = ResolveSwaggerUri(baseUrl, definition.SwaggerUrl);
+            var swaggerUri = ResolveSwaggerUri(baseUrl!, definition.SwaggerUrl);
             var cachePath = Path.Combine(cacheRoot, $"{definition.Name}.json");
             if (!refresh && File.Exists(cachePath))
             {

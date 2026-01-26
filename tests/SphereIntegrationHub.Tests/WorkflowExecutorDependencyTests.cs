@@ -23,6 +23,7 @@ public sealed class WorkflowExecutorDependencyTests
         var executor = new WorkflowExecutor(
             httpClient,
             dynamicValueService,
+            TestStagePlugins.CreateRegistry(),
             workflowLoader,
             varsFileLoader,
             templateResolver,

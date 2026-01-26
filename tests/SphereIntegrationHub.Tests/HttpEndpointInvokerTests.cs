@@ -23,7 +23,7 @@ public sealed class HttpEndpointInvokerTests
         var stage = new WorkflowStageDefinition
         {
             Name = "create-account",
-            Kind = WorkflowStageKind.Endpoint,
+            Kind = WorkflowStageKinds.Endpoint,
             Endpoint = "/api/accounts",
             HttpVerb = "POST",
             Headers = new Dictionary<string, string>

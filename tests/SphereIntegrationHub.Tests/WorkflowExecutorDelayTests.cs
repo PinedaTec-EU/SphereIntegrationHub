@@ -20,7 +20,7 @@ public sealed class WorkflowExecutorDelayTests
                 new()
                 {
                     Name = "delayed",
-                    Kind = WorkflowStageKind.Endpoint,
+                    Kind = WorkflowStageKinds.Endpoint,
                     ExpectedStatus = 200,
                     DelaySeconds = 1,
                     Mock = new WorkflowStageMockDefinition
@@ -43,7 +43,7 @@ public sealed class WorkflowExecutorDelayTests
             new List<ApiDefinition>());
 
         using var httpClient = new HttpClient();
-        var executor = new WorkflowExecutor(httpClient, new DynamicValueService());
+        var executor = new WorkflowExecutor(httpClient, new DynamicValueService(), TestStagePlugins.CreateRegistry());
 
         var stopwatch = Stopwatch.StartNew();
         await executor.ExecuteAsync(

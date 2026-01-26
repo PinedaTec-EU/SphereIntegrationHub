@@ -2,6 +2,7 @@ using System.Diagnostics;
 
 using SphereIntegrationHub.Definitions;
 using SphereIntegrationHub.Services;
+using SphereIntegrationHub.Services.Plugins;
 
 namespace SphereIntegrationHub.cli;
 
@@ -34,7 +35,8 @@ internal sealed class CliPipeline : ICliPipeline
     {
         var stopwatch = Stopwatch.StartNew();
         var messages = new List<CliRunMessage>();
-        var config = _configLoader.Load(parseResult.WorkflowPath);
+        var workflowPath = parseResult.WorkflowPath ?? string.Empty;
+        var config = _configLoader.Load(workflowPath);
         if (parseResult.Debug)
         {
             config.OpenTelemetry.DebugConsole = true;
@@ -59,7 +61,12 @@ internal sealed class CliPipeline : ICliPipeline
             return new CliRunResult(1, messages);
         }
 
-        if (!TryValidateWorkflow(parseResult, workflowDocument, workflowLoader, messages))
+        if (!TryLoadPlugins(config, messages, out var stagePlugins, out var stageValidators))
+        {
+            return new CliRunResult(1, messages);
+        }
+
+        if (!TryValidateWorkflow(parseResult, workflowDocument, workflowLoader, stagePlugins, stageValidators, messages))
         {
             return new CliRunResult(1, messages);
         }
@@ -86,7 +93,7 @@ internal sealed class CliPipeline : ICliPipeline
             return BuildDryRunResult(workflowDocument, workflowLoader, parseResult, stopwatch, messages);
         }
 
-        return await ExecuteWorkflowAsync(parseResult, workflowDocument, selectedVersion, varsOverrideActive, messages, cancellationToken);
+        return await ExecuteWorkflowAsync(parseResult, workflowDocument, selectedVersion, varsOverrideActive, stagePlugins, messages, cancellationToken);
     }
 
     private void EmitPreamble(InlineArguments parseResult, List<CliRunMessage> messages)
@@ -180,9 +187,11 @@ internal sealed class CliPipeline : ICliPipeline
         InlineArguments parseResult,
         WorkflowDocument workflowDocument,
         WorkflowLoader workflowLoader,
+        StagePluginRegistry stagePlugins,
+        StageValidatorRegistry stageValidators,
         List<CliRunMessage> messages)
     {
-        var validator = _serviceFactory.CreateWorkflowValidator(workflowLoader);
+        var validator = _serviceFactory.CreateWorkflowValidator(workflowLoader, stagePlugins, stageValidators);
         var validationErrors = validator.Validate(workflowDocument);
         if (validationErrors.Count > 0)
         {
@@ -201,6 +210,32 @@ internal sealed class CliPipeline : ICliPipeline
             AddInfo(messages, $"Stages: {workflowDocument.Definition.Stages?.Count ?? 0}.");
         }
 
+        return true;
+    }
+
+    private bool TryLoadPlugins(
+        WorkflowConfig config,
+        List<CliRunMessage> messages,
+        out StagePluginRegistry stagePlugins,
+        out StageValidatorRegistry stageValidators)
+    {
+        var catalog = BuiltInStagePlugins.CreateCatalog();
+        var validators = BuiltInStagePlugins.CreateValidators();
+        var builder = new StagePluginRegistryBuilder(catalog, validators, BuiltInStagePlugins.RequiredPluginIds);
+        if (!builder.TryBuild(config, out stagePlugins, out stageValidators, out var errors))
+        {
+            AddError(messages, "Plugin loading failed:");
+            foreach (var error in errors)
+            {
+                AddError(messages, $"- {error}");
+            }
+            return false;
+        }
+
+        var descriptions = stagePlugins.Plugins
+            .Select(plugin => $"{plugin.Id} [{string.Join(", ", plugin.StageKinds)}]")
+            .OrderBy(description => description, StringComparer.OrdinalIgnoreCase);
+        AddInfo(messages, $"Plugins loaded: {string.Join("; ", descriptions)}");
         return true;
     }
 
@@ -378,6 +413,7 @@ internal sealed class CliPipeline : ICliPipeline
         WorkflowDocument workflowDocument,
         ApiCatalogVersion selectedVersion,
         bool varsOverrideActive,
+        StagePluginRegistry stagePlugins,
         List<CliRunMessage> messages,
         CancellationToken cancellationToken)
     {
@@ -386,7 +422,7 @@ internal sealed class CliPipeline : ICliPipeline
             using var httpClient = _serviceFactory.CreateHttpClient();
             var systemTimeProvider = _serviceFactory.CreateSystemTimeProvider();
             var dynamicValueService = _serviceFactory.CreateDynamicValueService(systemTimeProvider);
-            var executor = _serviceFactory.CreateWorkflowExecutor(httpClient, dynamicValueService, systemTimeProvider);
+            var executor = _serviceFactory.CreateWorkflowExecutor(httpClient, dynamicValueService, systemTimeProvider, stagePlugins);
             var result = await executor.ExecuteAsync(
                 workflowDocument,
                 selectedVersion,

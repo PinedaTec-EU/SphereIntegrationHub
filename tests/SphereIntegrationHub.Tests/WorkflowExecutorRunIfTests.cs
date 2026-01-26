@@ -31,7 +31,7 @@ public sealed class WorkflowExecutorRunIfTests
         var catalogVersion = BuildCatalogVersion(server);
 
         using var httpClient = new HttpClient();
-        var executor = new WorkflowExecutor(httpClient, new DynamicValueService());
+        var executor = new WorkflowExecutor(httpClient, new DynamicValueService(), TestStagePlugins.CreateRegistry());
 
         await executor.ExecuteAsync(
             document,
@@ -69,7 +69,7 @@ public sealed class WorkflowExecutorRunIfTests
         var catalogVersion = BuildCatalogVersion(server);
 
         using var httpClient = new HttpClient();
-        var executor = new WorkflowExecutor(httpClient, new DynamicValueService());
+        var executor = new WorkflowExecutor(httpClient, new DynamicValueService(), TestStagePlugins.CreateRegistry());
 
         await executor.ExecuteAsync(
             document,
@@ -107,7 +107,7 @@ public sealed class WorkflowExecutorRunIfTests
         var catalogVersion = BuildCatalogVersion(server);
 
         using var httpClient = new HttpClient();
-        var executor = new WorkflowExecutor(httpClient, new DynamicValueService());
+        var executor = new WorkflowExecutor(httpClient, new DynamicValueService(), TestStagePlugins.CreateRegistry());
 
         await executor.ExecuteAsync(
             document,
@@ -145,7 +145,7 @@ public sealed class WorkflowExecutorRunIfTests
         var catalogVersion = BuildCatalogVersion(server);
 
         using var httpClient = new HttpClient();
-        var executor = new WorkflowExecutor(httpClient, new DynamicValueService());
+        var executor = new WorkflowExecutor(httpClient, new DynamicValueService(), TestStagePlugins.CreateRegistry());
 
         await executor.ExecuteAsync(
             document,
@@ -184,7 +184,7 @@ public sealed class WorkflowExecutorRunIfTests
                 new()
                 {
                     Name = "first",
-                    Kind = WorkflowStageKind.Endpoint,
+                    Kind = WorkflowStageKinds.Endpoint,
                     ApiRef = "accounts",
                     Endpoint = "/first",
                     HttpVerb = "GET",
@@ -193,7 +193,7 @@ public sealed class WorkflowExecutorRunIfTests
                 new()
                 {
                     Name = "second",
-                    Kind = WorkflowStageKind.Endpoint,
+                    Kind = WorkflowStageKinds.Endpoint,
                     ApiRef = "accounts",
                     Endpoint = "/second",
                     HttpVerb = "GET",

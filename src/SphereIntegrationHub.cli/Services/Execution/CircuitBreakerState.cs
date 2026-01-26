@@ -2,7 +2,7 @@ using System;
 
 namespace SphereIntegrationHub.Services;
 
-internal sealed class CircuitBreakerState
+public sealed class CircuitBreakerState
 {
     public int ConsecutiveFailures { get; set; }
     public int ConsecutiveSuccesses { get; set; }

@@ -1,5 +1,6 @@
 using SphereIntegrationHub.Services;
 using SphereIntegrationHub.Services.Interfaces;
+using SphereIntegrationHub.Services.Plugins;
 
 namespace SphereIntegrationHub.cli;
 
@@ -24,8 +25,11 @@ internal sealed class CliServiceFactory : ICliServiceFactory
 
     public VarsFileLoader CreateVarsFileLoader() => new();
 
-    public WorkflowValidator CreateWorkflowValidator(WorkflowLoader workflowLoader)
-        => new(workflowLoader);
+    public WorkflowValidator CreateWorkflowValidator(
+        WorkflowLoader workflowLoader,
+        StagePluginRegistry stagePlugins,
+        StageValidatorRegistry stageValidators)
+        => new(workflowLoader, stagePlugins, stageValidators);
 
     public ApiCatalogReader CreateApiCatalogReader() => new();
 
@@ -41,6 +45,7 @@ internal sealed class CliServiceFactory : ICliServiceFactory
     public WorkflowExecutor CreateWorkflowExecutor(
         HttpClient httpClient,
         DynamicValueService dynamicValueService,
-        ISystemTimeProvider systemTimeProvider)
-        => new(httpClient, dynamicValueService, systemProvider: systemTimeProvider, logger: _logger);
+        ISystemTimeProvider systemTimeProvider,
+        StagePluginRegistry stagePlugins)
+        => new(httpClient, dynamicValueService, stagePlugins, systemProvider: systemTimeProvider, logger: _logger);
 }

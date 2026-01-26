@@ -5,6 +5,12 @@ namespace SphereIntegrationHub.Tests;
 
 public sealed class WorkflowValidatorTests
 {
+    private static WorkflowValidator CreateValidator()
+    {
+        var registries = TestStagePlugins.CreateRegistries();
+        return new WorkflowValidator(new WorkflowLoader(), registries.Plugins, registries.Validators);
+    }
+
     [Fact]
     public void Validate_FlagsDuplicateInitVariables()
     {
@@ -24,7 +30,7 @@ public sealed class WorkflowValidatorTests
         };
 
         var document = new WorkflowDocument(definition, "/tmp/test.workflow", new Dictionary<string, string>());
-        var validator = new WorkflowValidator(new WorkflowLoader());
+        var validator = CreateValidator();
         var errors = validator.Validate(document);
 
         Assert.Contains(errors, e => e.Contains("Duplicate init-stage variable name", StringComparison.OrdinalIgnoreCase));
@@ -54,7 +60,7 @@ public sealed class WorkflowValidatorTests
         };
 
         var document = new WorkflowDocument(definition, "/tmp/test.workflow", new Dictionary<string, string>());
-        var validator = new WorkflowValidator(new WorkflowLoader());
+        var validator = CreateValidator();
         var errors = validator.Validate(document);
 
         Assert.Contains(errors, e => e.Contains("cannot define value with range settings", StringComparison.OrdinalIgnoreCase));
@@ -80,7 +86,7 @@ public sealed class WorkflowValidatorTests
                 new()
                 {
                     Name = "create",
-                    Kind = WorkflowStageKind.Endpoint,
+                    Kind = WorkflowStageKinds.Endpoint,
                     ApiRef = "accounts",
                     Endpoint = "/api/accounts",
                     HttpVerb = "POST",
@@ -101,7 +107,7 @@ public sealed class WorkflowValidatorTests
         };
 
         var document = new WorkflowDocument(definition, "/tmp/test.workflow", new Dictionary<string, string>());
-        var validator = new WorkflowValidator(new WorkflowLoader());
+        var validator = CreateValidator();
         var errors = validator.Validate(document);
 
         Assert.DoesNotContain(errors, e => e.Contains("stage:json", StringComparison.OrdinalIgnoreCase));
@@ -120,14 +126,14 @@ public sealed class WorkflowValidatorTests
                 new()
                 {
                     Name = "delayed",
-                    Kind = WorkflowStageKind.Endpoint,
+                    Kind = WorkflowStageKinds.Endpoint,
                     DelaySeconds = 61
                 }
             }
         };
 
         var document = new WorkflowDocument(definition, "/tmp/test.workflow", new Dictionary<string, string>());
-        var validator = new WorkflowValidator(new WorkflowLoader());
+        var validator = CreateValidator();
         var errors = validator.Validate(document);
 
         Assert.Contains(errors, e => e.Contains("delaySeconds", StringComparison.OrdinalIgnoreCase));
@@ -146,14 +152,14 @@ public sealed class WorkflowValidatorTests
                 new()
                 {
                     Name = "delayed",
-                    Kind = WorkflowStageKind.Workflow,
+                    Kind = WorkflowStageKinds.Workflow,
                     DelaySeconds = -1
                 }
             }
         };
 
         var document = new WorkflowDocument(definition, "/tmp/test.workflow", new Dictionary<string, string>());
-        var validator = new WorkflowValidator(new WorkflowLoader());
+        var validator = CreateValidator();
         var errors = validator.Validate(document);
 
         Assert.Contains(errors, e => e.Contains("delaySeconds", StringComparison.OrdinalIgnoreCase));
@@ -172,7 +178,7 @@ public sealed class WorkflowValidatorTests
                 new()
                 {
                     Name = "child",
-                    Kind = WorkflowStageKind.Workflow,
+                    Kind = WorkflowStageKinds.Workflow,
                     Retry = new WorkflowStageRetryDefinition
                     {
                         MaxRetries = 1,
@@ -189,7 +195,7 @@ public sealed class WorkflowValidatorTests
         };
 
         var document = new WorkflowDocument(definition, "/tmp/test.workflow", new Dictionary<string, string>());
-        var validator = new WorkflowValidator(new WorkflowLoader());
+        var validator = CreateValidator();
         var errors = validator.Validate(document);
 
         Assert.Contains(errors, e => e.Contains("retry is only supported for endpoint stages", StringComparison.OrdinalIgnoreCase));
@@ -227,7 +233,7 @@ public sealed class WorkflowValidatorTests
                 new()
                 {
                     Name = "create",
-                    Kind = WorkflowStageKind.Endpoint,
+                    Kind = WorkflowStageKinds.Endpoint,
                     ApiRef = "accounts",
                     Endpoint = "/api/accounts",
                     HttpVerb = "POST",
@@ -241,7 +247,7 @@ public sealed class WorkflowValidatorTests
         };
 
         var document = new WorkflowDocument(definition, "/tmp/test.workflow", new Dictionary<string, string>());
-        var validator = new WorkflowValidator(new WorkflowLoader());
+        var validator = CreateValidator();
         var errors = validator.Validate(document);
 
         Assert.Contains(errors, e => e.Contains("circuitBreaker requires retry", StringComparison.OrdinalIgnoreCase));
@@ -279,7 +285,7 @@ public sealed class WorkflowValidatorTests
                 new()
                 {
                     Name = "create",
-                    Kind = WorkflowStageKind.Endpoint,
+                    Kind = WorkflowStageKinds.Endpoint,
                     ApiRef = "accounts",
                     Endpoint = "/api/accounts",
                     HttpVerb = "POST",
@@ -299,7 +305,7 @@ public sealed class WorkflowValidatorTests
         };
 
         var document = new WorkflowDocument(definition, "/tmp/test.workflow", new Dictionary<string, string>());
-        var validator = new WorkflowValidator(new WorkflowLoader());
+        var validator = CreateValidator();
         var errors = validator.Validate(document);
 
         Assert.Contains(errors, e => e.Contains("closeOnSuccessAttempts", StringComparison.OrdinalIgnoreCase));
@@ -324,7 +330,7 @@ public sealed class WorkflowValidatorTests
         };
 
         var document = new WorkflowDocument(definition, "/tmp/test.workflow", new Dictionary<string, string>());
-        var validator = new WorkflowValidator(new WorkflowLoader());
+        var validator = CreateValidator();
         var errors = validator.Validate(document);
 
         Assert.Contains(errors, e => e.Contains("Duplicate reference name", StringComparison.OrdinalIgnoreCase));
@@ -343,7 +349,7 @@ public sealed class WorkflowValidatorTests
                 new()
                 {
                     Name = "stage",
-                    Kind = WorkflowStageKind.Endpoint,
+                    Kind = WorkflowStageKinds.Endpoint,
                     ApiRef = "missing",
                     Endpoint = "/endpoint",
                     HttpVerb = "GET",
@@ -353,7 +359,7 @@ public sealed class WorkflowValidatorTests
         };
 
         var document = new WorkflowDocument(definition, "/tmp/test.workflow", new Dictionary<string, string>());
-        var validator = new WorkflowValidator(new WorkflowLoader());
+        var validator = CreateValidator();
         var errors = validator.Validate(document);
 
         Assert.Contains(errors, e => e.Contains("apiRef", StringComparison.OrdinalIgnoreCase));

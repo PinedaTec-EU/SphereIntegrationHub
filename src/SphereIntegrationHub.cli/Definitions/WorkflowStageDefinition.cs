@@ -3,7 +3,7 @@ namespace SphereIntegrationHub.Definitions;
 public sealed class WorkflowStageDefinition
 {
     public string Name { get; set; } = string.Empty;
-    public WorkflowStageKind Kind { get; set; }
+    public string Kind { get; set; } = WorkflowStageKinds.Endpoint;
     public string? ApiRef { get; set; }
     public string? Endpoint { get; set; }
     public string? HttpVerb { get; set; }

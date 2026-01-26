@@ -4,7 +4,7 @@ using System;
 
 namespace SphereIntegrationHub.Services;
 
-internal sealed class StageMessageEmitter
+public sealed class StageMessageEmitter
 {
     private readonly TemplateResolver _templateResolver;
     private readonly IExecutionLogger _logger;

@@ -1,3 +1,5 @@
+using System;
+
 using SphereIntegrationHub.Definitions;
 
 namespace SphereIntegrationHub.Services;
@@ -32,7 +34,8 @@ public sealed class WorkflowPlanner
             foreach (var stage in definition.Stages)
             {
                 WorkflowPlan? nestedPlan = null;
-                if (stage.Kind == WorkflowStageKind.Workflow && !string.IsNullOrWhiteSpace(stage.WorkflowRef))
+                if (string.Equals(stage.Kind, WorkflowStageKinds.Workflow, StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(stage.WorkflowRef))
                 {
                     if (workflowRefs.TryGetValue(stage.WorkflowRef, out var referencePath))
                     {
@@ -135,7 +138,7 @@ public sealed record WorkflowPlan(
 
 public sealed record WorkflowStagePlan(
     string Name,
-    WorkflowStageKind Kind,
+    string Kind,
     string? ApiRef,
     string? Endpoint,
     string? HttpVerb,

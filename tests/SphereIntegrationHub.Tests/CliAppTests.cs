@@ -1,6 +1,7 @@
 using SphereIntegrationHub.cli;
 using SphereIntegrationHub.Services;
 using SphereIntegrationHub.Services.Interfaces;
+using SphereIntegrationHub.Services.Plugins;
 
 namespace SphereIntegrationHub.Tests;
 
@@ -95,12 +96,20 @@ public sealed class CliAppTests
         public DynamicValueService CreateDynamicValueService(ISystemTimeProvider systemTimeProvider) => throw new InvalidOperationException("Unexpected factory call");
         public WorkflowLoader CreateWorkflowLoader() => throw new InvalidOperationException("Unexpected factory call");
         public VarsFileLoader CreateVarsFileLoader() => throw new InvalidOperationException("Unexpected factory call");
-        public WorkflowValidator CreateWorkflowValidator(WorkflowLoader workflowLoader) => throw new InvalidOperationException("Unexpected factory call");
+        public WorkflowValidator CreateWorkflowValidator(
+            WorkflowLoader workflowLoader,
+            StagePluginRegistry stagePlugins,
+            StageValidatorRegistry stageValidators)
+            => throw new InvalidOperationException("Unexpected factory call");
         public ApiCatalogReader CreateApiCatalogReader() => throw new InvalidOperationException("Unexpected factory call");
         public ApiSwaggerCacheService CreateApiSwaggerCacheService(HttpClient httpClient) => throw new InvalidOperationException("Unexpected factory call");
         public ApiEndpointValidator CreateApiEndpointValidator() => throw new InvalidOperationException("Unexpected factory call");
         public WorkflowPlanner CreateWorkflowPlanner(WorkflowLoader workflowLoader) => throw new InvalidOperationException("Unexpected factory call");
-        public WorkflowExecutor CreateWorkflowExecutor(HttpClient httpClient, DynamicValueService dynamicValueService, ISystemTimeProvider systemTimeProvider)
+        public WorkflowExecutor CreateWorkflowExecutor(
+            HttpClient httpClient,
+            DynamicValueService dynamicValueService,
+            ISystemTimeProvider systemTimeProvider,
+            StagePluginRegistry stagePlugins)
             => throw new InvalidOperationException("Unexpected factory call");
     }
 }
