@@ -138,24 +138,6 @@ SphereIntegrationHub.cli \
   --envfile ./workflows/.env
 ```
 
-## Testing
-
-Run unit tests:
-
-```bash
-dotnet test test/SphereIntegrationHub.Tests/SphereIntegrationHub.Tests.csproj
-```
-
-Run with coverage (line coverage threshold 85%):
-
-```bash
-dotnet test test/SphereIntegrationHub.Tests/SphereIntegrationHub.Tests.csproj \
-  /p:CollectCoverage=true \
-  /p:CoverletOutputFormat=cobertura \
-  /p:Threshold=85 \
-  /p:ThresholdType=line
-```
-
 ### Key Advantages of SphereIntegrationHub
 
 #### 🎯 1. Modular Workflow Composition
