@@ -138,24 +138,6 @@ SphereIntegrationHub.cli \
   --envfile ./workflows/.env
 ```
 
-## Testing
-
-Run unit tests:
-
-```bash
-dotnet test test/SphereIntegrationHub.Tests/SphereIntegrationHub.Tests.csproj
-```
-
-Run with coverage (line coverage threshold 85%):
-
-```bash
-dotnet test test/SphereIntegrationHub.Tests/SphereIntegrationHub.Tests.csproj \
-  /p:CollectCoverage=true \
-  /p:CoverletOutputFormat=cobertura \
-  /p:Threshold=85 \
-  /p:ThresholdType=line
-```
-
 ### Key Advantages of SphereIntegrationHub
 
 #### 🎯 1. Modular Workflow Composition
@@ -281,7 +263,7 @@ Unlike Postman (cloud sync required) or Apidog (account-based), SphereIntegratio
 
 ### Future Enhancements
 
-The following features are planned for future releases:
+The following features are planned for future releases (not in order):
 
 1. **Visual Workflow Editor** - Web-based drag-and-drop workflow builder (n8n-style) for designing complex orchestrations visually
 2. **GUI/Dashboard** - Optional web interface for visualizing workflow executions and results
@@ -289,3 +271,4 @@ The following features are planned for future releases:
 5. **Secret Manager Integration** - AWS Secrets Manager, Azure Key Vault, HashiCorp Vault support
 6. **Transformers/Plugins** - Load .NET assemblies with custom workflow stages for mapping and transformation
 8. **Snapshot Testing** - Compare workflow outputs against expected snapshots
+9. MCP integration exposing SphereIntegrationHub’s API catalog and workflows as real‑time context for AI coding assistants.
