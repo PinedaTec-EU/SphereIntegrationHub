@@ -12,6 +12,8 @@ Documentation:
 - [`variables and context`](.doc/variables.md)
 - [`dry-run validation`](.doc/dry-run.md)
 - [`open telemetry`](.doc/telemetry.md)
+- [`MCP Server`](.doc/mcp-server.md) - 🚧 AI-assisted workflow creation (in development)
+- [`plugins`](.doc/plugins.md)
 
 ## Catalog
 
@@ -271,4 +273,4 @@ The following features are planned for future releases (not in order):
 5. **Secret Manager Integration** - AWS Secrets Manager, Azure Key Vault, HashiCorp Vault support
 6. **Transformers/Plugins** - Load .NET assemblies with custom workflow stages for mapping and transformation
 8. **Snapshot Testing** - Compare workflow outputs against expected snapshots
-9. MCP integration exposing SphereIntegrationHub’s API catalog and workflows as real‑time context for AI coding assistants.
+9. **MCP Integration** - Model Context Protocol server exposing SphereIntegrationHub's API catalog and workflows as real‑time context for AI coding assistants (Claude, GitHub Copilot, etc.). See [MCP Server documentation](.doc/mcp-server.md) for details. 🚧 **In Development**
