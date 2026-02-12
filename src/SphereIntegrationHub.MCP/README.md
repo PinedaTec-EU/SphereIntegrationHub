@@ -64,40 +64,54 @@ McpServer (stdio JSON-RPC)
 - `get_plugin_capabilities` - Lists stage types & features
 - `suggest_resilience_config` - Suggests retry/timeout config
 
-## Usage
+## Quick Start
 
-### Running the Server
+Follow these steps to build the MCP server and connect it to your AI assistant.
+
+### Prerequisites
+
+- [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0) or higher
+
+### Step 1: Clone and Build
 
 ```bash
-# Set project root (optional, defaults to current directory)
-export SIH_PROJECT_ROOT=/path/to/SphereIntegrationHub
-
-# Start the MCP server
-dotnet run --project src/SphereIntegrationHub.MCP
+git clone https://github.com/PinedaTec-EU/SphereIntegrationHub.git
+cd SphereIntegrationHub
+dotnet build src/SphereIntegrationHub.MCP
 ```
 
-The server communicates via JSON-RPC 2.0 over stdio.
+### Step 2: Configure your AI agent
 
-### Example Tool Call
+The MCP server uses **stdio** (JSON-RPC 2.0 over standard input/output). Every AI agent that supports MCP uses roughly the same idea: you tell it *what command to run* and *what environment variables to pass*. See below for specific examples.
 
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "tools/call",
-  "params": {
-    "name": "get_api_endpoints",
-    "arguments": {
-      "version": "3.10",
-      "apiName": "accounts"
-    }
-  }
-}
-```
+> **Key variable:** `SIH_PROJECT_ROOT` must point to the repository root so the server can locate API catalogs, cached Swagger specs, and workflow files.
 
-### Integration with Claude Desktop
+### Step 3: Restart / reload the agent
 
-Add to Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+After saving the configuration, restart or reload your AI agent. On startup the agent will:
+
+1. Launch the MCP server process
+2. Connect via stdio
+3. Discover the 26 available tools (`tools/list`)
+4. Incorporate them as native tools
+
+### Step 4: Start talking
+
+No special syntax needed. Just ask naturally:
+
+> *"What APIs are available in version 3.11?"*
+> *"Generate a workflow to create an account with payment"*
+> *"Validate this workflow and tell me what's wrong"*
+
+The agent decides which MCP tools to call on your behalf.
+
+---
+
+## Configuration Examples
+
+### Claude Code (VS Code extension / CLI)
+
+Create a `.mcp.json` file at the **repository root**:
 
 ```json
 {
@@ -107,15 +121,125 @@ Add to Claude Desktop config (`~/Library/Application Support/Claude/claude_deskt
       "args": [
         "run",
         "--project",
-        "/path/to/SphereIntegrationHub/src/SphereIntegrationHub.MCP"
+        "src/SphereIntegrationHub.MCP"
       ],
       "env": {
-        "SIH_PROJECT_ROOT": "/path/to/SphereIntegrationHub"
+        "SIH_PROJECT_ROOT": "."
       }
     }
   }
 }
 ```
+
+Or register it via CLI:
+
+```bash
+claude mcp add sphere-integration-hub \
+  --command "dotnet" \
+  --args "run,--project,src/SphereIntegrationHub.MCP" \
+  --env "SIH_PROJECT_ROOT=."
+```
+
+### GitHub Copilot (VS Code)
+
+Create `.vscode/mcp.json` in the repository:
+
+```json
+{
+  "servers": {
+    "sphere-integration-hub": {
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "${workspaceFolder}/src/SphereIntegrationHub.MCP"
+      ],
+      "env": {
+        "SIH_PROJECT_ROOT": "${workspaceFolder}"
+      }
+    }
+  }
+}
+```
+
+Then open **Copilot Chat** (agent mode) and the tools will be available automatically.
+
+### ChatGPT Desktop
+
+Open **Settings > MCP Servers > Add Server** and fill in:
+
+| Field | Value |
+|-------|-------|
+| Name | `sphere-integration-hub` |
+| Command | `dotnet` |
+| Arguments | `run --project /absolute/path/to/SphereIntegrationHub/src/SphereIntegrationHub.MCP` |
+| Environment | `SIH_PROJECT_ROOT=/absolute/path/to/SphereIntegrationHub` |
+
+> ChatGPT Desktop requires **absolute paths** since it doesn't have a workspace concept.
+
+### Claude Desktop
+
+Edit the config file:
+
+- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "sphere-integration-hub": {
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "/absolute/path/to/SphereIntegrationHub/src/SphereIntegrationHub.MCP"
+      ],
+      "env": {
+        "SIH_PROJECT_ROOT": "/absolute/path/to/SphereIntegrationHub"
+      }
+    }
+  }
+}
+```
+
+### Cursor IDE
+
+Open **Settings > MCP** and add a new server with this JSON:
+
+```json
+{
+  "sphere-integration-hub": {
+    "command": "dotnet",
+    "args": [
+      "run",
+      "--project",
+      "/absolute/path/to/SphereIntegrationHub/src/SphereIntegrationHub.MCP"
+    ],
+    "env": {
+      "SIH_PROJECT_ROOT": "/absolute/path/to/SphereIntegrationHub"
+    }
+  }
+}
+```
+
+---
+
+## Verifying the Setup
+
+Once the agent is running with the MCP connected, ask it:
+
+> *"List the available API catalog versions"*
+
+If the server is working, the agent will call `list_api_catalog_versions` and return the available versions (e.g., `3.10`, `3.11`). If something is wrong, the agent will show the connection error.
+
+You can also test the server manually from the terminal:
+
+```bash
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | \
+  SIH_PROJECT_ROOT=. dotnet run --project src/SphereIntegrationHub.MCP
+```
+
+This should print a JSON response listing all 26 tools.
 
 ## Dependencies
 
