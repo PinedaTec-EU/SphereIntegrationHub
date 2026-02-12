@@ -66,13 +66,11 @@ McpServer (stdio JSON-RPC)
 
 ## Quick Start
 
-Follow these steps to build the MCP server and connect it to your AI assistant.
-
 ### Prerequisites
 
 - [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0) or higher
 
-### Step 1: Clone and Build
+### Step 1: Clone and build
 
 ```bash
 git clone https://github.com/PinedaTec-EU/SphereIntegrationHub.git
@@ -80,22 +78,20 @@ cd SphereIntegrationHub
 dotnet build src/SphereIntegrationHub.MCP
 ```
 
-### Step 2: Configure your AI agent
+### Step 2: Open the project in your IDE and the MCP is ready
 
-The MCP server uses **stdio** (JSON-RPC 2.0 over standard input/output). Every AI agent that supports MCP uses roughly the same idea: you tell it *what command to run* and *what environment variables to pass*. See below for specific examples.
+The repository includes **pre-configured MCP files** for the most common AI agents. No manual configuration needed:
 
-> **Key variable:** `SIH_PROJECT_ROOT` must point to the repository root so the server can locate API catalogs, cached Swagger specs, and workflow files.
+| Agent | Config file (included) | Action needed |
+|-------|----------------------|---------------|
+| **Claude Code** | `.mcp.json` | Open project, reload Claude Code |
+| **GitHub Copilot** | `.vscode/mcp.json` | Open project in VS Code, open Copilot Chat in Agent mode |
+| **Cursor** | `.cursor/mcp.json` | Open project in Cursor |
+| **Codex (OpenAI)** | `.codex/config.toml` | Open project with Codex CLI (project must be trusted) |
 
-### Step 3: Restart / reload the agent
+Just build the solution and open the project in your IDE. The MCP server will be discovered automatically.
 
-After saving the configuration, restart or reload your AI agent. On startup the agent will:
-
-1. Launch the MCP server process
-2. Connect via stdio
-3. Discover the 26 available tools (`tools/list`)
-4. Incorporate them as native tools
-
-### Step 4: Start talking
+### Step 3: Start talking
 
 No special syntax needed. Just ask naturally:
 
@@ -107,62 +103,33 @@ The agent decides which MCP tools to call on your behalf.
 
 ---
 
-## Configuration Examples
+## Pre-included Configuration Files
 
-### Claude Code (VS Code extension / CLI)
+The following MCP configuration files are included in the repository and work out of the box after building:
 
-Create a `.mcp.json` file at the **repository root**:
+### `.mcp.json` (Claude Code)
 
-```json
-{
-  "mcpServers": {
-    "sphere-integration-hub": {
-      "command": "dotnet",
-      "args": [
-        "run",
-        "--project",
-        "src/SphereIntegrationHub.MCP"
-      ],
-      "env": {
-        "SIH_PROJECT_ROOT": "."
-      }
-    }
-  }
-}
-```
+Used by Claude Code (VS Code extension and CLI). Detected automatically when you open the project.
 
-Or register it via CLI:
+### `.vscode/mcp.json` (GitHub Copilot)
 
-```bash
-claude mcp add sphere-integration-hub \
-  --command "dotnet" \
-  --args "run,--project,src/SphereIntegrationHub.MCP" \
-  --env "SIH_PROJECT_ROOT=."
-```
+Used by GitHub Copilot Chat in Agent mode. Detected automatically when you open the project in VS Code.
 
-### GitHub Copilot (VS Code)
+### `.cursor/mcp.json` (Cursor)
 
-Create `.vscode/mcp.json` in the repository:
+Used by Cursor IDE. Detected automatically when you open the project in Cursor.
 
-```json
-{
-  "servers": {
-    "sphere-integration-hub": {
-      "command": "dotnet",
-      "args": [
-        "run",
-        "--project",
-        "${workspaceFolder}/src/SphereIntegrationHub.MCP"
-      ],
-      "env": {
-        "SIH_PROJECT_ROOT": "${workspaceFolder}"
-      }
-    }
-  }
-}
-```
+### `.codex/config.toml` (OpenAI Codex)
 
-Then open **Copilot Chat** (agent mode) and the tools will be available automatically.
+Used by Codex CLI and IDE extension. Detected automatically when the project is trusted. Uses TOML format instead of JSON.
+
+> All four files use relative paths, so they work regardless of where you clone the repository.
+
+---
+
+## Desktop Apps (manual configuration required)
+
+Desktop apps don't have a workspace concept, so they require **absolute paths** and manual setup.
 
 ### ChatGPT Desktop
 
@@ -174,8 +141,6 @@ Open **Settings > MCP Servers > Add Server** and fill in:
 | Command | `dotnet` |
 | Arguments | `run --project /absolute/path/to/SphereIntegrationHub/src/SphereIntegrationHub.MCP` |
 | Environment | `SIH_PROJECT_ROOT=/absolute/path/to/SphereIntegrationHub` |
-
-> ChatGPT Desktop requires **absolute paths** since it doesn't have a workspace concept.
 
 ### Claude Desktop
 
@@ -197,26 +162,6 @@ Edit the config file:
       "env": {
         "SIH_PROJECT_ROOT": "/absolute/path/to/SphereIntegrationHub"
       }
-    }
-  }
-}
-```
-
-### Cursor IDE
-
-Open **Settings > MCP** and add a new server with this JSON:
-
-```json
-{
-  "sphere-integration-hub": {
-    "command": "dotnet",
-    "args": [
-      "run",
-      "--project",
-      "/absolute/path/to/SphereIntegrationHub/src/SphereIntegrationHub.MCP"
-    ],
-    "env": {
-      "SIH_PROJECT_ROOT": "/absolute/path/to/SphereIntegrationHub"
     }
   }
 }

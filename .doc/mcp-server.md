@@ -1375,21 +1375,24 @@ dotnet build src/SphereIntegrationHub.MCP
 
 This compiles the MCP server. No Docker, no installers, no extra dependencies.
 
-### Step 2 - Register the MCP server in your AI agent
+### Step 2 - Open the project and the MCP is ready
 
-Every MCP-compatible agent has a place where you declare: *"launch this command as an MCP server"*. The three pieces of information are always the same:
+The repository includes **pre-configured MCP files** for the most common AI agents. No manual configuration needed for these:
 
-| What | Value |
-|------|-------|
-| **Command** | `dotnet` |
-| **Arguments** | `run --project <path>/src/SphereIntegrationHub.MCP` |
-| **Environment** | `SIH_PROJECT_ROOT=<path>` (repository root) |
+| Agent | Config file (included) | Action needed |
+|-------|----------------------|---------------|
+| **Claude Code** | `.mcp.json` | Open project, reload Claude Code |
+| **GitHub Copilot** | `.vscode/mcp.json` | Open project in VS Code, open Copilot Chat in Agent mode |
+| **Cursor** | `.cursor/mcp.json` | Open project in Cursor |
+| **Codex (OpenAI)** | `.codex/config.toml` | Open project with Codex CLI (project must be trusted) |
 
-See [Configuration Examples](#configuration-examples) below for the exact format for each agent.
+All four files use relative paths, so they work regardless of where you clone the repository.
+
+> For **desktop apps** (Claude Desktop, ChatGPT Desktop) manual configuration with absolute paths is needed. See [Configuration Examples](#configuration-examples).
 
 ### Step 3 - Restart or reload the agent
 
-After saving the configuration, restart or reload the agent so it discovers the new server. On startup the agent will:
+After opening the project (or saving manual configuration), restart or reload the agent so it discovers the new server. On startup the agent will:
 
 1. **Launch** the MCP server process (`dotnet run ...`)
 2. **Connect** via stdio (JSON-RPC 2.0 over stdin/stdout)
@@ -1428,76 +1431,91 @@ You ◄──────── "Here's your validated workflow:" ────�
 
 ## Configuration Examples
 
-### Claude Code (VS Code extension / CLI)
+### Pre-included configs (no setup needed)
 
-Create a `.mcp.json` file at the **repository root**:
+These configuration files are **already included in the repository**. Just build and open the project.
+
+#### `.mcp.json` — Claude Code (VS Code extension / CLI)
 
 ```json
 {
   "mcpServers": {
     "sphere-integration-hub": {
       "command": "dotnet",
-      "args": [
-        "run",
-        "--project",
-        "src/SphereIntegrationHub.MCP"
-      ],
-      "env": {
-        "SIH_PROJECT_ROOT": "."
-      }
+      "args": ["run", "--project", "src/SphereIntegrationHub.MCP"],
+      "env": { "SIH_PROJECT_ROOT": "." }
     }
   }
 }
 ```
 
-Or register it via the Claude Code CLI:
-
-```bash
-claude mcp add sphere-integration-hub \
-  --command "dotnet" \
-  --args "run,--project,src/SphereIntegrationHub.MCP" \
-  --env "SIH_PROJECT_ROOT=."
-```
-
-**Usage:**
-1. Open the SphereIntegrationHub project in VS Code
-2. Open the Claude Code panel (or use the CLI)
+1. Open the SphereIntegrationHub project in VS Code (or use the CLI from the repo root)
+2. Claude Code detects `.mcp.json` automatically
 3. Ask: *"Generate a workflow for user registration"*
-4. Claude uses MCP tools automatically and shows the result in the editor
 
 ---
 
-### GitHub Copilot (VS Code)
-
-Create `.vscode/mcp.json` in the repository:
+#### `.vscode/mcp.json` — GitHub Copilot
 
 ```json
 {
   "servers": {
     "sphere-integration-hub": {
+      "type": "stdio",
       "command": "dotnet",
-      "args": [
-        "run",
-        "--project",
-        "${workspaceFolder}/src/SphereIntegrationHub.MCP"
-      ],
-      "env": {
-        "SIH_PROJECT_ROOT": "${workspaceFolder}"
-      }
+      "args": ["run", "--project", "${workspaceFolder}/src/SphereIntegrationHub.MCP"],
+      "env": { "SIH_PROJECT_ROOT": "${workspaceFolder}" }
     }
   }
 }
 ```
 
-**Usage:**
 1. Open the project in VS Code
 2. Open **Copilot Chat** and switch to **Agent mode**
 3. The MCP tools appear alongside Copilot's built-in tools
-4. Ask naturally and Copilot will invoke the MCP tools when relevant
 
 ---
 
-### ChatGPT Desktop
+#### `.cursor/mcp.json` — Cursor IDE
+
+```json
+{
+  "mcpServers": {
+    "sphere-integration-hub": {
+      "command": "dotnet",
+      "args": ["run", "--project", "src/SphereIntegrationHub.MCP"],
+      "env": { "SIH_PROJECT_ROOT": "." }
+    }
+  }
+}
+```
+
+1. Open the project in Cursor
+2. The MCP server is detected from `.cursor/mcp.json`
+
+---
+
+#### `.codex/config.toml` — OpenAI Codex
+
+```toml
+[mcp_servers.sphere-integration-hub]
+command = "dotnet"
+args = ["run", "--project", "src/SphereIntegrationHub.MCP"]
+
+[mcp_servers.sphere-integration-hub.env]
+SIH_PROJECT_ROOT = "."
+```
+
+1. Open the project with `codex` CLI (the project must be **trusted**)
+2. Codex detects `.codex/config.toml` automatically
+
+---
+
+### Desktop apps (manual setup required)
+
+Desktop apps don't have a workspace concept, so they need **absolute paths** and manual configuration.
+
+#### ChatGPT Desktop
 
 Open **Settings > MCP Servers > Add Server** and fill in:
 
@@ -1508,17 +1526,9 @@ Open **Settings > MCP Servers > Add Server** and fill in:
 | Arguments | `run --project /absolute/path/to/SphereIntegrationHub/src/SphereIntegrationHub.MCP` |
 | Environment | `SIH_PROJECT_ROOT=/absolute/path/to/SphereIntegrationHub` |
 
-> ChatGPT Desktop requires **absolute paths** because it does not have a workspace concept.
-
-**Usage:**
-1. Open ChatGPT Desktop
-2. The MCP tools are visible in the tools panel
-3. Ask: *"What endpoints does the accounts API have?"*
-4. ChatGPT calls the MCP server and returns the answer
-
 ---
 
-### Claude Desktop
+#### Claude Desktop
 
 Edit the config file:
 
@@ -1538,34 +1548,6 @@ Edit the config file:
       "env": {
         "SIH_PROJECT_ROOT": "/absolute/path/to/SphereIntegrationHub"
       }
-    }
-  }
-}
-```
-
-**Usage:**
-1. Restart Claude Desktop
-2. Start a conversation: *"Help me create a workflow to onboard users"*
-3. Claude automatically uses MCP tools when needed
-4. Tool calls are shown in the UI for transparency
-
----
-
-### Cursor IDE
-
-Open **Settings > MCP** and add a new server:
-
-```json
-{
-  "sphere-integration-hub": {
-    "command": "dotnet",
-    "args": [
-      "run",
-      "--project",
-      "/absolute/path/to/SphereIntegrationHub/src/SphereIntegrationHub.MCP"
-    ],
-    "env": {
-      "SIH_PROJECT_ROOT": "/absolute/path/to/SphereIntegrationHub"
     }
   }
 }

@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "sphere-integration-hub": {
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "src/SphereIntegrationHub.MCP"
+      ],
+      "env": {
+        "SIH_PROJECT_ROOT": "."
+      }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+[mcp_servers.sphere-integration-hub]
+command = "dotnet"
+args = ["run", "--project", "src/SphereIntegrationHub.MCP"]
+
+[mcp_servers.sphere-integration-hub.env]
+SIH_PROJECT_ROOT = "."
