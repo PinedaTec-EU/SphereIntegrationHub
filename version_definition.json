@@ -1,7 +1,7 @@
 {
   "nuspecFile": ".nuspec",
   "nuspecTemplate": "package_en.template",
-  "currentVersion": "0.3.1.26",
+  "currentVersion": "0.3.1.27",
   "versionIncrease": "0.0.0.1",
   "solutionFile": "SphereIntegrationHub.slnx",
   "createNuspec": false,
