@@ -1,5 +1,7 @@
 # MCP Server for SphereIntegrationHub
 
+> Update (2026-02-14): MCP now supports configurable paths (`SIH_API_CATALOG_PATH`, `SIH_CACHE_PATH`, `SIH_WORKFLOWS_PATH`), inline YAML validation/planning, and no-cache generation fallback using `endpointSchema`. For exact current tool contracts, see `src/SphereIntegrationHub.MCP/TOOLS_REFERENCE.md`.
+
 ## Table of Contents
 - [Vision and Goals](#vision-and-goals)
 - [What is MCP?](#what-is-mcp)

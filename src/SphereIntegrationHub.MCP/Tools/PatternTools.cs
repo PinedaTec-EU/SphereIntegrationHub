@@ -247,13 +247,19 @@ public sealed class GenerateCrudWorkflowTool : IMcpTool
         List<string> operations,
         List<EndpointInfo> allEndpoints)
     {
-        var yaml = $@"name: {workflowName}
-version: 1.0
+        var yaml = $@"version: 3.11
+id: {Guid.NewGuid():N}
+name: {workflowName}
 description: CRUD operations for {resource}
+output: true
+references:
+  apis:
+    - name: ""{allEndpoints.First().ApiName}""
+      definition: ""{allEndpoints.First().ApiName}""
 
 input:
-  - name: apiKey
-    type: string
+  - name: username
+    type: Text
     required: true
 ";
 
@@ -261,7 +267,7 @@ input:
         if (operations.Contains("create") || operations.Contains("update"))
         {
             yaml += $@"  - name: {resource}Data
-    type: object
+    type: Text
     required: true
 ";
         }
@@ -269,14 +275,12 @@ input:
         if (operations.Contains("read") || operations.Contains("update") || operations.Contains("delete"))
         {
             yaml += $@"  - name: {pattern.IdParameter}
-    type: {pattern.IdType}
+    type: Text
     required: true
 ";
         }
 
         yaml += "\nstages:\n";
-
-        var stageNum = 1;
 
         // Generate stages for each operation
         if (operations.Contains("list"))
@@ -288,16 +292,16 @@ input:
                 var endpoint = parts.Length > 1 ? parts[1] : "";
 
                 yaml += $@"  - name: list_{resource}
-    type: api
-    api: {allEndpoints.First().ApiName}
+    kind: Endpoint
+    apiRef: {allEndpoints.First().ApiName}
     endpoint: {endpoint}
-    verb: {verb}
+    httpVerb: {verb}
+    expectedStatus: 200
     output:
-      save: true
-      context: listResult
+      dto: ""{{{{response.body}}}}""
+      http_status: ""{{{{response.status}}}}""
 
 ";
-                stageNum++;
             }
         }
 
@@ -310,18 +314,20 @@ input:
                 var endpoint = parts.Length > 1 ? parts[1] : "";
 
                 yaml += $@"  - name: create_{resource}
-    type: api
-    api: {allEndpoints.First().ApiName}
+    kind: Endpoint
+    apiRef: {allEndpoints.First().ApiName}
     endpoint: {endpoint}
-    verb: {verb}
-    body:
-      data: ""{{{{ input.{resource}Data }}}}""
+    httpVerb: {verb}
+    expectedStatus: 201
+    body: |
+      {{{{
+        ""data"": ""{{{{input.{resource}Data}}}}""
+      }}}}
     output:
-      save: true
-      context: createdResult
+      dto: ""{{{{response.body}}}}""
+      http_status: ""{{{{response.status}}}}""
 
 ";
-                stageNum++;
             }
         }
 
@@ -332,20 +338,19 @@ input:
                 var parts = readEndpoint.Split(' ');
                 var verb = parts[0];
                 var endpoint = parts.Length > 1 ? parts[1] : "";
+                endpoint = endpoint.Replace($"{{{pattern.IdParameter}}}", $"{{{{input.{pattern.IdParameter}}}}}", StringComparison.OrdinalIgnoreCase);
 
                 yaml += $@"  - name: read_{resource}
-    type: api
-    api: {allEndpoints.First().ApiName}
+    kind: Endpoint
+    apiRef: {allEndpoints.First().ApiName}
     endpoint: {endpoint}
-    verb: {verb}
-    pathParams:
-      {pattern.IdParameter}: ""{{{{ input.{pattern.IdParameter} }}}}""
+    httpVerb: {verb}
+    expectedStatus: 200
     output:
-      save: true
-      context: readResult
+      dto: ""{{{{response.body}}}}""
+      http_status: ""{{{{response.status}}}}""
 
 ";
-                stageNum++;
             }
         }
 
@@ -356,22 +361,23 @@ input:
                 var parts = updateEndpoint.Split(' ');
                 var verb = parts[0];
                 var endpoint = parts.Length > 1 ? parts[1] : "";
+                endpoint = endpoint.Replace($"{{{pattern.IdParameter}}}", $"{{{{input.{pattern.IdParameter}}}}}", StringComparison.OrdinalIgnoreCase);
 
                 yaml += $@"  - name: update_{resource}
-    type: api
-    api: {allEndpoints.First().ApiName}
+    kind: Endpoint
+    apiRef: {allEndpoints.First().ApiName}
     endpoint: {endpoint}
-    verb: {verb}
-    pathParams:
-      {pattern.IdParameter}: ""{{{{ input.{pattern.IdParameter} }}}}""
-    body:
-      data: ""{{{{ input.{resource}Data }}}}""
+    httpVerb: {verb}
+    expectedStatus: 200
+    body: |
+      {{{{
+        ""data"": ""{{{{input.{resource}Data}}}}""
+      }}}}
     output:
-      save: true
-      context: updateResult
+      dto: ""{{{{response.body}}}}""
+      http_status: ""{{{{response.status}}}}""
 
 ";
-                stageNum++;
             }
         }
 
@@ -382,27 +388,36 @@ input:
                 var parts = deleteEndpoint.Split(' ');
                 var verb = parts[0];
                 var endpoint = parts.Length > 1 ? parts[1] : "";
+                endpoint = endpoint.Replace($"{{{pattern.IdParameter}}}", $"{{{{input.{pattern.IdParameter}}}}}", StringComparison.OrdinalIgnoreCase);
 
                 yaml += $@"  - name: delete_{resource}
-    type: api
-    api: {allEndpoints.First().ApiName}
+    kind: Endpoint
+    apiRef: {allEndpoints.First().ApiName}
     endpoint: {endpoint}
-    verb: {verb}
-    pathParams:
-      {pattern.IdParameter}: ""{{{{ input.{pattern.IdParameter} }}}}""
+    httpVerb: {verb}
+    expectedStatus: 200
     output:
-      save: true
-      context: deleteResult
+      dto: ""{{{{response.body}}}}""
+      http_status: ""{{{{response.status}}}}""
 
 ";
-                stageNum++;
             }
         }
 
-        yaml += @"end-stage:
+        var resultStage = operations.Contains("delete")
+            ? $"delete_{resource}"
+            : operations.Contains("update")
+                ? $"update_{resource}"
+                : operations.Contains("read")
+                    ? $"read_{resource}"
+                    : operations.Contains("create")
+                        ? $"create_{resource}"
+                        : $"list_{resource}";
+
+        yaml += $@"endStage:
   output:
-    success: true
-    result: ""{{ stages }}""
+    success: ""true""
+    result: ""{{{{stage:{resultStage}.output.dto}}}}""
 ";
 
         return yaml;

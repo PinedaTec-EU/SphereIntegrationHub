@@ -9,24 +9,36 @@ public sealed class SihServicesAdapter
     private readonly string _projectRoot;
 
     public SihServicesAdapter(string projectRoot)
+        : this(new SihPathOptions { ProjectRoot = projectRoot })
     {
-        _projectRoot = projectRoot ?? throw new ArgumentNullException(nameof(projectRoot));
+    }
 
-        if (!Directory.Exists(projectRoot))
+    public SihServicesAdapter(SihPathOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        _projectRoot = string.IsNullOrWhiteSpace(options.ProjectRoot)
+            ? Directory.GetCurrentDirectory()
+            : Path.GetFullPath(options.ProjectRoot);
+
+        if (!Directory.Exists(_projectRoot))
         {
-            throw new DirectoryNotFoundException($"Project root not found: {projectRoot}");
+            throw new DirectoryNotFoundException($"Project root not found: {_projectRoot}");
         }
 
-        // Initialize paths
-        ResourcesPath = Path.Combine(_projectRoot, "src", "resources");
-        CachePath = Path.Combine(ResourcesPath, "cache");
-        WorkflowsPath = Path.Combine(ResourcesPath, "workflows");
-        ApiCatalogPath = Path.Combine(ResourcesPath, "api-catalog.json");
+        // Initialize paths (overrideable via options)
+        var defaultResourcesPath = Path.Combine(_projectRoot, "src", "resources");
+        ResourcesPath = ResolvePath(options.ResourcesPath ?? defaultResourcesPath);
+        CachePath = ResolvePath(options.CachePath ?? Path.Combine(ResourcesPath, "cache"));
+        WorkflowsPath = ResolvePath(options.WorkflowsPath ?? Path.Combine(ResourcesPath, "workflows"));
+        ApiCatalogPath = ResolvePath(options.ApiCatalogPath ?? Path.Combine(ResourcesPath, "api-catalog.json"));
 
         // Verify critical paths exist
         if (!File.Exists(ApiCatalogPath))
         {
-            throw new FileNotFoundException($"API catalog not found: {ApiCatalogPath}");
+            throw new FileNotFoundException(
+                $"API catalog not found: {ApiCatalogPath}. " +
+                "Set SIH_API_CATALOG_PATH (or SIH_RESOURCES_PATH/SIH_PROJECT_ROOT) to configure custom locations.");
         }
     }
 
@@ -91,5 +103,15 @@ public sealed class SihServicesAdapter
     public string GetWorkflowsPath()
     {
         return WorkflowsPath;
+    }
+
+    private string ResolvePath(string path)
+    {
+        if (Path.IsPathRooted(path))
+        {
+            return Path.GetFullPath(path);
+        }
+
+        return Path.GetFullPath(Path.Combine(_projectRoot, path));
     }
 }
