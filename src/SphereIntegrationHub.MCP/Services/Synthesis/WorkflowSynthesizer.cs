@@ -291,13 +291,15 @@ public sealed class WorkflowSynthesizer
         List<EndpointDependencies> endpoints,
         SystemRequirements requirements)
     {
-        var yaml = $@"name: {name}
-version: 1.0
+        var yaml = $@"version: 3.11
+id: {Guid.NewGuid():N}
+name: {name}
 description: {description}
+output: true
 
 input:
-  - name: apiKey
-    type: string
+  - name: username
+    type: Text
     required: true
 
 stages:
@@ -309,10 +311,11 @@ stages:
             var stageName = $"stage_{i + 1}";
 
             yaml += $@"  - name: {stageName}
-    type: api
-    api: {endpoint.ApiName}
+    kind: Endpoint
+    apiRef: {endpoint.ApiName}
     endpoint: {endpoint.Endpoint}
-    verb: {endpoint.HttpVerb}
+    httpVerb: {endpoint.HttpVerb}
+    expectedStatus: 200
 ";
 
             // Add retry policy if configured
@@ -325,16 +328,16 @@ stages:
             }
 
             yaml += @"    output:
-      save: true
-      context: " + stageName + @"Result
+      dto: ""{{response.body}}""
+      http_status: ""{{response.status}}""
 
 ";
         }
 
-        yaml += @"end-stage:
+        yaml += @"endStage:
   output:
-    success: true
-    result: ""{{ stages }}""
+    success: ""true""
+    result: ""{{stage:stage_1.output.dto}}""
 ";
 
         return yaml;
@@ -345,36 +348,41 @@ stages:
     /// </summary>
     private static WorkflowDesign GenerateAuthenticationWorkflow()
     {
-        var yaml = @"name: authentication
-version: 1.0
+        var yaml = @"version: 3.11
+id: AUTHWORKFLOW00000000000000000000
+name: authentication
 description: OAuth authentication workflow
+output: true
 
 input:
   - name: clientId
-    type: string
+    type: Text
     required: true
   - name: clientSecret
-    type: string
+    type: Text
     required: true
 
 stages:
   - name: get_token
-    type: api
-    api: auth-api
+    kind: Endpoint
+    apiRef: auth-api
     endpoint: /oauth/token
-    verb: POST
-    body:
-      grant_type: client_credentials
-      client_id: ""{{ input.clientId }}""
-      client_secret: ""{{ input.clientSecret }}""
+    httpVerb: POST
+    expectedStatus: 200
+    body: |
+      {
+        ""grant_type"": ""client_credentials"",
+        ""client_id"": ""{{input.clientId}}"",
+        ""client_secret"": ""{{input.clientSecret}}""
+      }
     output:
-      save: true
-      context: authToken
+      dto: ""{{response.body}}""
+      http_status: ""{{response.status}}""
 
-end-stage:
+endStage:
   output:
-    accessToken: ""{{ stages.get_token.output.access_token }}""
-    expiresIn: ""{{ stages.get_token.output.expires_in }}""
+    accessToken: ""{{stage:json(get_token.output.dto).access_token}}""
+    expiresIn: ""{{stage:json(get_token.output.dto).expires_in}}""
 ";
 
         return new WorkflowDesign

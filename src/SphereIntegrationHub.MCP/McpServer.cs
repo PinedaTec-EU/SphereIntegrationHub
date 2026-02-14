@@ -42,10 +42,13 @@ public sealed class McpServer
         RegisterTool(new ValidateStageTool(_servicesAdapter));
         RegisterTool(new PlanWorkflowExecutionTool(_servicesAdapter));
 
-        // Generation Tools (3 tools)
+        // Generation Tools (6 tools)
         RegisterTool(new GenerateEndpointStageTool(_servicesAdapter));
         RegisterTool(new GenerateWorkflowSkeletonTool(_servicesAdapter));
         RegisterTool(new GenerateMockPayloadTool(_servicesAdapter));
+        RegisterTool(new GenerateWorkflowBundleTool(_servicesAdapter));
+        RegisterTool(new WriteWorkflowArtifactsTool(_servicesAdapter));
+        RegisterTool(new GenerateStartupBootstrapTool());
 
         // Analysis Tools (3 tools)
         RegisterTool(new GetAvailableVariablesTool(_servicesAdapter));
@@ -83,7 +86,7 @@ public sealed class McpServer
         RegisterTool(new SuggestOptimizationsTool(_servicesAdapter));
         RegisterTool(new AnalyzeSwaggerCoverageTool(_servicesAdapter));
 
-        Console.Error.WriteLine($"[McpServer] Registered {_tools.Count} tools (L1: 18, L2: 5, L3: 1, L4: 2)");
+        Console.Error.WriteLine($"[McpServer] Registered {_tools.Count} tools (L1: 21, L2: 5, L3: 1, L4: 2)");
     }
 
     private void RegisterTool(IMcpTool tool)

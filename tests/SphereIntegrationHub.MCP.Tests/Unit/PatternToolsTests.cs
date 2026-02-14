@@ -224,7 +224,7 @@ public class PatternToolsTests : IDisposable
         yaml.Should().NotBeNullOrEmpty();
         // The YAML should contain the read stage with GET verb
         yaml.Should().Contain("read_accounts");
-        yaml.Should().Contain("verb: GET");
+        yaml.Should().Contain("httpVerb: GET");
     }
 
     [Fact]
@@ -251,7 +251,7 @@ public class PatternToolsTests : IDisposable
         yaml.Should().NotBeNullOrEmpty();
         // The YAML should contain the update stage with PUT verb
         yaml.Should().Contain("update_accounts");
-        yaml.Should().Contain("verb: PUT");
+        yaml.Should().Contain("httpVerb: PUT");
     }
 
     [Fact]
@@ -278,7 +278,7 @@ public class PatternToolsTests : IDisposable
         yaml.Should().NotBeNullOrEmpty();
         // The YAML should contain the delete stage with DELETE verb
         yaml.Should().Contain("delete_accounts");
-        yaml.Should().Contain("verb: DELETE");
+        yaml.Should().Contain("httpVerb: DELETE");
     }
 
     [Fact]

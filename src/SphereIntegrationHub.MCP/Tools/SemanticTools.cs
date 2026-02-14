@@ -311,14 +311,7 @@ public sealed class InferDataFlowTool : IMcpTool
 
     private static string GenerateBinding(string fromStageId, string fieldName, string location)
     {
-        return location switch
-        {
-            "path" => $"{{{{ stages.{fromStageId}.output.{fieldName} }}}}",
-            "query" => $"{{{{ stages.{fromStageId}.output.{fieldName} }}}}",
-            "body" => $"{{{{ stages.{fromStageId}.output.{fieldName} }}}}",
-            "header" => $"{{{{ stages.{fromStageId}.output.{fieldName} }}}}",
-            _ => $"{{{{ stages.{fromStageId}.output.{fieldName} }}}}"
-        };
+        return $"{{{{stage:{fromStageId}.output.{fieldName}}}}}";
     }
 
     private sealed class EndpointSpec
@@ -556,13 +549,15 @@ public sealed class SuggestWorkflowFromGoalTool : IMcpTool
 
     private static string GenerateWorkflowYaml(string name, string description, List<SuggestionStage> stages)
     {
-        var yaml = $@"name: {name}
-version: 1.0
+        var yaml = $@"version: 3.11
+id: {Guid.NewGuid():N}
+name: {name}
 description: {description}
+output: true
 
 input:
-  - name: apiKey
-    type: string
+  - name: username
+    type: Text
     required: true
 
 stages:
@@ -571,20 +566,22 @@ stages:
         foreach (var stage in stages)
         {
             yaml += $@"  - name: {stage.StageName}
-    type: api
-    api: {stage.ApiName}
+    kind: Endpoint
+    apiRef: {stage.ApiName}
     endpoint: {stage.Endpoint}
-    verb: {stage.HttpVerb}
+    httpVerb: {stage.HttpVerb}
+    expectedStatus: 200
     output:
-      save: true
-      context: {stage.StageName}Result
+      dto: ""{{{{response.body}}}}""
+      http_status: ""{{{{response.status}}}}""
 
 ";
         }
 
-        yaml += @"end-stage:
+        var endStageSource = stages.Count > 0 ? stages[0].StageName : "stage_1";
+        yaml += $@"endStage:
   output:
-    result: ""{{ stages.stage_1.output }}""
+    result: ""{{{{stage:{endStageSource}.output.dto}}}}""
 ";
 
         return yaml;

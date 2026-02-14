@@ -96,45 +96,43 @@ public sealed class WorkflowValidatorService
             });
         }
 
-        if (!stage.ContainsKey("type"))
+        var stageType = GetStageKind(stage);
+        if (string.IsNullOrWhiteSpace(stageType))
         {
             errors.Add(new ValidationError
             {
                 Category = "Stage",
-                Message = "Stage type is required"
+                Message = "Stage kind is required"
             });
         }
         else
         {
-            var stageType = stage["type"]?.ToString();
             if (!IsValidStageType(stageType))
             {
                 errors.Add(new ValidationError
                 {
                     Category = "Stage",
-                    Field = "type",
-                    Message = $"Invalid stage type: {stageType}",
-                    Suggestion = "Valid types: api, transform, condition, loop, workflow-ref"
+                    Field = "kind",
+                    Message = $"Invalid stage kind: {stageType}",
+                    Suggestion = "Valid kinds: Endpoint, Workflow"
                 });
             }
         }
 
-        // Type-specific validation
-        if (stage.TryGetValue("type", out var typeObj))
+        // Kind-specific validation
+        if (!string.IsNullOrWhiteSpace(stageType))
         {
-            var stageType = typeObj?.ToString();
             var stageName = stage.GetValueOrDefault("name")?.ToString() ?? "unknown";
 
             switch (stageType?.ToLowerInvariant())
             {
+                case "endpoint":
                 case "api":
                     ValidateApiStage(stage, stageName, errors, warnings);
                     break;
-                case "transform":
-                    ValidateTransformStage(stage, stageName, errors, warnings);
-                    break;
-                case "condition":
-                    ValidateConditionStage(stage, stageName, errors, warnings);
+                case "workflow":
+                case "workflow-ref":
+                    ValidateWorkflowStage(stage, stageName, errors);
                     break;
             }
         }
@@ -174,7 +172,7 @@ public sealed class WorkflowValidatorService
                     stages.Add(new ExecutionStage
                     {
                         Name = stage.GetValueOrDefault("name")?.ToString() ?? $"stage_{i}",
-                        Type = stage.GetValueOrDefault("type")?.ToString() ?? "unknown",
+                        Type = GetStageKind(stage) ?? "unknown",
                         Order = i,
                         Dependencies = ExtractDependencies(stage)
                     });
@@ -253,14 +251,14 @@ public sealed class WorkflowValidatorService
 
     private static void ValidateApiStage(Dictionary<string, object> stage, string stageName, List<ValidationError> errors, List<ValidationWarning> warnings)
     {
-        if (!stage.ContainsKey("api"))
+        if (!stage.ContainsKey("apiRef") && !stage.ContainsKey("api"))
         {
             errors.Add(new ValidationError
             {
                 Category = "Stage",
                 Stage = stageName,
-                Field = "api",
-                Message = "API stage requires 'api' field"
+                Field = "apiRef",
+                Message = "Endpoint stage requires 'apiRef' field"
             });
         }
 
@@ -275,39 +273,26 @@ public sealed class WorkflowValidatorService
             });
         }
 
-        if (!stage.ContainsKey("verb"))
+        if (!stage.ContainsKey("httpVerb") && !stage.ContainsKey("verb"))
         {
             warnings.Add(new ValidationWarning
             {
                 Category = "Stage",
-                Message = $"Stage '{stageName}' does not specify HTTP verb, will default to GET"
+                Message = $"Stage '{stageName}' does not specify httpVerb, will default to GET"
             });
         }
     }
 
-    private static void ValidateTransformStage(Dictionary<string, object> stage, string stageName, List<ValidationError> errors, List<ValidationWarning> warnings)
+    private static void ValidateWorkflowStage(Dictionary<string, object> stage, string stageName, List<ValidationError> errors)
     {
-        if (!stage.ContainsKey("mapping") && !stage.ContainsKey("script"))
+        if (!stage.ContainsKey("workflowRef"))
         {
             errors.Add(new ValidationError
             {
                 Category = "Stage",
                 Stage = stageName,
-                Message = "Transform stage requires either 'mapping' or 'script' field"
-            });
-        }
-    }
-
-    private static void ValidateConditionStage(Dictionary<string, object> stage, string stageName, List<ValidationError> errors, List<ValidationWarning> warnings)
-    {
-        if (!stage.ContainsKey("condition"))
-        {
-            errors.Add(new ValidationError
-            {
-                Category = "Stage",
-                Stage = stageName,
-                Field = "condition",
-                Message = "Condition stage requires 'condition' field"
+                Field = "workflowRef",
+                Message = "Workflow stage requires 'workflowRef' field"
             });
         }
     }
@@ -319,7 +304,7 @@ public sealed class WorkflowValidatorService
             return false;
         }
 
-        var validTypes = new[] { "api", "transform", "condition", "loop", "workflow-ref", "parallel" };
+        var validTypes = new[] { "endpoint", "workflow", "api", "workflow-ref" };
         return validTypes.Contains(stageType.ToLowerInvariant());
     }
 
@@ -338,6 +323,27 @@ public sealed class WorkflowValidatorService
         }
 
         return dependencies.Distinct().ToList();
+    }
+
+    private static string? GetStageKind(Dictionary<string, object> stage)
+    {
+        if (stage.TryGetValue("kind", out var kindObj))
+        {
+            return kindObj?.ToString();
+        }
+
+        if (stage.TryGetValue("type", out var typeObj))
+        {
+            var legacy = typeObj?.ToString();
+            return legacy?.ToLowerInvariant() switch
+            {
+                "api" => "Endpoint",
+                "workflow-ref" => "Workflow",
+                _ => legacy
+            };
+        }
+
+        return null;
     }
 
     private static List<string> ExtractTemplateTokens(string value)

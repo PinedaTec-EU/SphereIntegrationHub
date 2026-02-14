@@ -167,9 +167,11 @@ public sealed class GetWorkflowInputsOutputsTool : IMcpTool
             }
         }
 
-        // Extract outputs from end-stage
+        // Extract outputs from endStage (legacy: end-stage)
         var outputs = new Dictionary<string, object>();
-        if (workflow.TryGetValue("end-stage", out var endStageObj) && endStageObj is Dictionary<object, object> endStageDict)
+        var hasEndStage = workflow.TryGetValue("endStage", out var endStageObj) ||
+            workflow.TryGetValue("end-stage", out endStageObj);
+        if (hasEndStage && endStageObj is Dictionary<object, object> endStageDict)
         {
             var endStage = endStageDict.ToDictionary(
                 kvp => kvp.Key.ToString() ?? "",

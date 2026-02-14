@@ -4,7 +4,7 @@ Model Context Protocol (MCP) server for SphereIntegrationHub providing AI-assist
 
 ## Overview
 
-This MCP server exposes 26 tools organized in 4 levels (L1-L4) that enable LLMs to:
+This MCP server exposes 29 tools organized in 4 levels (L1-L4) that enable LLMs to:
 - Explore API catalogs and generate workflow stages
 - Validate and analyze workflows
 - Optimize execution strategies
@@ -45,10 +45,13 @@ McpServer (stdio JSON-RPC)
 - `validate_stage` - Validates single stage
 - `plan_workflow_execution` - Analyzes execution plan
 
-### Generation Tools (3)
+### Generation Tools (6)
 - `generate_endpoint_stage` - Generates stage from endpoint
 - `generate_workflow_skeleton` - Creates workflow template
 - `generate_mock_payload` - Generates test payload
+- `generate_workflow_bundle` - Generates `workflow` + `.wfvars` + payload drafts
+- `write_workflow_artifacts` - Writes generated artifacts to disk
+- `generate_startup_bootstrap` - Generates startup integration for app boot
 
 ### Analysis Tools (3)
 - `get_available_variables` - Shows available variables at a point
@@ -184,7 +187,49 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | \
   SIH_PROJECT_ROOT=. dotnet run --project src/SphereIntegrationHub.MCP
 ```
 
-This should print a JSON response listing all 26 tools.
+This should print a JSON response listing all 29 tools.
+
+## Runtime Path Configuration
+
+MCP can run against any repository layout by setting environment variables:
+
+- `SIH_PROJECT_ROOT`: base path used to resolve relative values.
+- `SIH_RESOURCES_PATH`: optional resources root (if omitted: `<project>/src/resources`).
+- `SIH_API_CATALOG_PATH`: explicit `api-catalog.json` path.
+- `SIH_CACHE_PATH`: explicit swagger cache folder.
+- `SIH_WORKFLOWS_PATH`: explicit workflows folder.
+
+Example (`.vscode/mcp.json`) for a different repository:
+
+```json
+{
+  "servers": {
+    "sphere-integration-hub": {
+      "type": "stdio",
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "/path/to/SphereIntegrationHub/src/SphereIntegrationHub.MCP"
+      ],
+      "env": {
+        "SIH_PROJECT_ROOT": "${workspaceFolder}",
+        "SIH_API_CATALOG_PATH": "${workspaceFolder}/automation/catalog/api-catalog.json",
+        "SIH_CACHE_PATH": "${workspaceFolder}/automation/cache",
+        "SIH_WORKFLOWS_PATH": "${workspaceFolder}/automation/workflows"
+      }
+    }
+  }
+}
+```
+
+## No Swagger Cache Fallback
+
+When cache is unavailable, generation tools can work with `endpointSchema` supplied by the model/agent:
+
+- `generate_endpoint_stage`
+- `generate_mock_payload`
+- `generate_workflow_bundle`
 
 ## Dependencies
 

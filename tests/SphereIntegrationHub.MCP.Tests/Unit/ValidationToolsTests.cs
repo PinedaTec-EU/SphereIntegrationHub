@@ -140,6 +140,26 @@ description: [this is malformed
     }
 
     [Fact]
+    public async Task ValidateWorkflow_WithInlineYaml_Works()
+    {
+        // Arrange
+        var workflowYaml = TestDataBuilder.CreateSampleWorkflow();
+        var tool = new ValidateWorkflowTool(_adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["workflowYaml"] = workflowYaml
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.TryGetProperty("isValid", out var isValidEl).Should().BeTrue();
+        isValidEl.GetBoolean().Should().BeTrue();
+    }
+
+    [Fact]
     public void ValidateStage_WithValidStage_ReturnsSuccess()
     {
         // Arrange

@@ -2,6 +2,7 @@ using SphereIntegrationHub.MCP.Core;
 using SphereIntegrationHub.MCP.Services.Integration;
 using SphereIntegrationHub.MCP.Services.Validation;
 using System.Text.Json;
+using System.Text;
 
 namespace SphereIntegrationHub.MCP.Tools;
 
@@ -32,50 +33,81 @@ public sealed class ValidateWorkflowTool : IMcpTool
             {
                 type = "string",
                 description = "Path to the workflow YAML file (absolute or relative to workflows directory)"
+            },
+            workflowYaml = new
+            {
+                type = "string",
+                description = "Raw workflow YAML content (alternative to workflowPath)"
             }
-        },
-        required = new[] { "workflowPath" }
+        }
     };
 
     public async Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
     {
-        var workflowPath = arguments?.GetValueOrDefault("workflowPath")?.ToString()
-            ?? throw new ArgumentException("workflowPath is required");
+        var workflowPath = arguments?.GetValueOrDefault("workflowPath")?.ToString();
+        var workflowYaml = arguments?.GetValueOrDefault("workflowYaml")?.ToString();
 
-        // If path is not absolute, resolve relative to workflows directory
-        if (!Path.IsPathRooted(workflowPath))
+        if (string.IsNullOrWhiteSpace(workflowPath) && string.IsNullOrWhiteSpace(workflowYaml))
         {
-            workflowPath = Path.Combine(_adapter.WorkflowsPath, workflowPath);
+            throw new ArgumentException("workflowPath or workflowYaml is required");
         }
 
-        // Throw exception if file doesn't exist (for test compatibility)
-        if (!File.Exists(workflowPath))
+        string? tempPath = null;
+        try
         {
-            throw new FileNotFoundException($"Workflow file not found: {workflowPath}", workflowPath);
+            if (!string.IsNullOrWhiteSpace(workflowYaml))
+            {
+                tempPath = WriteTemporaryWorkflow(workflowYaml);
+                workflowPath = tempPath;
+            }
+            else if (!Path.IsPathRooted(workflowPath!))
+            {
+                workflowPath = Path.Combine(_adapter.WorkflowsPath, workflowPath!);
+            }
+
+            // Throw exception if file doesn't exist (for test compatibility)
+            if (!File.Exists(workflowPath))
+            {
+                throw new FileNotFoundException($"Workflow file not found: {workflowPath}", workflowPath);
+            }
+
+            var result = await _validator.ValidateWorkflowAsync(workflowPath!);
+
+            // Return as camelCase anonymous object for test compatibility
+            return new
+            {
+                isValid = result.Valid,
+                errors = result.Errors.Select(e => new
+                {
+                    category = e.Category,
+                    stage = e.Stage,
+                    field = e.Field,
+                    message = e.Message,
+                    suggestion = e.Suggestion,
+                    location = e.Location
+                }).ToList(),
+                warnings = result.Warnings.Select(w => new
+                {
+                    category = w.Category,
+                    message = w.Message,
+                    suggestion = w.Suggestion
+                }).ToList()
+            };
         }
-
-        var result = await _validator.ValidateWorkflowAsync(workflowPath);
-
-        // Return as camelCase anonymous object for test compatibility
-        return new
+        finally
         {
-            isValid = result.Valid,
-            errors = result.Errors.Select(e => new
+            if (!string.IsNullOrWhiteSpace(tempPath) && File.Exists(tempPath))
             {
-                category = e.Category,
-                stage = e.Stage,
-                field = e.Field,
-                message = e.Message,
-                suggestion = e.Suggestion,
-                location = e.Location
-            }).ToList(),
-            warnings = result.Warnings.Select(w => new
-            {
-                category = w.Category,
-                message = w.Message,
-                suggestion = w.Suggestion
-            }).ToList()
-        };
+                File.Delete(tempPath);
+            }
+        }
+    }
+
+    private static string WriteTemporaryWorkflow(string workflowYaml)
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), $"sih-mcp-{Guid.NewGuid():N}.workflow");
+        File.WriteAllText(tempPath, workflowYaml, Encoding.UTF8);
+        return tempPath;
     }
 }
 
@@ -183,37 +215,67 @@ public sealed class PlanWorkflowExecutionTool : IMcpTool
             {
                 type = "string",
                 description = "Path to the workflow YAML file"
+            },
+            workflowYaml = new
+            {
+                type = "string",
+                description = "Raw workflow YAML content (alternative to workflowPath)"
             }
-        },
-        required = new[] { "workflowPath" }
+        }
     };
 
     public async Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
     {
-        var workflowPath = arguments?.GetValueOrDefault("workflowPath")?.ToString()
-            ?? throw new ArgumentException("workflowPath is required");
-
-        // If path is not absolute, resolve relative to workflows directory
-        if (!Path.IsPathRooted(workflowPath))
+        var workflowPath = arguments?.GetValueOrDefault("workflowPath")?.ToString();
+        var workflowYaml = arguments?.GetValueOrDefault("workflowYaml")?.ToString();
+        if (string.IsNullOrWhiteSpace(workflowPath) && string.IsNullOrWhiteSpace(workflowYaml))
         {
-            workflowPath = Path.Combine(_adapter.WorkflowsPath, workflowPath);
+            throw new ArgumentException("workflowPath or workflowYaml is required");
         }
 
-        var plan = await _validator.PlanWorkflowExecutionAsync(workflowPath);
-
-        // Return as camelCase anonymous object for test compatibility
-        return new
+        string? tempPath = null;
+        try
         {
-            workflowName = plan.WorkflowName,
-            totalStages = plan.TotalStages,
-            executionOrder = plan.Stages.OrderBy(s => s.Order).Select(s => s.Name).ToList(),
-            stages = plan.Stages.Select(s => new {
-                name = s.Name,
-                type = s.Type,
-                order = s.Order,
-                dependencies = s.Dependencies
-            }).ToList(),
-            estimatedDuration = plan.EstimatedDuration
-        };
+            if (!string.IsNullOrWhiteSpace(workflowYaml))
+            {
+                tempPath = WriteTemporaryWorkflow(workflowYaml);
+                workflowPath = tempPath;
+            }
+            else if (!Path.IsPathRooted(workflowPath!))
+            {
+                workflowPath = Path.Combine(_adapter.WorkflowsPath, workflowPath!);
+            }
+
+            var plan = await _validator.PlanWorkflowExecutionAsync(workflowPath!);
+
+            // Return as camelCase anonymous object for test compatibility
+            return new
+            {
+                workflowName = plan.WorkflowName,
+                totalStages = plan.TotalStages,
+                executionOrder = plan.Stages.OrderBy(s => s.Order).Select(s => s.Name).ToList(),
+                stages = plan.Stages.Select(s => new {
+                    name = s.Name,
+                    type = s.Type,
+                    order = s.Order,
+                    dependencies = s.Dependencies
+                }).ToList(),
+                estimatedDuration = plan.EstimatedDuration
+            };
+        }
+        finally
+        {
+            if (!string.IsNullOrWhiteSpace(tempPath) && File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
+        }
+    }
+
+    private static string WriteTemporaryWorkflow(string workflowYaml)
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), $"sih-mcp-{Guid.NewGuid():N}.workflow");
+        File.WriteAllText(tempPath, workflowYaml, Encoding.UTF8);
+        return tempPath;
     }
 }

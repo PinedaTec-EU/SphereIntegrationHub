@@ -53,8 +53,8 @@ public class GenerationToolsTests : IDisposable
         var yaml = yamlEl.GetString();
         yaml.Should().NotBeNullOrEmpty();
         yaml.Should().Contain("name:");
-        yaml.Should().Contain("type:");
-        yaml.Should().Contain("api:");
+        yaml.Should().Contain("kind:");
+        yaml.Should().Contain("apiRef:");
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public class GenerationToolsTests : IDisposable
         yaml.Should().Contain("name: test-workflow");
         yaml.Should().Contain("description:");
         yaml.Should().Contain("stages:");
-        yaml.Should().Contain("end-stage:");
+        yaml.Should().Contain("endStage:");
     }
 
     [Fact]
@@ -375,6 +375,132 @@ public class GenerationToolsTests : IDisposable
         var yaml = yamlEl.GetString();
         yaml.Should().NotBeNullOrEmpty();
         yaml.Should().Contain("/api/accounts/");
+    }
+
+    [Fact]
+    public async Task GenerateEndpointStage_WithEndpointSchemaFallback_WorksWithoutCache()
+    {
+        // Arrange
+        var tool = new GenerateEndpointStageTool(_adapter);
+        var endpointSchema = new
+        {
+            apiName = "accounts",
+            endpoint = "/api/accounts/{id}",
+            httpVerb = "GET",
+            pathParameters = new[]
+            {
+                new { name = "id", type = "string", required = true }
+            }
+        };
+
+        var args = new Dictionary<string, object>
+        {
+            ["endpointSchema"] = JsonSerializer.SerializeToElement(endpointSchema)
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.TryGetProperty("source", out var sourceEl).Should().BeTrue();
+        sourceEl.GetString().Should().Be("endpoint-schema-fallback");
+        json.TryGetProperty("yaml", out var yamlEl).Should().BeTrue();
+        yamlEl.GetString().Should().Contain("kind: Endpoint");
+    }
+
+    [Fact]
+    public async Task GenerateWorkflowBundle_ReturnsWorkflowAndWfvarsDrafts()
+    {
+        // Arrange
+        var tool = new GenerateWorkflowBundleTool(_adapter);
+        var endpoints = new[]
+        {
+            new
+            {
+                stageName = "list_accounts",
+                endpointSchema = new
+                {
+                    apiName = "AccountsAPI",
+                    endpoint = "/api/accounts/{id}",
+                    httpVerb = "GET",
+                    pathParameters = new[]
+                    {
+                        new { name = "id", type = "string", required = true }
+                    }
+                }
+            }
+        };
+
+        var args = new Dictionary<string, object>
+        {
+            ["version"] = "3.11",
+            ["workflowName"] = "generated-workflow",
+            ["apiName"] = "AccountsAPI",
+            ["endpoints"] = JsonSerializer.SerializeToElement(endpoints)
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.TryGetProperty("workflowDraft", out var workflowDraftEl).Should().BeTrue();
+        json.TryGetProperty("wfvarsDraft", out var wfvarsDraftEl).Should().BeTrue();
+        workflowDraftEl.GetString().Should().Contain("endStage:");
+        wfvarsDraftEl.GetString().Should().Contain("id");
+    }
+
+    [Fact]
+    public async Task WriteWorkflowArtifacts_WritesFilesToWorkflowsPath()
+    {
+        // Arrange
+        var tool = new WriteWorkflowArtifactsTool(_adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["workflowPath"] = "generated/test.workflow",
+            ["workflowYaml"] = "name: test",
+            ["wfvarsPath"] = "generated/test.wfvars",
+            ["wfvarsYaml"] = "username: demo"
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.TryGetProperty("count", out var countEl).Should().BeTrue();
+        countEl.GetInt32().Should().Be(2);
+        File.Exists(Path.Combine(_mockFs.WorkflowsPath, "generated", "test.workflow")).Should().BeTrue();
+        File.Exists(Path.Combine(_mockFs.WorkflowsPath, "generated", "test.wfvars")).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GenerateStartupBootstrap_ReturnsCommandAndSnippets()
+    {
+        // Arrange
+        var tool = new GenerateStartupBootstrapTool();
+        var args = new Dictionary<string, object>
+        {
+            ["workflowPath"] = "automation/seed.workflow",
+            ["environment"] = "pre",
+            ["varsFilePath"] = "automation/seed.wfvars",
+            ["dryRun"] = true
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.TryGetProperty("startupCommand", out var startupCommandEl).Should().BeTrue();
+        json.TryGetProperty("hostedServiceClass", out var hostedServiceClassEl).Should().BeTrue();
+        json.TryGetProperty("programRegistrationSnippet", out var programRegistrationSnippetEl).Should().BeTrue();
+
+        startupCommandEl.GetString().Should().Contain("--workflow");
+        startupCommandEl.GetString().Should().Contain("--dry-run");
+        hostedServiceClassEl.GetString().Should().Contain("IHostedService");
+        programRegistrationSnippetEl.GetString().Should().Contain("AddHostedService");
     }
 
     public void Dispose()
