@@ -503,6 +503,54 @@ public class GenerationToolsTests : IDisposable
         programRegistrationSnippetEl.GetString().Should().Contain("AddHostedService");
     }
 
+    [Fact]
+    public void SihServicesAdapter_WithoutCatalog_DoesNotThrow()
+    {
+        // Arrange
+        using var fs = new MockFileSystem();
+
+        // Act
+        var action = () => new SihServicesAdapter(fs.RootPath);
+
+        // Assert
+        action.Should().NotThrow();
+    }
+
+    [Fact]
+    public async Task GenerateApiCatalogFile_WritesCatalog()
+    {
+        // Arrange
+        var tool = new GenerateApiCatalogFileTool(_adapter);
+        var payload = new[]
+        {
+            new
+            {
+                version = "1.0",
+                baseUrl = new { local = "http://localhost:5000" },
+                definitions = new[]
+                {
+                    new { name = "orders", basePath = "/ordersapi", swaggerUrl = "/ordersapi/swagger/v1/swagger.json" }
+                }
+            }
+        };
+
+        var args = new Dictionary<string, object>
+        {
+            ["versions"] = JsonSerializer.SerializeToElement(payload),
+            ["outputPath"] = "src/resources/api-catalog.json",
+            ["writeToDisk"] = true
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.TryGetProperty("versionsCount", out var versionsCountEl).Should().BeTrue();
+        versionsCountEl.GetInt32().Should().Be(1);
+        File.Exists(Path.Combine(_mockFs.RootPath, "src", "resources", "api-catalog.json")).Should().BeTrue();
+    }
+
     public void Dispose()
     {
         _mockFs.Dispose();

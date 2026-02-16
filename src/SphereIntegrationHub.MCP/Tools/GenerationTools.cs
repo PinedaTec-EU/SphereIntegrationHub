@@ -928,3 +928,191 @@ builder.Services.AddHostedService<WorkflowBootstrapHostedService>();
         return $"\"{value.Replace("\"", "\\\"")}\"";
     }
 }
+
+/// <summary>
+/// Generates and optionally writes an API catalog file for the target project.
+/// </summary>
+[McpTool("generate_api_catalog_file", "Generates api-catalog.json content and can write it to disk", Category = "Generation", Level = "L1")]
+public sealed class GenerateApiCatalogFileTool : IMcpTool
+{
+    private readonly SihServicesAdapter _adapter;
+
+    public GenerateApiCatalogFileTool(SihServicesAdapter adapter)
+    {
+        _adapter = adapter;
+    }
+
+    public string Name => "generate_api_catalog_file";
+    public string Description => "Creates API catalog JSON for new projects. Use this when api-catalog.json does not exist yet.";
+
+    public object InputSchema => new
+    {
+        type = "object",
+        properties = new
+        {
+            versions = new
+            {
+                type = "array",
+                description = "Catalog versions with baseUrl and definitions",
+                items = new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        version = new { type = "string" },
+                        baseUrl = new
+                        {
+                            type = "object",
+                            additionalProperties = new { type = "string" }
+                        },
+                        definitions = new
+                        {
+                            type = "array",
+                            items = new
+                            {
+                                type = "object",
+                                properties = new
+                                {
+                                    name = new { type = "string" },
+                                    basePath = new { type = "string" },
+                                    swaggerUrl = new { type = "string" }
+                                },
+                                required = new[] { "name", "basePath", "swaggerUrl" }
+                            }
+                        }
+                    },
+                    required = new[] { "version", "definitions" }
+                }
+            },
+            outputPath = new { type = "string", description = "Optional output path (default: configured api-catalog path)" },
+            writeToDisk = new { type = "boolean", description = "Write file to disk (default: true)" }
+        },
+        required = new[] { "versions" }
+    };
+
+    public Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
+    {
+        if (arguments?.TryGetValue("versions", out var versionsObj) != true ||
+            versionsObj is not JsonElement versionsEl ||
+            versionsEl.ValueKind != JsonValueKind.Array)
+        {
+            throw new ArgumentException("versions is required and must be an array");
+        }
+
+        var versions = new List<object>();
+        foreach (var versionItem in versionsEl.EnumerateArray())
+        {
+            var version = versionItem.TryGetProperty("version", out var versionEl)
+                ? versionEl.GetString()
+                : null;
+            if (string.IsNullOrWhiteSpace(version))
+            {
+                throw new ArgumentException("Each versions item must include 'version'");
+            }
+
+            var baseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (versionItem.TryGetProperty("baseUrl", out var baseUrlEl) &&
+                baseUrlEl.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var prop in baseUrlEl.EnumerateObject())
+                {
+                    baseUrl[prop.Name] = prop.Value.GetString() ?? string.Empty;
+                }
+            }
+
+            if (baseUrl.Count == 0)
+            {
+                baseUrl["local"] = "http://localhost";
+                baseUrl["pre"] = "https://pre.example.com";
+                baseUrl["prod"] = "https://api.example.com";
+            }
+
+            if (!versionItem.TryGetProperty("definitions", out var defsEl) || defsEl.ValueKind != JsonValueKind.Array)
+            {
+                throw new ArgumentException("Each versions item must include 'definitions' array");
+            }
+
+            var definitions = new List<object>();
+            foreach (var definitionItem in defsEl.EnumerateArray())
+            {
+                var name = definitionItem.TryGetProperty("name", out var nameEl) ? nameEl.GetString() : null;
+                var basePath = definitionItem.TryGetProperty("basePath", out var basePathEl) ? basePathEl.GetString() : null;
+                var swaggerUrl = definitionItem.TryGetProperty("swaggerUrl", out var swaggerEl) ? swaggerEl.GetString() : null;
+                if (string.IsNullOrWhiteSpace(name) ||
+                    string.IsNullOrWhiteSpace(basePath) ||
+                    string.IsNullOrWhiteSpace(swaggerUrl))
+                {
+                    throw new ArgumentException("Definition requires name, basePath, swaggerUrl");
+                }
+
+                definitions.Add(new
+                {
+                    name,
+                    basePath,
+                    swaggerUrl
+                });
+            }
+
+            versions.Add(new
+            {
+                version,
+                baseUrl,
+                definitions
+            });
+        }
+
+        var json = JsonSerializer.Serialize(versions, new JsonSerializerOptions { WriteIndented = true });
+        var writeToDisk = TryReadBool(arguments, "writeToDisk", true);
+        var outputPath = arguments?.GetValueOrDefault("outputPath")?.ToString();
+        outputPath = ResolveOutputPath(outputPath);
+
+        if (writeToDisk)
+        {
+            var directory = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.WriteAllText(outputPath, json);
+        }
+
+        return Task.FromResult<object>(new
+        {
+            outputPath,
+            writeToDisk,
+            catalogJson = json,
+            versionsCount = versions.Count
+        });
+    }
+
+    private string ResolveOutputPath(string? outputPath)
+    {
+        if (string.IsNullOrWhiteSpace(outputPath))
+        {
+            return _adapter.ApiCatalogPath;
+        }
+
+        if (Path.IsPathRooted(outputPath))
+        {
+            return Path.GetFullPath(outputPath);
+        }
+
+        return Path.GetFullPath(Path.Combine(_adapter.ProjectRoot, outputPath));
+    }
+
+    private static bool TryReadBool(Dictionary<string, object>? arguments, string key, bool defaultValue)
+    {
+        if (arguments?.TryGetValue(key, out var obj) != true)
+        {
+            return defaultValue;
+        }
+
+        if (obj is bool boolValue)
+        {
+            return boolValue;
+        }
+
+        return obj.ToString()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
+    }
+}

@@ -33,13 +33,7 @@ public sealed class SihServicesAdapter
         WorkflowsPath = ResolvePath(options.WorkflowsPath ?? Path.Combine(ResourcesPath, "workflows"));
         ApiCatalogPath = ResolvePath(options.ApiCatalogPath ?? Path.Combine(ResourcesPath, "api-catalog.json"));
 
-        // Verify critical paths exist
-        if (!File.Exists(ApiCatalogPath))
-        {
-            throw new FileNotFoundException(
-                $"API catalog not found: {ApiCatalogPath}. " +
-                "Set SIH_API_CATALOG_PATH (or SIH_RESOURCES_PATH/SIH_PROJECT_ROOT) to configure custom locations.");
-        }
+        ApiCatalogExists = File.Exists(ApiCatalogPath);
     }
 
     public string ProjectRoot => _projectRoot;
@@ -47,6 +41,7 @@ public sealed class SihServicesAdapter
     public string CachePath { get; }
     public string WorkflowsPath { get; }
     public string ApiCatalogPath { get; }
+    public bool ApiCatalogExists { get; }
 
     /// <summary>
     /// Gets the path to a cached Swagger file

@@ -12,7 +12,7 @@ const string WorkflowsPathEnv = "SIH_WORKFLOWS_PATH";
 var jsonOptions = new JsonSerializerOptions
 {
     PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    WriteIndented = true,
+    WriteIndented = false,
     DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
 };
 
@@ -36,6 +36,12 @@ Console.Error.WriteLine($"[SphereIntegrationHub.MCP] Project root: {servicesAdap
 Console.Error.WriteLine($"[SphereIntegrationHub.MCP] API catalog: {servicesAdapter.ApiCatalogPath}");
 Console.Error.WriteLine($"[SphereIntegrationHub.MCP] Cache path: {servicesAdapter.CachePath}");
 Console.Error.WriteLine($"[SphereIntegrationHub.MCP] Workflows path: {servicesAdapter.WorkflowsPath}");
+if (!servicesAdapter.ApiCatalogExists)
+{
+    Console.Error.WriteLine(
+        "[SphereIntegrationHub.MCP] Warning: API catalog file does not exist yet. " +
+        "You can create it with the generate_api_catalog_file tool.");
+}
 
 try
 {
