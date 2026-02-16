@@ -4,7 +4,7 @@ Model Context Protocol (MCP) server for SphereIntegrationHub providing AI-assist
 
 ## Overview
 
-This MCP server exposes 29 tools organized in 4 levels (L1-L4) that enable LLMs to:
+This MCP server exposes 30 tools organized in 4 levels (L1-L4) that enable LLMs to:
 - Explore API catalogs and generate workflow stages
 - Validate and analyze workflows
 - Optimize execution strategies
@@ -45,13 +45,14 @@ McpServer (stdio JSON-RPC)
 - `validate_stage` - Validates single stage
 - `plan_workflow_execution` - Analyzes execution plan
 
-### Generation Tools (6)
+### Generation Tools (7)
 - `generate_endpoint_stage` - Generates stage from endpoint
 - `generate_workflow_skeleton` - Creates workflow template
 - `generate_mock_payload` - Generates test payload
 - `generate_workflow_bundle` - Generates `workflow` + `.wfvars` + payload drafts
 - `write_workflow_artifacts` - Writes generated artifacts to disk
 - `generate_startup_bootstrap` - Generates startup integration for app boot
+- `generate_api_catalog_file` - Generates/writes `api-catalog.json`
 
 ### Analysis Tools (3)
 - `get_available_variables` - Shows available variables at a point
@@ -187,7 +188,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | \
   SIH_PROJECT_ROOT=. dotnet run --project src/SphereIntegrationHub.MCP
 ```
 
-This should print a JSON response listing all 29 tools.
+This should print a JSON response listing all 30 tools.
 
 ## Runtime Path Configuration
 
@@ -230,6 +231,13 @@ When cache is unavailable, generation tools can work with `endpointSchema` suppl
 - `generate_endpoint_stage`
 - `generate_mock_payload`
 - `generate_workflow_bundle`
+
+## No Catalog Bootstrap
+
+If `api-catalog.json` does not exist, server startup no longer fails. Use:
+- `generate_api_catalog_file`
+
+to create the catalog first, then continue with endpoint/workflow generation.
 
 ## Dependencies
 
