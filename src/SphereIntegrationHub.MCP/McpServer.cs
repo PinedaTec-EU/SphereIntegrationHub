@@ -42,13 +42,14 @@ public sealed class McpServer
         RegisterTool(new ValidateStageTool(_servicesAdapter));
         RegisterTool(new PlanWorkflowExecutionTool(_servicesAdapter));
 
-        // Generation Tools (6 tools)
+        // Generation Tools (7 tools)
         RegisterTool(new GenerateEndpointStageTool(_servicesAdapter));
         RegisterTool(new GenerateWorkflowSkeletonTool(_servicesAdapter));
         RegisterTool(new GenerateMockPayloadTool(_servicesAdapter));
         RegisterTool(new GenerateWorkflowBundleTool(_servicesAdapter));
         RegisterTool(new WriteWorkflowArtifactsTool(_servicesAdapter));
         RegisterTool(new GenerateStartupBootstrapTool());
+        RegisterTool(new GenerateApiCatalogFileTool(_servicesAdapter));
 
         // Analysis Tools (3 tools)
         RegisterTool(new GetAvailableVariablesTool(_servicesAdapter));
@@ -86,7 +87,7 @@ public sealed class McpServer
         RegisterTool(new SuggestOptimizationsTool(_servicesAdapter));
         RegisterTool(new AnalyzeSwaggerCoverageTool(_servicesAdapter));
 
-        Console.Error.WriteLine($"[McpServer] Registered {_tools.Count} tools (L1: 21, L2: 5, L3: 1, L4: 2)");
+        Console.Error.WriteLine($"[McpServer] Registered {_tools.Count} tools (L1: 22, L2: 5, L3: 1, L4: 2)");
     }
 
     private void RegisterTool(IMcpTool tool)
@@ -102,8 +103,9 @@ public sealed class McpServer
     {
         Console.Error.WriteLine("[McpServer] Server started, waiting for requests...");
 
-        using var reader = new StreamReader(inputStream, Encoding.UTF8);
-        using var writer = new StreamWriter(outputStream, Encoding.UTF8) { AutoFlush = true };
+        var utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+        using var reader = new StreamReader(inputStream, utf8NoBom);
+        using var writer = new StreamWriter(outputStream, utf8NoBom) { AutoFlush = true };
 
         while (!reader.EndOfStream)
         {

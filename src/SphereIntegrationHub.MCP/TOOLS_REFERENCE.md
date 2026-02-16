@@ -4,8 +4,8 @@ This document summarizes the current MCP surface implemented in `src/SphereInteg
 
 ## Tool Count
 
-- Total tools: `29`
-- L1: `21`
+- Total tools: `30`
+- L1: `22`
 - L2: `5`
 - L3: `1`
 - L4: `2`
@@ -59,6 +59,11 @@ Generates startup bootstrap artifacts for API projects:
 - `appsettings` section
 - `IHostedService` class snippet
 - `Program.cs` registration snippet
+
+### `generate_api_catalog_file`
+
+Generates `api-catalog.json` content and can write it directly to disk.
+Use this first when onboarding MCP in repositories that do not have catalog files yet.
 
 ## Validation Tools
 
