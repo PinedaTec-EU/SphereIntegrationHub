@@ -1168,6 +1168,7 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
         var environment = arguments?.GetValueOrDefault("environment")?.ToString() ?? DefaultEnvironment;
         var downloadCache = TryReadBool(arguments, "downloadCache", true);
         var overwriteDefinition = TryReadBool(arguments, "overwriteDefinition", true);
+        var requestedApiName = apiName;
 
         var baseUrlOverrides = ParseBaseUrlMap(arguments);
 
@@ -1196,6 +1197,39 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
         }
 
         var basePathValue = string.IsNullOrWhiteSpace(basePath) ? "/" : basePath;
+        string? prefetchedPayload = null;
+        string? inferredApiName = null;
+
+        if (downloadCache && IsGenericApiName(apiName))
+        {
+            try
+            {
+                var tempDefinition = new ApiDefinition
+                {
+                    Name = apiName,
+                    BasePath = basePathValue,
+                    SwaggerUrl = swaggerUrl
+                };
+
+                var swaggerUri = ResolveSwaggerUri(versionEntry, tempDefinition, environment);
+                prefetchedPayload = await DownloadSwaggerPayloadAsync(swaggerUri);
+                var title = TryExtractOpenApiTitle(prefetchedPayload);
+                inferredApiName = NormalizeApiName(title);
+                if (!string.IsNullOrWhiteSpace(inferredApiName) &&
+                    !inferredApiName.Equals(apiName, StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.Error.WriteLine(
+                        $"[SphereIntegrationHub.MCP] Info: apiName '{apiName}' looks generic. Using inferred name '{inferredApiName}' from OpenAPI title.");
+                    apiName = inferredApiName;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine(
+                    $"[SphereIntegrationHub.MCP] Warning: Could not infer a better apiName from OpenAPI title: {ex.Message}");
+            }
+        }
+
         var definition = versionEntry.Definitions.FirstOrDefault(d =>
             d.Name.Equals(apiName, StringComparison.OrdinalIgnoreCase));
 
@@ -1226,7 +1260,7 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
         string? cachePath = null;
         if (downloadCache)
         {
-            cachePath = await DownloadSwaggerToCacheAsync(versionEntry, definition, environment, true);
+            cachePath = await DownloadSwaggerToCacheAsync(versionEntry, definition, environment, true, prefetchedPayload);
         }
 
         return new
@@ -1236,6 +1270,8 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
             version,
             versionCreated,
             apiName,
+            requestedApiName,
+            inferredApiName,
             definitionAction,
             cacheDownloaded = downloadCache,
             cachePath
@@ -1295,7 +1331,8 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
         ApiCatalogVersion versionEntry,
         ApiDefinition definition,
         string environment,
-        bool refresh)
+        bool refresh,
+        string? prefetchedPayload = null)
     {
         var cachePath = _adapter.GetSwaggerCachePath(versionEntry.Version, definition.Name);
         if (!refresh && File.Exists(cachePath))
@@ -1303,8 +1340,12 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
             return cachePath;
         }
 
-        var swaggerUri = ResolveSwaggerUri(versionEntry, definition, environment);
-        var payload = await DownloadSwaggerPayloadAsync(swaggerUri);
+        var payload = prefetchedPayload;
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            var swaggerUri = ResolveSwaggerUri(versionEntry, definition, environment);
+            payload = await DownloadSwaggerPayloadAsync(swaggerUri);
+        }
 
         var directory = Path.GetDirectoryName(cachePath);
         if (!string.IsNullOrWhiteSpace(directory))
@@ -1314,6 +1355,68 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
 
         await File.WriteAllTextAsync(cachePath, payload);
         return cachePath;
+    }
+
+    private static bool IsGenericApiName(string apiName)
+    {
+        if (string.IsNullOrWhiteSpace(apiName))
+        {
+            return true;
+        }
+
+        if (apiName.Equals("api", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return Regex.IsMatch(apiName, @"^api[-_ ]?\d+$", RegexOptions.IgnoreCase);
+    }
+
+    private static string? TryExtractOpenApiTitle(string payload)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(payload);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            if (!document.RootElement.TryGetProperty("info", out var infoEl) ||
+                infoEl.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            if (!infoEl.TryGetProperty("title", out var titleEl) ||
+                titleEl.ValueKind != JsonValueKind.String)
+            {
+                return null;
+            }
+
+            return titleEl.GetString();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string? NormalizeApiName(string? title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return null;
+        }
+
+        var normalized = title.Trim();
+        normalized = Regex.Replace(normalized, @"\s*[|:-]\s*v?\d+(?:\.\d+)*\s*$", string.Empty, RegexOptions.IgnoreCase);
+        normalized = Regex.Replace(normalized, @"\s+", ".");
+        normalized = Regex.Replace(normalized, @"[^A-Za-z0-9._-]", string.Empty);
+        normalized = Regex.Replace(normalized, @"[.]{2,}", ".");
+        normalized = normalized.Trim('.', '-', '_');
+
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 
     private static Uri ResolveSwaggerUri(ApiCatalogVersion versionEntry, ApiDefinition definition, string environment)
@@ -1344,6 +1447,7 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
 
     private static async Task<string> DownloadSwaggerPayloadAsync(Uri swaggerUri)
     {
+        string payload;
         if (swaggerUri.IsFile)
         {
             if (!File.Exists(swaggerUri.LocalPath))
@@ -1351,11 +1455,211 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
                 throw new FileNotFoundException($"Swagger source file not found: {swaggerUri.LocalPath}", swaggerUri.LocalPath);
             }
 
-            return await File.ReadAllTextAsync(swaggerUri.LocalPath);
+            payload = await File.ReadAllTextAsync(swaggerUri.LocalPath);
+            if (IsLikelyHtml(payload))
+            {
+                Console.Error.WriteLine(
+                    $"[SphereIntegrationHub.MCP] Warning: swagger source '{swaggerUri}' returned HTML. Trying known JSON fallback URLs.");
+                var fallbackPayload = await TryResolveOpenApiFromHtmlFallbackAsync(swaggerUri);
+                if (fallbackPayload != null)
+                {
+                    return fallbackPayload;
+                }
+
+                throw new InvalidOperationException(
+                    $"Swagger source '{swaggerUri}' returned HTML content. Tried JSON fallbacks but none returned a valid OpenAPI document.");
+            }
+
+            ValidateSwaggerPayload(payload, swaggerUri);
+            return payload;
         }
 
         using var httpClient = new HttpClient();
-        return await httpClient.GetStringAsync(swaggerUri);
+        payload = await httpClient.GetStringAsync(swaggerUri);
+        if (IsLikelyHtml(payload))
+        {
+            Console.Error.WriteLine(
+                $"[SphereIntegrationHub.MCP] Warning: swagger source '{swaggerUri}' returned HTML. Trying known JSON fallback URLs.");
+            var fallbackPayload = await TryResolveOpenApiFromHtmlFallbackAsync(swaggerUri, httpClient);
+            if (fallbackPayload != null)
+            {
+                return fallbackPayload;
+            }
+
+            throw new InvalidOperationException(
+                $"Swagger source '{swaggerUri}' returned HTML content. Tried JSON fallbacks but none returned a valid OpenAPI document.");
+        }
+
+        ValidateSwaggerPayload(payload, swaggerUri);
+        return payload;
+    }
+
+    private static void ValidateSwaggerPayload(string payload, Uri sourceUri)
+    {
+        var trimmed = payload.TrimStart();
+        if (trimmed.StartsWith("<", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Swagger source '{sourceUri}' returned HTML content. Use the OpenAPI JSON endpoint (for example: /swagger/v1/swagger.json or /openapi.json).");
+        }
+
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(payload);
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidOperationException(
+                $"Swagger source '{sourceUri}' did not return valid JSON: {ex.Message}", ex);
+        }
+
+        using (document)
+        {
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                throw new InvalidOperationException(
+                    $"Swagger source '{sourceUri}' returned JSON but not an OpenAPI document object.");
+            }
+
+            var root = document.RootElement;
+            var hasOpenApi = root.TryGetProperty("openapi", out _);
+            var hasSwagger2 = root.TryGetProperty("swagger", out _);
+            if (!hasOpenApi && !hasSwagger2)
+            {
+                throw new InvalidOperationException(
+                    $"Swagger source '{sourceUri}' returned JSON but missing 'openapi'/'swagger' fields.");
+            }
+        }
+    }
+
+    private static bool IsLikelyHtml(string payload)
+    {
+        var trimmed = payload.TrimStart();
+        return trimmed.StartsWith("<", StringComparison.Ordinal);
+    }
+
+    private static async Task<string?> TryResolveOpenApiFromHtmlFallbackAsync(Uri sourceUri, HttpClient? sharedClient = null)
+    {
+        var candidates = BuildSwaggerJsonFallbackCandidates(sourceUri);
+        if (candidates.Count == 0)
+        {
+            return null;
+        }
+
+        foreach (var candidate in candidates)
+        {
+            try
+            {
+                string candidatePayload;
+                if (candidate.IsFile)
+                {
+                    if (!File.Exists(candidate.LocalPath))
+                    {
+                        continue;
+                    }
+
+                    candidatePayload = await File.ReadAllTextAsync(candidate.LocalPath);
+                }
+                else
+                {
+                    if (sharedClient != null)
+                    {
+                        candidatePayload = await sharedClient.GetStringAsync(candidate);
+                    }
+                    else
+                    {
+                        using var client = new HttpClient();
+                        candidatePayload = await client.GetStringAsync(candidate);
+                    }
+                }
+
+                if (IsLikelyHtml(candidatePayload))
+                {
+                    continue;
+                }
+
+                ValidateSwaggerPayload(candidatePayload, candidate);
+                Console.Error.WriteLine(
+                    $"[SphereIntegrationHub.MCP] Info: resolved OpenAPI fallback URL '{candidate}' from HTML source '{sourceUri}'.");
+                return candidatePayload;
+            }
+            catch
+            {
+                // Continue trying candidates
+            }
+        }
+
+        return null;
+    }
+
+    private static List<Uri> BuildSwaggerJsonFallbackCandidates(Uri sourceUri)
+    {
+        var path = sourceUri.AbsolutePath;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return [];
+        }
+
+        var prefix = path;
+        if (prefix.EndsWith("/index.html", StringComparison.OrdinalIgnoreCase))
+        {
+            prefix = prefix[..^"/index.html".Length];
+        }
+        else if (prefix.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
+        {
+            var slashIndex = prefix.LastIndexOf('/');
+            prefix = slashIndex > 0 ? prefix[..slashIndex] : prefix;
+        }
+
+        prefix = prefix.TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(prefix))
+        {
+            return [];
+        }
+
+        var candidatePaths = new List<string>
+        {
+            $"{prefix}/v1/swagger.json",
+            $"{prefix}/swagger.json",
+            $"{prefix}/openapi.json"
+        };
+
+        if (prefix.EndsWith("/swagger", StringComparison.OrdinalIgnoreCase))
+        {
+            var parent = prefix[..^"/swagger".Length];
+            if (!string.IsNullOrWhiteSpace(parent))
+            {
+                candidatePaths.Add($"{parent}/swagger/v1/swagger.json");
+                candidatePaths.Add($"{parent}/swagger.json");
+                candidatePaths.Add($"{parent}/openapi.json");
+            }
+        }
+
+        var unique = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var candidates = new List<Uri>();
+
+        foreach (var candidatePath in candidatePaths)
+        {
+            var builder = new UriBuilder(sourceUri)
+            {
+                Path = candidatePath,
+                Query = string.Empty,
+                Fragment = string.Empty
+            };
+            var uri = builder.Uri;
+            if (uri.AbsoluteUri.Equals(sourceUri.AbsoluteUri, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (unique.Add(uri.AbsoluteUri))
+            {
+                candidates.Add(uri);
+            }
+        }
+
+        return candidates;
     }
 
     private static Dictionary<string, string> CreateDefaultBaseUrlMap()
@@ -1449,13 +1753,15 @@ public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
         var downloaded = new List<string>();
         var skipped = new List<string>();
         var failed = new List<object>();
+        var renamedDefinitions = new List<object>();
 
         foreach (var definition in definitions)
         {
             try
             {
-                var cachePath = _adapter.GetSwaggerCachePath(versionEntry.Version, definition.Name);
-                if (!refresh && File.Exists(cachePath))
+                var originalName = definition.Name;
+                var existingCachePath = _adapter.GetSwaggerCachePath(versionEntry.Version, definition.Name);
+                if (!refresh && File.Exists(existingCachePath))
                 {
                     skipped.Add(definition.Name);
                     continue;
@@ -1463,6 +1769,29 @@ public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
 
                 var swaggerUri = ResolveSwaggerUri(versionEntry, definition, environment);
                 var payload = await DownloadSwaggerPayloadAsync(swaggerUri);
+                if (IsGenericApiName(definition.Name))
+                {
+                    var inferredName = NormalizeApiName(TryExtractOpenApiTitle(payload));
+                    if (!string.IsNullOrWhiteSpace(inferredName) &&
+                        !inferredName.Equals(definition.Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var hasCollision = versionEntry.Definitions.Any(x =>
+                            !ReferenceEquals(x, definition) &&
+                            x.Name.Equals(inferredName, StringComparison.OrdinalIgnoreCase));
+
+                        if (!hasCollision)
+                        {
+                            definition.Name = inferredName;
+                            renamedDefinitions.Add(new
+                            {
+                                previousName = originalName,
+                                apiName = inferredName
+                            });
+                        }
+                    }
+                }
+
+                var cachePath = _adapter.GetSwaggerCachePath(versionEntry.Version, definition.Name);
 
                 var directory = Path.GetDirectoryName(cachePath);
                 if (!string.IsNullOrWhiteSpace(directory))
@@ -1483,6 +1812,12 @@ public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
             }
         }
 
+        if (renamedDefinitions.Count > 0)
+        {
+            var updatedCatalogJson = JsonSerializer.Serialize(catalog, new JsonSerializerOptions { WriteIndented = true });
+            await File.WriteAllTextAsync(_adapter.ApiCatalogPath, updatedCatalogJson);
+        }
+
         return new
         {
             version = versionEntry.Version,
@@ -1494,6 +1829,7 @@ public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
             downloaded,
             skipped,
             failed,
+            renamedDefinitions,
             counts = new
             {
                 selected = definitions.Count,
@@ -1551,6 +1887,7 @@ public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
 
     private static async Task<string> DownloadSwaggerPayloadAsync(Uri swaggerUri)
     {
+        string payload;
         if (swaggerUri.IsFile)
         {
             if (!File.Exists(swaggerUri.LocalPath))
@@ -1558,11 +1895,273 @@ public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
                 throw new FileNotFoundException($"Swagger source file not found: {swaggerUri.LocalPath}", swaggerUri.LocalPath);
             }
 
-            return await File.ReadAllTextAsync(swaggerUri.LocalPath);
+            payload = await File.ReadAllTextAsync(swaggerUri.LocalPath);
+            if (IsLikelyHtml(payload))
+            {
+                Console.Error.WriteLine(
+                    $"[SphereIntegrationHub.MCP] Warning: swagger source '{swaggerUri}' returned HTML. Trying known JSON fallback URLs.");
+                var fallbackPayload = await TryResolveOpenApiFromHtmlFallbackAsync(swaggerUri);
+                if (fallbackPayload != null)
+                {
+                    return fallbackPayload;
+                }
+
+                throw new InvalidOperationException(
+                    $"Swagger source '{swaggerUri}' returned HTML content. Tried JSON fallbacks but none returned a valid OpenAPI document.");
+            }
+
+            ValidateSwaggerPayload(payload, swaggerUri);
+            return payload;
         }
 
         using var httpClient = new HttpClient();
-        return await httpClient.GetStringAsync(swaggerUri);
+        payload = await httpClient.GetStringAsync(swaggerUri);
+        if (IsLikelyHtml(payload))
+        {
+            Console.Error.WriteLine(
+                $"[SphereIntegrationHub.MCP] Warning: swagger source '{swaggerUri}' returned HTML. Trying known JSON fallback URLs.");
+            var fallbackPayload = await TryResolveOpenApiFromHtmlFallbackAsync(swaggerUri, httpClient);
+            if (fallbackPayload != null)
+            {
+                return fallbackPayload;
+            }
+
+            throw new InvalidOperationException(
+                $"Swagger source '{swaggerUri}' returned HTML content. Tried JSON fallbacks but none returned a valid OpenAPI document.");
+        }
+
+        ValidateSwaggerPayload(payload, swaggerUri);
+        return payload;
+    }
+
+    private static void ValidateSwaggerPayload(string payload, Uri sourceUri)
+    {
+        var trimmed = payload.TrimStart();
+        if (trimmed.StartsWith("<", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Swagger source '{sourceUri}' returned HTML content. Use the OpenAPI JSON endpoint (for example: /swagger/v1/swagger.json or /openapi.json).");
+        }
+
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(payload);
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidOperationException(
+                $"Swagger source '{sourceUri}' did not return valid JSON: {ex.Message}", ex);
+        }
+
+        using (document)
+        {
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                throw new InvalidOperationException(
+                    $"Swagger source '{sourceUri}' returned JSON but not an OpenAPI document object.");
+            }
+
+            var root = document.RootElement;
+            var hasOpenApi = root.TryGetProperty("openapi", out _);
+            var hasSwagger2 = root.TryGetProperty("swagger", out _);
+            if (!hasOpenApi && !hasSwagger2)
+            {
+                throw new InvalidOperationException(
+                    $"Swagger source '{sourceUri}' returned JSON but missing 'openapi'/'swagger' fields.");
+            }
+        }
+    }
+
+    private static bool IsLikelyHtml(string payload)
+    {
+        var trimmed = payload.TrimStart();
+        return trimmed.StartsWith("<", StringComparison.Ordinal);
+    }
+
+    private static bool IsGenericApiName(string apiName)
+    {
+        if (string.IsNullOrWhiteSpace(apiName))
+        {
+            return true;
+        }
+
+        if (apiName.Equals("api", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return Regex.IsMatch(apiName, @"^api[-_ ]?\d+$", RegexOptions.IgnoreCase);
+    }
+
+    private static string? TryExtractOpenApiTitle(string payload)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(payload);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            if (!document.RootElement.TryGetProperty("info", out var infoEl) ||
+                infoEl.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            if (!infoEl.TryGetProperty("title", out var titleEl) ||
+                titleEl.ValueKind != JsonValueKind.String)
+            {
+                return null;
+            }
+
+            return titleEl.GetString();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string? NormalizeApiName(string? title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return null;
+        }
+
+        var normalized = title.Trim();
+        normalized = Regex.Replace(normalized, @"\s*[|:-]\s*v?\d+(?:\.\d+)*\s*$", string.Empty, RegexOptions.IgnoreCase);
+        normalized = Regex.Replace(normalized, @"\s+", ".");
+        normalized = Regex.Replace(normalized, @"[^A-Za-z0-9._-]", string.Empty);
+        normalized = Regex.Replace(normalized, @"[.]{2,}", ".");
+        normalized = normalized.Trim('.', '-', '_');
+
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+    }
+
+    private static async Task<string?> TryResolveOpenApiFromHtmlFallbackAsync(Uri sourceUri, HttpClient? sharedClient = null)
+    {
+        var candidates = BuildSwaggerJsonFallbackCandidates(sourceUri);
+        if (candidates.Count == 0)
+        {
+            return null;
+        }
+
+        foreach (var candidate in candidates)
+        {
+            try
+            {
+                string candidatePayload;
+                if (candidate.IsFile)
+                {
+                    if (!File.Exists(candidate.LocalPath))
+                    {
+                        continue;
+                    }
+
+                    candidatePayload = await File.ReadAllTextAsync(candidate.LocalPath);
+                }
+                else
+                {
+                    if (sharedClient != null)
+                    {
+                        candidatePayload = await sharedClient.GetStringAsync(candidate);
+                    }
+                    else
+                    {
+                        using var client = new HttpClient();
+                        candidatePayload = await client.GetStringAsync(candidate);
+                    }
+                }
+
+                if (IsLikelyHtml(candidatePayload))
+                {
+                    continue;
+                }
+
+                ValidateSwaggerPayload(candidatePayload, candidate);
+                Console.Error.WriteLine(
+                    $"[SphereIntegrationHub.MCP] Info: resolved OpenAPI fallback URL '{candidate}' from HTML source '{sourceUri}'.");
+                return candidatePayload;
+            }
+            catch
+            {
+                // Continue trying candidates
+            }
+        }
+
+        return null;
+    }
+
+    private static List<Uri> BuildSwaggerJsonFallbackCandidates(Uri sourceUri)
+    {
+        var path = sourceUri.AbsolutePath;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return [];
+        }
+
+        var prefix = path;
+        if (prefix.EndsWith("/index.html", StringComparison.OrdinalIgnoreCase))
+        {
+            prefix = prefix[..^"/index.html".Length];
+        }
+        else if (prefix.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
+        {
+            var slashIndex = prefix.LastIndexOf('/');
+            prefix = slashIndex > 0 ? prefix[..slashIndex] : prefix;
+        }
+
+        prefix = prefix.TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(prefix))
+        {
+            return [];
+        }
+
+        var candidatePaths = new List<string>
+        {
+            $"{prefix}/v1/swagger.json",
+            $"{prefix}/swagger.json",
+            $"{prefix}/openapi.json"
+        };
+
+        if (prefix.EndsWith("/swagger", StringComparison.OrdinalIgnoreCase))
+        {
+            var parent = prefix[..^"/swagger".Length];
+            if (!string.IsNullOrWhiteSpace(parent))
+            {
+                candidatePaths.Add($"{parent}/swagger/v1/swagger.json");
+                candidatePaths.Add($"{parent}/swagger.json");
+                candidatePaths.Add($"{parent}/openapi.json");
+            }
+        }
+
+        var unique = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var candidates = new List<Uri>();
+
+        foreach (var candidatePath in candidatePaths)
+        {
+            var builder = new UriBuilder(sourceUri)
+            {
+                Path = candidatePath,
+                Query = string.Empty,
+                Fragment = string.Empty
+            };
+            var uri = builder.Uri;
+            if (uri.AbsoluteUri.Equals(sourceUri.AbsoluteUri, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (unique.Add(uri.AbsoluteUri))
+            {
+                candidates.Add(uri);
+            }
+        }
+
+        return candidates;
     }
 
     private static bool TryReadBool(Dictionary<string, object>? arguments, string key, bool defaultValue)

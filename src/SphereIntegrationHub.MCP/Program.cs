@@ -1,4 +1,5 @@
 using SphereIntegrationHub.MCP;
+using SphereIntegrationHub.MCP.Services.Catalog;
 using SphereIntegrationHub.MCP.Services.Integration;
 using System.Text.Json;
 
@@ -42,6 +43,10 @@ if (!servicesAdapter.ApiCatalogExists)
         "[SphereIntegrationHub.MCP] Warning: API catalog file does not exist yet. " +
         "You can create it with the generate_api_catalog_file tool.");
 }
+else
+{
+    await WarnIfCatalogContainsHtmlSwaggerUrlsAsync(servicesAdapter.ApiCatalogPath);
+}
 
 try
 {
@@ -55,3 +60,61 @@ catch (Exception ex)
 }
 
 return 0;
+
+static async Task WarnIfCatalogContainsHtmlSwaggerUrlsAsync(string catalogPath)
+{
+    try
+    {
+        var json = await File.ReadAllTextAsync(catalogPath);
+        var catalog = JsonSerializer.Deserialize<List<ApiCatalogVersion>>(json, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        }) ?? [];
+
+        var htmlEntries = catalog
+            .SelectMany(v => v.Definitions.Select(d => new { v.Version, d.Name, d.SwaggerUrl }))
+            .Where(x => LooksLikeHtmlSwaggerUrl(x.SwaggerUrl))
+            .ToList();
+
+        if (htmlEntries.Count == 0)
+        {
+            return;
+        }
+
+        Console.Error.WriteLine(
+            $"[SphereIntegrationHub.MCP] Warning: Found {htmlEntries.Count} catalog definition(s) using HTML swaggerUrl. " +
+            "MCP will try JSON fallback patterns, but this should be corrected to JSON spec URLs.");
+
+        foreach (var entry in htmlEntries)
+        {
+            Console.Error.WriteLine(
+                $"[SphereIntegrationHub.MCP] Warning: version={entry.Version}, api={entry.Name}, swaggerUrl={entry.SwaggerUrl}");
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine(
+            $"[SphereIntegrationHub.MCP] Warning: Could not inspect catalog for HTML swaggerUrl entries: {ex.Message}");
+    }
+}
+
+static bool LooksLikeHtmlSwaggerUrl(string? swaggerUrl)
+{
+    if (string.IsNullOrWhiteSpace(swaggerUrl))
+    {
+        return false;
+    }
+
+    string path;
+    if (Uri.TryCreate(swaggerUrl, UriKind.Absolute, out var absolute))
+    {
+        path = absolute.AbsolutePath;
+    }
+    else
+    {
+        path = swaggerUrl.Split('?', '#')[0];
+    }
+
+    return path.EndsWith(".html", StringComparison.OrdinalIgnoreCase) ||
+           path.EndsWith("/swagger", StringComparison.OrdinalIgnoreCase);
+}

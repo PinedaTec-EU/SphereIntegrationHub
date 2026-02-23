@@ -1,6 +1,7 @@
 using SphereIntegrationHub.MCP.Core;
 using SphereIntegrationHub.MCP.Services.Integration;
 using SphereIntegrationHub.MCP.Tools;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 
@@ -14,12 +15,14 @@ public sealed class McpServer
     private readonly SihServicesAdapter _servicesAdapter;
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly Dictionary<string, IMcpTool> _tools;
+    private readonly string _serverVersion;
 
     public McpServer(SihServicesAdapter servicesAdapter, JsonSerializerOptions jsonOptions)
     {
         _servicesAdapter = servicesAdapter ?? throw new ArgumentNullException(nameof(servicesAdapter));
         _jsonOptions = jsonOptions ?? throw new ArgumentNullException(nameof(jsonOptions));
         _tools = new Dictionary<string, IMcpTool>(StringComparer.OrdinalIgnoreCase);
+        _serverVersion = ResolveServerVersion();
 
         RegisterTools();
     }
@@ -176,7 +179,7 @@ public sealed class McpServer
                         serverInfo = new
                         {
                             name = "SphereIntegrationHub.MCP",
-                            version = "0.1.0"
+                            version = _serverVersion
                         }
                     }
                 };
@@ -276,5 +279,26 @@ public sealed class McpServer
         var response = CreateErrorResponse(id, code, message, data);
         var responseJson = JsonSerializer.Serialize(response);
         await writer.WriteLineAsync(responseJson);
+    }
+
+    private static string ResolveServerVersion()
+    {
+        var informational = Assembly
+            .GetExecutingAssembly()
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion;
+
+        if (!string.IsNullOrWhiteSpace(informational))
+        {
+            return informational;
+        }
+
+        var assemblyVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString();
+        if (!string.IsNullOrWhiteSpace(assemblyVersion))
+        {
+            return assemblyVersion;
+        }
+
+        return "0.0.0";
     }
 }
