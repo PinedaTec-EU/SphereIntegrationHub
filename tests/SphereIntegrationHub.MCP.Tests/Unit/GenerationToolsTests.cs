@@ -653,6 +653,242 @@ public class GenerationToolsTests : IDisposable
         File.Exists(adapter.GetSwaggerCachePath("4.00", "AccountsAPI")).Should().BeFalse();
     }
 
+    [Fact]
+    public async Task UpsertApiCatalogAndCache_WithHtmlSource_ThrowsValidationError()
+    {
+        // Arrange
+        var adapter = new SihServicesAdapter(new SihPathOptions
+        {
+            ProjectRoot = _mockFs.RootPath,
+            ResourcesPath = "src/resources-html-upsert"
+        });
+
+        var htmlPath = Path.Combine(_mockFs.RootPath, "tmp", "swagger-ui.html");
+        Directory.CreateDirectory(Path.GetDirectoryName(htmlPath)!);
+        await File.WriteAllTextAsync(htmlPath, "<html><body>Swagger UI</body></html>");
+
+        var tool = new UpsertApiCatalogAndCacheTool(adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["version"] = "5.00",
+            ["apiName"] = "BadApi",
+            ["swaggerUrl"] = new Uri(htmlPath).AbsoluteUri
+        };
+
+        // Act
+        var action = () => tool.ExecuteAsync(args);
+
+        // Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(action);
+        ex.Message.Should().Contain("returned HTML content");
+    }
+
+    [Fact]
+    public async Task UpsertApiCatalogAndCache_WithHtmlSource_FallsBackToKnownJsonUrl()
+    {
+        // Arrange
+        var adapter = new SihServicesAdapter(new SihPathOptions
+        {
+            ProjectRoot = _mockFs.RootPath,
+            ResourcesPath = "src/resources-html-fallback"
+        });
+
+        var swaggerDir = Path.Combine(_mockFs.RootPath, "tmp", "service", "swagger");
+        Directory.CreateDirectory(Path.Combine(swaggerDir, "v1"));
+        var htmlPath = Path.Combine(swaggerDir, "index.html");
+        var jsonPath = Path.Combine(swaggerDir, "v1", "swagger.json");
+
+        await File.WriteAllTextAsync(htmlPath, "<html><body>Swagger UI</body></html>");
+        await File.WriteAllTextAsync(jsonPath, TestDataBuilder.CreateSampleSwagger("FallbackApi"));
+
+        var tool = new UpsertApiCatalogAndCacheTool(adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["version"] = "5.10",
+            ["apiName"] = "FallbackApi",
+            ["swaggerUrl"] = new Uri(htmlPath).AbsoluteUri
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.GetProperty("cacheDownloaded").GetBoolean().Should().BeTrue();
+        File.Exists(adapter.GetSwaggerCachePath("5.10", "FallbackApi")).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task UpsertApiCatalogAndCache_WithGenericApiName_UsesOpenApiTitleAsName()
+    {
+        // Arrange
+        var adapter = new SihServicesAdapter(new SihPathOptions
+        {
+            ProjectRoot = _mockFs.RootPath,
+            ResourcesPath = "src/resources-name-inference"
+        });
+
+        var swaggerDir = Path.Combine(_mockFs.RootPath, "tmp", "travel-admin", "swagger");
+        Directory.CreateDirectory(Path.Combine(swaggerDir, "v1"));
+        var htmlPath = Path.Combine(swaggerDir, "index.html");
+        var jsonPath = Path.Combine(swaggerDir, "v1", "swagger.json");
+
+        await File.WriteAllTextAsync(htmlPath, "<html><body>Swagger UI</body></html>");
+        await File.WriteAllTextAsync(jsonPath, TestDataBuilder.CreateSampleSwagger("TravelAgent.Admin.Api"));
+
+        var tool = new UpsertApiCatalogAndCacheTool(adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["version"] = "0.1",
+            ["apiName"] = "api-5009",
+            ["swaggerUrl"] = new Uri(htmlPath).AbsoluteUri
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.GetProperty("requestedApiName").GetString().Should().Be("api-5009");
+        json.GetProperty("apiName").GetString().Should().Be("TravelAgent.Admin.Api");
+        File.Exists(adapter.GetSwaggerCachePath("0.1", "TravelAgent.Admin.Api")).Should().BeTrue();
+        File.Exists(adapter.GetSwaggerCachePath("0.1", "api-5009")).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task RefreshSwaggerCacheFromCatalog_WithHtmlSource_ReportsFailure()
+    {
+        // Arrange
+        var adapter = new SihServicesAdapter(new SihPathOptions
+        {
+            ProjectRoot = _mockFs.RootPath,
+            ResourcesPath = "src/resources-html-refresh"
+        });
+
+        var htmlPath = Path.Combine(_mockFs.RootPath, "tmp", "swagger-ui-2.html");
+        Directory.CreateDirectory(Path.GetDirectoryName(htmlPath)!);
+        await File.WriteAllTextAsync(htmlPath, "<!DOCTYPE html><html><body>UI</body></html>");
+
+        var catalog = new[]
+        {
+            new
+            {
+                Version = "5.01",
+                BaseUrl = new Dictionary<string, string> { ["pre"] = "https://pre.example.com" },
+                Definitions = new[]
+                {
+                    new
+                    {
+                        Name = "BadApi",
+                        BasePath = "/api/bad",
+                        SwaggerUrl = new Uri(htmlPath).AbsoluteUri
+                    }
+                }
+            }
+        };
+
+        var catalogJson = JsonSerializer.Serialize(catalog, new JsonSerializerOptions { WriteIndented = true });
+        Directory.CreateDirectory(Path.GetDirectoryName(adapter.ApiCatalogPath)!);
+        await File.WriteAllTextAsync(adapter.ApiCatalogPath, catalogJson);
+
+        var tool = new RefreshSwaggerCacheFromCatalogTool(adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["version"] = "5.01",
+            ["refresh"] = true
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.GetProperty("counts").GetProperty("failed").GetInt32().Should().Be(1);
+        json.GetProperty("counts").GetProperty("downloaded").GetInt32().Should().Be(0);
+        File.Exists(adapter.GetSwaggerCachePath("5.01", "BadApi")).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task RefreshSwaggerCacheFromCatalog_WithGenericApiNames_InfersNamesAndUpdatesCatalogAndCache()
+    {
+        // Arrange
+        var adapter = new SihServicesAdapter(new SihPathOptions
+        {
+            ProjectRoot = _mockFs.RootPath,
+            ResourcesPath = "src/resources-refresh-infer-names"
+        });
+
+        var swaggerSpecs = new[]
+        {
+            new { GenericName = "api-5009", Title = "TravelAgent.Admin.Api | 3.0.1" },
+            new { GenericName = "api-5007", Title = "TravelAgent.Licensing.PublicApi | 3.0.1" },
+            new { GenericName = "api-5005", Title = "TravelAgent.Admin.Licensing.Api | 3.0.1" }
+        };
+
+        var definitions = new List<object>();
+        foreach (var spec in swaggerSpecs)
+        {
+            var swaggerDir = Path.Combine(_mockFs.RootPath, "tmp", spec.GenericName, "swagger");
+            Directory.CreateDirectory(Path.Combine(swaggerDir, "v1"));
+            var htmlPath = Path.Combine(swaggerDir, "index.html");
+            var jsonPath = Path.Combine(swaggerDir, "v1", "swagger.json");
+
+            await File.WriteAllTextAsync(htmlPath, "<html><body>Swagger UI</body></html>");
+            await File.WriteAllTextAsync(jsonPath, TestDataBuilder.CreateSampleSwagger(spec.Title));
+
+            definitions.Add(new
+            {
+                Name = spec.GenericName,
+                BasePath = $"/{spec.GenericName}",
+                SwaggerUrl = new Uri(htmlPath).AbsoluteUri
+            });
+        }
+
+        var catalog = new[]
+        {
+            new
+            {
+                Version = "0.1",
+                BaseUrl = new Dictionary<string, string> { ["pre"] = "https://pre.example.com" },
+                Definitions = definitions
+            }
+        };
+
+        var catalogJson = JsonSerializer.Serialize(catalog, new JsonSerializerOptions { WriteIndented = true });
+        Directory.CreateDirectory(Path.GetDirectoryName(adapter.ApiCatalogPath)!);
+        await File.WriteAllTextAsync(adapter.ApiCatalogPath, catalogJson);
+
+        var tool = new RefreshSwaggerCacheFromCatalogTool(adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["version"] = "0.1",
+            ["refresh"] = true
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.GetProperty("counts").GetProperty("downloaded").GetInt32().Should().Be(3);
+        json.GetProperty("counts").GetProperty("failed").GetInt32().Should().Be(0);
+
+        var updatedCatalogJson = await File.ReadAllTextAsync(adapter.ApiCatalogPath);
+        updatedCatalogJson.Should().Contain("\"Name\": \"TravelAgent.Admin.Api\"");
+        updatedCatalogJson.Should().Contain("\"Name\": \"TravelAgent.Licensing.PublicApi\"");
+        updatedCatalogJson.Should().Contain("\"Name\": \"TravelAgent.Admin.Licensing.Api\"");
+        updatedCatalogJson.Should().NotContain("\"Name\": \"api-5009\"");
+        updatedCatalogJson.Should().NotContain("\"Name\": \"api-5007\"");
+        updatedCatalogJson.Should().NotContain("\"Name\": \"api-5005\"");
+
+        File.Exists(adapter.GetSwaggerCachePath("0.1", "TravelAgent.Admin.Api")).Should().BeTrue();
+        File.Exists(adapter.GetSwaggerCachePath("0.1", "TravelAgent.Licensing.PublicApi")).Should().BeTrue();
+        File.Exists(adapter.GetSwaggerCachePath("0.1", "TravelAgent.Admin.Licensing.Api")).Should().BeTrue();
+        File.Exists(adapter.GetSwaggerCachePath("0.1", "api-5009")).Should().BeFalse();
+        File.Exists(adapter.GetSwaggerCachePath("0.1", "api-5007")).Should().BeFalse();
+        File.Exists(adapter.GetSwaggerCachePath("0.1", "api-5005")).Should().BeFalse();
+    }
+
     public void Dispose()
     {
         _mockFs.Dispose();

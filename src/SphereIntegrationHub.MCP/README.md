@@ -215,10 +215,19 @@ This should print a JSON response listing all 32 tools.
 MCP can run against any repository layout by setting environment variables:
 
 - `SIH_PROJECT_ROOT`: base path used to resolve relative values.
-- `SIH_RESOURCES_PATH`: optional resources root (if omitted: `<project>/src/resources`).
+- `SIH_RESOURCES_PATH`: optional resources root.
 - `SIH_API_CATALOG_PATH`: explicit `api-catalog.json` path.
 - `SIH_CACHE_PATH`: explicit swagger cache folder.
 - `SIH_WORKFLOWS_PATH`: explicit workflows folder.
+
+Default resolution when env vars are not provided:
+- Preferred default: `<project>/.sphere`
+- Backward-compatible fallback: `<project>/src/resources` (if legacy structure exists and `.sphere` is not present)
+
+Inside the selected resources root:
+- catalog: `<resources>/api-catalog.json`
+- cache: `<resources>/cache`
+- workflows: `<resources>/workflows`
 
 Example (`.vscode/mcp.json`) for a different repository:
 
@@ -297,6 +306,31 @@ If cache is still unavailable, generation tools can run only with explicit `endp
 - `generate_workflow_bundle`
 
 This fallback is useful for controlled/manual scenarios, but it is not the default autonomous workflow generation path.
+
+## Swagger URL Warning (Important)
+
+When generating or updating catalog definitions, `swaggerUrl` must point to the OpenAPI JSON document, not to the Swagger UI HTML page.
+
+- Valid examples:
+  - `https://host/service/swagger/v1/swagger.json`
+  - `https://host/service/openapi.json`
+- Invalid example:
+  - `https://host/service/swagger/index.html`
+
+MCP now validates downloaded content before writing cache.
+
+If the source returns HTML, MCP first tries common JSON fallback patterns automatically:
+- same path + `/v1/swagger.json`
+- same path + `/swagger.json`
+- same path + `/openapi.json`
+
+If none of those return a valid OpenAPI document, the tool fails with a clear error.
+
+MCP also emits warnings to stderr when HTML is detected:
+- On startup: if `api-catalog.json` already contains `swaggerUrl` entries that look like HTML/UI URLs.
+- During cache download: when an HTML response is received and fallback resolution starts.
+
+When using `upsert_api_catalog_and_cache`, if `apiName` looks generic (for example `api-5009`), MCP tries to infer a better name from OpenAPI `info.title` so catalog entries and cache filenames are more readable.
 
 ## No Catalog Bootstrap
 
