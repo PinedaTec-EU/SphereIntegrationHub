@@ -551,6 +551,108 @@ public class GenerationToolsTests : IDisposable
         File.Exists(Path.Combine(_mockFs.RootPath, "src", "resources", "api-catalog.json")).Should().BeTrue();
     }
 
+    [Fact]
+    public async Task UpsertApiCatalogAndCache_WhenCatalogMissing_CreatesCatalogAndDownloadsCache()
+    {
+        // Arrange
+        var adapter = new SihServicesAdapter(new SihPathOptions
+        {
+            ProjectRoot = _mockFs.RootPath,
+            ResourcesPath = "src/resources-new"
+        });
+
+        var swaggerContent = TestDataBuilder.CreateSampleSwagger("BootstrapApi");
+        var sourceSwaggerPath = Path.Combine(_mockFs.RootPath, "tmp", "bootstrap-swagger.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(sourceSwaggerPath)!);
+        await File.WriteAllTextAsync(sourceSwaggerPath, swaggerContent);
+
+        var tool = new UpsertApiCatalogAndCacheTool(adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["version"] = "9.99",
+            ["apiName"] = "BootstrapApi",
+            ["swaggerUrl"] = new Uri(sourceSwaggerPath).AbsoluteUri,
+            ["basePath"] = "/api/bootstrap"
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.GetProperty("catalogCreated").GetBoolean().Should().BeTrue();
+        json.GetProperty("cacheDownloaded").GetBoolean().Should().BeTrue();
+
+        File.Exists(adapter.ApiCatalogPath).Should().BeTrue();
+        File.Exists(adapter.GetSwaggerCachePath("9.99", "BootstrapApi")).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task RefreshSwaggerCacheFromCatalog_WithSelectedApiNames_DownloadsOnlySelected()
+    {
+        // Arrange
+        var adapter = new SihServicesAdapter(new SihPathOptions
+        {
+            ProjectRoot = _mockFs.RootPath,
+            ResourcesPath = "src/resources-refresh"
+        });
+
+        var swaggerAPath = Path.Combine(_mockFs.RootPath, "tmp", "accounts-swagger.json");
+        var swaggerBPath = Path.Combine(_mockFs.RootPath, "tmp", "users-swagger.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(swaggerAPath)!);
+        await File.WriteAllTextAsync(swaggerAPath, TestDataBuilder.CreateSampleSwagger("AccountsAPI"));
+        await File.WriteAllTextAsync(swaggerBPath, TestDataBuilder.CreateSampleSwagger("UsersAPI"));
+
+        var catalog = new[]
+        {
+            new
+            {
+                Version = "4.00",
+                BaseUrl = new Dictionary<string, string>
+                {
+                    ["pre"] = "https://pre.example.com"
+                },
+                Definitions = new[]
+                {
+                    new
+                    {
+                        Name = "AccountsAPI",
+                        BasePath = "/api/accounts",
+                        SwaggerUrl = new Uri(swaggerAPath).AbsoluteUri
+                    },
+                    new
+                    {
+                        Name = "UsersAPI",
+                        BasePath = "/api/users",
+                        SwaggerUrl = new Uri(swaggerBPath).AbsoluteUri
+                    }
+                }
+            }
+        };
+
+        var catalogJson = JsonSerializer.Serialize(catalog, new JsonSerializerOptions { WriteIndented = true });
+        Directory.CreateDirectory(Path.GetDirectoryName(adapter.ApiCatalogPath)!);
+        await File.WriteAllTextAsync(adapter.ApiCatalogPath, catalogJson);
+
+        var tool = new RefreshSwaggerCacheFromCatalogTool(adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["version"] = "4.00",
+            ["refresh"] = true,
+            ["apiNames"] = JsonSerializer.SerializeToElement(new[] { "UsersAPI" })
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.GetProperty("counts").GetProperty("selected").GetInt32().Should().Be(1);
+        json.GetProperty("counts").GetProperty("downloaded").GetInt32().Should().Be(1);
+        File.Exists(adapter.GetSwaggerCachePath("4.00", "UsersAPI")).Should().BeTrue();
+        File.Exists(adapter.GetSwaggerCachePath("4.00", "AccountsAPI")).Should().BeFalse();
+    }
+
     public void Dispose()
     {
         _mockFs.Dispose();

@@ -50,6 +50,8 @@ public sealed class McpServer
         RegisterTool(new WriteWorkflowArtifactsTool(_servicesAdapter));
         RegisterTool(new GenerateStartupBootstrapTool());
         RegisterTool(new GenerateApiCatalogFileTool(_servicesAdapter));
+        RegisterTool(new UpsertApiCatalogAndCacheTool(_servicesAdapter));
+        RegisterTool(new RefreshSwaggerCacheFromCatalogTool(_servicesAdapter));
 
         // Analysis Tools (3 tools)
         RegisterTool(new GetAvailableVariablesTool(_servicesAdapter));
@@ -87,7 +89,7 @@ public sealed class McpServer
         RegisterTool(new SuggestOptimizationsTool(_servicesAdapter));
         RegisterTool(new AnalyzeSwaggerCoverageTool(_servicesAdapter));
 
-        Console.Error.WriteLine($"[McpServer] Registered {_tools.Count} tools (L1: 22, L2: 5, L3: 1, L4: 2)");
+        Console.Error.WriteLine($"[McpServer] Registered {_tools.Count} tools (L1: 24, L2: 5, L3: 1, L4: 2)");
     }
 
     private void RegisterTool(IMcpTool tool)
