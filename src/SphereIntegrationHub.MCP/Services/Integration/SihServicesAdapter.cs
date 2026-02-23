@@ -6,6 +6,12 @@ namespace SphereIntegrationHub.MCP.Services.Integration;
 /// </summary>
 public sealed class SihServicesAdapter
 {
+    private const string SphereFolderName = ".sphere";
+    private const string LegacyResourcesRelativePath = "src/resources";
+    private const string ApiCatalogFileName = "api-catalog.json";
+    private const string CacheFolderName = "cache";
+    private const string WorkflowsFolderName = "workflows";
+
     private readonly string _projectRoot;
 
     public SihServicesAdapter(string projectRoot)
@@ -27,11 +33,11 @@ public sealed class SihServicesAdapter
         }
 
         // Initialize paths (overrideable via options)
-        var defaultResourcesPath = Path.Combine(_projectRoot, "src", "resources");
+        var defaultResourcesPath = ResolveDefaultResourcesPath(options);
         ResourcesPath = ResolvePath(options.ResourcesPath ?? defaultResourcesPath);
-        CachePath = ResolvePath(options.CachePath ?? Path.Combine(ResourcesPath, "cache"));
-        WorkflowsPath = ResolvePath(options.WorkflowsPath ?? Path.Combine(ResourcesPath, "workflows"));
-        ApiCatalogPath = ResolvePath(options.ApiCatalogPath ?? Path.Combine(ResourcesPath, "api-catalog.json"));
+        CachePath = ResolvePath(options.CachePath ?? Path.Combine(ResourcesPath, CacheFolderName));
+        WorkflowsPath = ResolvePath(options.WorkflowsPath ?? Path.Combine(ResourcesPath, WorkflowsFolderName));
+        ApiCatalogPath = ResolvePath(options.ApiCatalogPath ?? Path.Combine(ResourcesPath, ApiCatalogFileName));
 
         ApiCatalogExists = File.Exists(ApiCatalogPath);
     }
@@ -108,5 +114,27 @@ public sealed class SihServicesAdapter
         }
 
         return Path.GetFullPath(Path.Combine(_projectRoot, path));
+    }
+
+    private string ResolveDefaultResourcesPath(SihPathOptions options)
+    {
+        if (!string.IsNullOrWhiteSpace(options.ResourcesPath))
+        {
+            return options.ResourcesPath;
+        }
+
+        var spherePath = Path.Combine(_projectRoot, SphereFolderName);
+        var legacyPath = Path.Combine(_projectRoot, LegacyResourcesRelativePath);
+        var legacyCatalogPath = Path.Combine(legacyPath, ApiCatalogFileName);
+
+        // Backward compatibility:
+        // if a legacy resources structure exists and .sphere is not present yet, keep using legacy.
+        if (!Directory.Exists(spherePath) &&
+            (Directory.Exists(legacyPath) || File.Exists(legacyCatalogPath)))
+        {
+            return legacyPath;
+        }
+
+        return spherePath;
     }
 }
