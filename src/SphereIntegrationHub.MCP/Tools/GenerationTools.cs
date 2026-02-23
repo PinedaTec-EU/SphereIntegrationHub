@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using SphereIntegrationHub.MCP.Core;
 using SphereIntegrationHub.MCP.Models;
+using SphereIntegrationHub.MCP.Services.Catalog;
 using SphereIntegrationHub.MCP.Services.Generation;
 using SphereIntegrationHub.MCP.Services.Integration;
 using System.Text.Json;
@@ -1099,6 +1100,469 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
         }
 
         return Path.GetFullPath(Path.Combine(_adapter.ProjectRoot, outputPath));
+    }
+
+    private static bool TryReadBool(Dictionary<string, object>? arguments, string key, bool defaultValue)
+    {
+        if (arguments?.TryGetValue(key, out var obj) != true)
+        {
+            return defaultValue;
+        }
+
+        if (obj is bool boolValue)
+        {
+            return boolValue;
+        }
+
+        return obj.ToString()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
+    }
+}
+
+/// <summary>
+/// Creates or updates a single API definition in api-catalog.json and optionally downloads swagger cache.
+/// </summary>
+[McpTool("upsert_api_catalog_and_cache", "Creates/updates catalog definition from swagger URL and downloads cache file", Category = "Generation", Level = "L1")]
+public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
+{
+    private const string DefaultEnvironment = "pre";
+    private readonly SihServicesAdapter _adapter;
+
+    public UpsertApiCatalogAndCacheTool(SihServicesAdapter adapter)
+    {
+        _adapter = adapter;
+    }
+
+    public string Name => "upsert_api_catalog_and_cache";
+    public string Description => "Upserts one definition into api-catalog.json (create if missing) and downloads swagger cache for it.";
+
+    public object InputSchema => new
+    {
+        type = "object",
+        properties = new
+        {
+            version = new { type = "string", description = "Catalog version (e.g. 3.11)" },
+            apiName = new { type = "string", description = "Definition name" },
+            swaggerUrl = new { type = "string", description = "Swagger URL (absolute or relative)" },
+            basePath = new { type = "string", description = "API base path (e.g. /api/accounts)" },
+            environment = new { type = "string", description = "Environment key to resolve relative swaggerUrl (default: pre)" },
+            baseUrl = new
+            {
+                type = "object",
+                description = "Version baseUrl map. Used when creating new version or merging provided keys."
+            },
+            downloadCache = new { type = "boolean", description = "Download cache after upsert (default: true)" },
+            overwriteDefinition = new { type = "boolean", description = "Overwrite existing definition values (default: true)" }
+        },
+        required = new[] { "version", "apiName", "swaggerUrl" }
+    };
+
+    public async Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
+    {
+        var version = arguments?.GetValueOrDefault("version")?.ToString()
+            ?? throw new ArgumentException("version is required");
+        var apiName = arguments?.GetValueOrDefault("apiName")?.ToString()
+            ?? throw new ArgumentException("apiName is required");
+        var swaggerUrl = arguments?.GetValueOrDefault("swaggerUrl")?.ToString()
+            ?? throw new ArgumentException("swaggerUrl is required");
+        var basePath = arguments?.GetValueOrDefault("basePath")?.ToString();
+        var environment = arguments?.GetValueOrDefault("environment")?.ToString() ?? DefaultEnvironment;
+        var downloadCache = TryReadBool(arguments, "downloadCache", true);
+        var overwriteDefinition = TryReadBool(arguments, "overwriteDefinition", true);
+
+        var baseUrlOverrides = ParseBaseUrlMap(arguments);
+
+        var (catalog, catalogCreated) = await LoadCatalogAsync(_adapter.ApiCatalogPath);
+        var versionEntry = catalog.FirstOrDefault(v =>
+            v.Version.Equals(version, StringComparison.OrdinalIgnoreCase));
+
+        var versionCreated = false;
+        if (versionEntry == null)
+        {
+            versionEntry = new ApiCatalogVersion
+            {
+                Version = version,
+                BaseUrl = baseUrlOverrides.Count > 0 ? baseUrlOverrides : CreateDefaultBaseUrlMap(),
+                Definitions = []
+            };
+            catalog.Add(versionEntry);
+            versionCreated = true;
+        }
+        else
+        {
+            foreach (var pair in baseUrlOverrides)
+            {
+                versionEntry.BaseUrl[pair.Key] = pair.Value;
+            }
+        }
+
+        var basePathValue = string.IsNullOrWhiteSpace(basePath) ? "/" : basePath;
+        var definition = versionEntry.Definitions.FirstOrDefault(d =>
+            d.Name.Equals(apiName, StringComparison.OrdinalIgnoreCase));
+
+        var definitionAction = "updated";
+        if (definition == null)
+        {
+            definition = new ApiDefinition
+            {
+                Name = apiName,
+                BasePath = basePathValue,
+                SwaggerUrl = swaggerUrl
+            };
+            versionEntry.Definitions.Add(definition);
+            definitionAction = "created";
+        }
+        else if (overwriteDefinition)
+        {
+            definition.BasePath = basePathValue;
+            definition.SwaggerUrl = swaggerUrl;
+        }
+        else
+        {
+            definitionAction = "kept-existing";
+        }
+
+        await SaveCatalogAsync(_adapter.ApiCatalogPath, catalog);
+
+        string? cachePath = null;
+        if (downloadCache)
+        {
+            cachePath = await DownloadSwaggerToCacheAsync(versionEntry, definition, environment, true);
+        }
+
+        return new
+        {
+            catalogPath = _adapter.ApiCatalogPath,
+            catalogCreated,
+            version,
+            versionCreated,
+            apiName,
+            definitionAction,
+            cacheDownloaded = downloadCache,
+            cachePath
+        };
+    }
+
+    private static Dictionary<string, string> ParseBaseUrlMap(Dictionary<string, object>? arguments)
+    {
+        if (arguments?.TryGetValue("baseUrl", out var baseUrlObj) != true)
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        if (baseUrlObj is not JsonElement baseUrlEl || baseUrlEl.ValueKind != JsonValueKind.Object)
+        {
+            throw new ArgumentException("baseUrl must be an object");
+        }
+
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var prop in baseUrlEl.EnumerateObject())
+        {
+            map[prop.Name] = prop.Value.GetString() ?? string.Empty;
+        }
+
+        return map;
+    }
+
+    private static async Task<(List<ApiCatalogVersion> Catalog, bool Created)> LoadCatalogAsync(string catalogPath)
+    {
+        if (!File.Exists(catalogPath))
+        {
+            return ([], true);
+        }
+
+        var json = await File.ReadAllTextAsync(catalogPath);
+        var catalog = JsonSerializer.Deserialize<List<ApiCatalogVersion>>(json, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        }) ?? [];
+
+        return (catalog, false);
+    }
+
+    private static async Task SaveCatalogAsync(string catalogPath, List<ApiCatalogVersion> catalog)
+    {
+        var directory = Path.GetDirectoryName(catalogPath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        var json = JsonSerializer.Serialize(catalog, new JsonSerializerOptions { WriteIndented = true });
+        await File.WriteAllTextAsync(catalogPath, json);
+    }
+
+    private async Task<string> DownloadSwaggerToCacheAsync(
+        ApiCatalogVersion versionEntry,
+        ApiDefinition definition,
+        string environment,
+        bool refresh)
+    {
+        var cachePath = _adapter.GetSwaggerCachePath(versionEntry.Version, definition.Name);
+        if (!refresh && File.Exists(cachePath))
+        {
+            return cachePath;
+        }
+
+        var swaggerUri = ResolveSwaggerUri(versionEntry, definition, environment);
+        var payload = await DownloadSwaggerPayloadAsync(swaggerUri);
+
+        var directory = Path.GetDirectoryName(cachePath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        await File.WriteAllTextAsync(cachePath, payload);
+        return cachePath;
+    }
+
+    private static Uri ResolveSwaggerUri(ApiCatalogVersion versionEntry, ApiDefinition definition, string environment)
+    {
+        if (Uri.TryCreate(definition.SwaggerUrl, UriKind.Absolute, out var absolute))
+        {
+            return absolute;
+        }
+
+        if (!versionEntry.BaseUrl.TryGetValue(environment, out var baseUrl) || string.IsNullOrWhiteSpace(baseUrl))
+        {
+            baseUrl = versionEntry.BaseUrl.Values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+        }
+
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            throw new InvalidOperationException(
+                $"Cannot resolve relative swaggerUrl '{definition.SwaggerUrl}' because baseUrl is missing for version '{versionEntry.Version}'.");
+        }
+
+        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var baseUri))
+        {
+            throw new InvalidOperationException($"Invalid baseUrl '{baseUrl}' for version '{versionEntry.Version}'.");
+        }
+
+        return new Uri(baseUri, definition.SwaggerUrl.TrimStart('/'));
+    }
+
+    private static async Task<string> DownloadSwaggerPayloadAsync(Uri swaggerUri)
+    {
+        if (swaggerUri.IsFile)
+        {
+            if (!File.Exists(swaggerUri.LocalPath))
+            {
+                throw new FileNotFoundException($"Swagger source file not found: {swaggerUri.LocalPath}", swaggerUri.LocalPath);
+            }
+
+            return await File.ReadAllTextAsync(swaggerUri.LocalPath);
+        }
+
+        using var httpClient = new HttpClient();
+        return await httpClient.GetStringAsync(swaggerUri);
+    }
+
+    private static Dictionary<string, string> CreateDefaultBaseUrlMap()
+    {
+        return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["local"] = "http://localhost",
+            ["pre"] = "https://pre.example.com",
+            ["prod"] = "https://api.example.com"
+        };
+    }
+
+    private static bool TryReadBool(Dictionary<string, object>? arguments, string key, bool defaultValue)
+    {
+        if (arguments?.TryGetValue(key, out var obj) != true)
+        {
+            return defaultValue;
+        }
+
+        if (obj is bool boolValue)
+        {
+            return boolValue;
+        }
+
+        return obj.ToString()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
+    }
+}
+
+/// <summary>
+/// Downloads swagger cache files for one version from an existing api-catalog.json.
+/// </summary>
+[McpTool("refresh_swagger_cache_from_catalog", "Downloads swagger files from api-catalog definitions into cache", Category = "Generation", Level = "L1")]
+public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
+{
+    private const string DefaultEnvironment = "pre";
+    private readonly SihServicesAdapter _adapter;
+
+    public RefreshSwaggerCacheFromCatalogTool(SihServicesAdapter adapter)
+    {
+        _adapter = adapter;
+    }
+
+    public string Name => "refresh_swagger_cache_from_catalog";
+    public string Description => "Refreshes swagger cache for a catalog version (all definitions or selected apiNames).";
+
+    public object InputSchema => new
+    {
+        type = "object",
+        properties = new
+        {
+            version = new { type = "string", description = "Catalog version to process" },
+            environment = new { type = "string", description = "Environment key for relative swaggerUrl (default: pre)" },
+            refresh = new { type = "boolean", description = "Force redownload even if cache exists (default: false)" },
+            apiNames = new
+            {
+                type = "array",
+                description = "Optional subset of definition names",
+                items = new { type = "string" }
+            }
+        },
+        required = new[] { "version" }
+    };
+
+    public async Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
+    {
+        var version = arguments?.GetValueOrDefault("version")?.ToString()
+            ?? throw new ArgumentException("version is required");
+        var environment = arguments?.GetValueOrDefault("environment")?.ToString() ?? DefaultEnvironment;
+        var refresh = TryReadBool(arguments, "refresh", false);
+        var apiNames = ParseApiNames(arguments);
+
+        if (!File.Exists(_adapter.ApiCatalogPath))
+        {
+            throw new FileNotFoundException($"Catalog file not found: {_adapter.ApiCatalogPath}");
+        }
+
+        var json = await File.ReadAllTextAsync(_adapter.ApiCatalogPath);
+        var catalog = JsonSerializer.Deserialize<List<ApiCatalogVersion>>(json, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        }) ?? [];
+
+        var versionEntry = catalog.FirstOrDefault(v =>
+            v.Version.Equals(version, StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException($"Catalog version not found: {version}");
+
+        var definitions = apiNames.Count == 0
+            ? versionEntry.Definitions
+            : versionEntry.Definitions.Where(d => apiNames.Contains(d.Name)).ToList();
+
+        var downloaded = new List<string>();
+        var skipped = new List<string>();
+        var failed = new List<object>();
+
+        foreach (var definition in definitions)
+        {
+            try
+            {
+                var cachePath = _adapter.GetSwaggerCachePath(versionEntry.Version, definition.Name);
+                if (!refresh && File.Exists(cachePath))
+                {
+                    skipped.Add(definition.Name);
+                    continue;
+                }
+
+                var swaggerUri = ResolveSwaggerUri(versionEntry, definition, environment);
+                var payload = await DownloadSwaggerPayloadAsync(swaggerUri);
+
+                var directory = Path.GetDirectoryName(cachePath);
+                if (!string.IsNullOrWhiteSpace(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                await File.WriteAllTextAsync(cachePath, payload);
+                downloaded.Add(cachePath);
+            }
+            catch (Exception ex)
+            {
+                failed.Add(new
+                {
+                    apiName = definition.Name,
+                    error = ex.Message
+                });
+            }
+        }
+
+        return new
+        {
+            version = versionEntry.Version,
+            environment,
+            refresh,
+            catalogPath = _adapter.ApiCatalogPath,
+            cacheRoot = _adapter.CachePath,
+            selectedDefinitions = definitions.Select(d => d.Name).ToList(),
+            downloaded,
+            skipped,
+            failed,
+            counts = new
+            {
+                selected = definitions.Count,
+                downloaded = downloaded.Count,
+                skipped = skipped.Count,
+                failed = failed.Count
+            }
+        };
+    }
+
+    private static HashSet<string> ParseApiNames(Dictionary<string, object>? arguments)
+    {
+        if (arguments?.TryGetValue("apiNames", out var apiNamesObj) != true)
+        {
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        if (apiNamesObj is not JsonElement apiNamesEl || apiNamesEl.ValueKind != JsonValueKind.Array)
+        {
+            throw new ArgumentException("apiNames must be an array");
+        }
+
+        return apiNamesEl
+            .EnumerateArray()
+            .Select(x => x.GetString() ?? string.Empty)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static Uri ResolveSwaggerUri(ApiCatalogVersion versionEntry, ApiDefinition definition, string environment)
+    {
+        if (Uri.TryCreate(definition.SwaggerUrl, UriKind.Absolute, out var absolute))
+        {
+            return absolute;
+        }
+
+        if (!versionEntry.BaseUrl.TryGetValue(environment, out var baseUrl) || string.IsNullOrWhiteSpace(baseUrl))
+        {
+            baseUrl = versionEntry.BaseUrl.Values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+        }
+
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            throw new InvalidOperationException(
+                $"Cannot resolve relative swaggerUrl '{definition.SwaggerUrl}' because baseUrl is missing for version '{versionEntry.Version}'.");
+        }
+
+        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var baseUri))
+        {
+            throw new InvalidOperationException($"Invalid baseUrl '{baseUrl}' for version '{versionEntry.Version}'.");
+        }
+
+        return new Uri(baseUri, definition.SwaggerUrl.TrimStart('/'));
+    }
+
+    private static async Task<string> DownloadSwaggerPayloadAsync(Uri swaggerUri)
+    {
+        if (swaggerUri.IsFile)
+        {
+            if (!File.Exists(swaggerUri.LocalPath))
+            {
+                throw new FileNotFoundException($"Swagger source file not found: {swaggerUri.LocalPath}", swaggerUri.LocalPath);
+            }
+
+            return await File.ReadAllTextAsync(swaggerUri.LocalPath);
+        }
+
+        using var httpClient = new HttpClient();
+        return await httpClient.GetStringAsync(swaggerUri);
     }
 
     private static bool TryReadBool(Dictionary<string, object>? arguments, string key, bool defaultValue)

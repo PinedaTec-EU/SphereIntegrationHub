@@ -4,7 +4,7 @@ Model Context Protocol (MCP) server for SphereIntegrationHub providing AI-assist
 
 ## Overview
 
-This MCP server exposes 30 tools organized in 4 levels (L1-L4) that enable LLMs to:
+This MCP server exposes 32 tools organized in 4 levels (L1-L4) that enable LLMs to:
 - Explore API catalogs and generate workflow stages
 - Validate and analyze workflows
 - Optimize execution strategies
@@ -32,7 +32,7 @@ McpServer (stdio JSON-RPC)
     └── DiagnosticTools.cs    - 3 diagnostic tools
 ```
 
-## Level 1 Tools (18 implemented)
+## Level 1 Tools (24 implemented)
 
 ### Catalog Tools (4)
 - `list_api_catalog_versions` - Lists available API versions
@@ -45,7 +45,7 @@ McpServer (stdio JSON-RPC)
 - `validate_stage` - Validates single stage
 - `plan_workflow_execution` - Analyzes execution plan
 
-### Generation Tools (7)
+### Generation Tools (9)
 - `generate_endpoint_stage` - Generates stage from endpoint
 - `generate_workflow_skeleton` - Creates workflow template
 - `generate_mock_payload` - Generates test payload
@@ -53,6 +53,8 @@ McpServer (stdio JSON-RPC)
 - `write_workflow_artifacts` - Writes generated artifacts to disk
 - `generate_startup_bootstrap` - Generates startup integration for app boot
 - `generate_api_catalog_file` - Generates/writes `api-catalog.json`
+- `upsert_api_catalog_and_cache` - Creates/updates catalog from swagger URL and downloads cache
+- `refresh_swagger_cache_from_catalog` - Downloads cache files from existing catalog
 
 ### Analysis Tools (3)
 - `get_available_variables` - Shows available variables at a point
@@ -90,7 +92,6 @@ The repository includes **pre-configured MCP files** for the most common AI agen
 |-------|----------------------|---------------|
 | **Claude Code** | `.mcp.json` | Open project, reload Claude Code |
 | **GitHub Copilot** | `.vscode/mcp.json` | Open project in VS Code, open Copilot Chat in Agent mode |
-| **Cursor** | `.cursor/mcp.json` | Open project in Cursor |
 | **Codex (OpenAI)** | `.codex/config.toml` | Open project with Codex CLI (project must be trusted) |
 
 Just build the solution and open the project in your IDE. The MCP server will be discovered automatically.
@@ -104,6 +105,25 @@ No special syntax needed. Just ask naturally:
 > *"Validate this workflow and tell me what's wrong"*
 
 The agent decides which MCP tools to call on your behalf.
+
+## First Workflow via LLM -> MCP (Recommended Script)
+
+Use this short conversation flow with your LLM to get the first workflow generated and written to disk.
+
+1. Ensure MCP is connected:
+   - Prompt: `List available API catalog versions using MCP.`
+2. If catalog/cache is missing, bootstrap from swagger URL:
+   - Prompt: `Use MCP tool upsert_api_catalog_and_cache with version 3.11, apiName AccountsAPI, swaggerUrl <YOUR_SWAGGER_URL>, basePath /api/accounts.`
+3. If catalog exists and you only need cache refresh:
+   - Prompt: `Use MCP tool refresh_swagger_cache_from_catalog for version 3.11 with refresh=true.`
+4. Generate workflow draft bundle:
+   - Prompt: `Use MCP to generate a workflow bundle for "create account" and include workflowDraft + wfvarsDraft.`
+5. Persist artifacts:
+   - Prompt: `Use MCP write_workflow_artifacts to save the generated .workflow and .wfvars under the workflows path.`
+6. Validate:
+   - Prompt: `Validate the generated workflow with MCP and show me any fixes needed.`
+
+This is the minimum path for first-time users: bootstrap catalog/cache, generate, write, validate.
 
 ---
 
@@ -188,7 +208,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | \
   SIH_PROJECT_ROOT=. dotnet run --project src/SphereIntegrationHub.MCP
 ```
 
-This should print a JSON response listing all 30 tools.
+This should print a JSON response listing all 32 tools.
 
 ## Runtime Path Configuration
 
@@ -224,13 +244,59 @@ Example (`.vscode/mcp.json`) for a different repository:
 }
 ```
 
-## No Swagger Cache Fallback
+## Required Bootstrap for MCP Workflow Generation
 
-When cache is unavailable, generation tools can work with `endpointSchema` supplied by the model/agent:
+For MCP to generate workflows autonomously (discover APIs/endpoints and build drafts), you must have:
+- `api-catalog.json` available.
+- Swagger cache files available in the configured cache path.
 
+Without cache, MCP cannot inspect endpoint catalogs/schemas directly. In that case, generation only works if the model receives manual `endpointSchema` input.
+
+## Preload Swagger Cache With CLI (No Endpoint Execution)
+
+Recommended mandatory step before asking the LLM to generate workflows with MCP:
+
+Use:
+
+```bash
+SphereIntegrationHub.cli \
+  --workflow ./src/resources/workflows/create-account.workflow \
+  --env pre \
+  --dry-run \
+  --refresh-cache \
+  --verbose
+```
+
+Why this works:
+- `--dry-run` validates only (no endpoint execution).
+- `--refresh-cache` forces swagger download/update for the API definitions referenced by the workflow.
+
+If you do not have a workflow yet, create a minimal bootstrap workflow that only contains `references.apis` for the definitions you want to cache, then run the same command.
+
+Example bootstrap workflow:
+
+```yaml
+version: "3.11"
+id: "bootstrap-cache-01"
+name: "bootstrap-cache"
+description: "Used only to refresh swagger cache."
+output: false
+references:
+  apis:
+    - name: "accounts"
+      definition: "accounts"
+stages: []
+endStage: {}
+```
+
+## Manual Fallback (Advanced)
+
+If cache is still unavailable, generation tools can run only with explicit `endpointSchema` supplied by the model/user:
 - `generate_endpoint_stage`
 - `generate_mock_payload`
 - `generate_workflow_bundle`
+
+This fallback is useful for controlled/manual scenarios, but it is not the default autonomous workflow generation path.
 
 ## No Catalog Bootstrap
 
