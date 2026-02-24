@@ -223,6 +223,29 @@ public class SynthesisToolsTests : IDisposable
     }
 
     [Fact]
+    public async Task SynthesizeSystemFromDescription_WithoutVersion_UsesFirstCatalogVersionAndWarns()
+    {
+        // Arrange
+        var tool = new SynthesizeSystemFromDescriptionTool(_adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["description"] = "Simple account management system"
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.GetProperty("version").GetString().Should().Be("3.10");
+        json.GetProperty("warnings").GetArrayLength().Should().BeGreaterThan(0);
+        var workflows = json.GetProperty("workflows").EnumerateArray().ToList();
+        workflows.Should().NotBeEmpty();
+        workflows[0].GetProperty("fullYaml").GetString().Should().Contain("version: 3.10");
+        workflows[0].GetProperty("wfvars").GetString().Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
     public async Task SynthesizeSystemFromDescription_WithRequiredApis_UsesSpecifiedApis()
     {
         // Arrange
