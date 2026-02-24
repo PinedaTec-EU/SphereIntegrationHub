@@ -12,11 +12,14 @@ namespace SphereIntegrationHub.MCP;
 /// </summary>
 public sealed class McpServer
 {
+    private const int MaxRequestCharacters = 262_144; // 256 KiB JSON line cap
+    private const string JsonRpcVersion = "2.0";
     private readonly SihServicesAdapter _servicesAdapter;
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly Dictionary<string, IMcpTool> _tools;
     private readonly string _serverVersion;
     private readonly string _toolProfile;
+    private readonly bool _verboseLogs;
 
     public McpServer(SihServicesAdapter servicesAdapter, JsonSerializerOptions jsonOptions)
     {
@@ -25,6 +28,7 @@ public sealed class McpServer
         _tools = new Dictionary<string, IMcpTool>(StringComparer.OrdinalIgnoreCase);
         _serverVersion = ResolveServerVersion();
         _toolProfile = ResolveToolProfile();
+        _verboseLogs = ResolveVerboseLogsFlag();
 
         RegisterTools();
     }
@@ -120,7 +124,10 @@ public sealed class McpServer
     private void RegisterTool(IMcpTool tool)
     {
         _tools[tool.Name] = tool;
-        Console.Error.WriteLine($"[McpServer] Registered tool: {tool.Name}");
+        if (_verboseLogs)
+        {
+            Console.Error.WriteLine($"[McpServer] Registered tool: {tool.Name}");
+        }
     }
 
     /// <summary>
@@ -131,8 +138,8 @@ public sealed class McpServer
         Console.Error.WriteLine("[McpServer] Server started, waiting for requests...");
 
         var utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
-        using var reader = new StreamReader(inputStream, utf8NoBom);
-        using var writer = new StreamWriter(outputStream, utf8NoBom) { AutoFlush = true };
+        using var reader = new StreamReader(inputStream, utf8NoBom, detectEncodingFromByteOrderMarks: true, bufferSize: 1024, leaveOpen: true);
+        using var writer = new StreamWriter(outputStream, utf8NoBom, bufferSize: 1024, leaveOpen: true) { AutoFlush = true };
 
         while (!reader.EndOfStream)
         {
@@ -144,7 +151,12 @@ public sealed class McpServer
                     continue;
                 }
 
-                Console.Error.WriteLine($"[McpServer] Received request: {line[..Math.Min(line.Length, 200)]}...");
+                if (line.Length > MaxRequestCharacters)
+                {
+                    Console.Error.WriteLine($"[McpServer] Request rejected (too large: {line.Length} chars)");
+                    await SendErrorAsync(writer, null, McpErrorCodes.InvalidRequest, "Request too large", null);
+                    continue;
+                }
 
                 McpRequest? request;
                 try
@@ -164,17 +176,31 @@ public sealed class McpServer
                     continue;
                 }
 
-                var response = await ProcessRequestAsync(request);
-                var responseJson = JsonSerializer.Serialize(response, _jsonOptions);
-                await writer.WriteLineAsync(responseJson);
+                var isNotification = request.Id == null;
+                Console.Error.WriteLine($"[McpServer] Received request method='{request.Method}' id='{request.Id?.ToString() ?? "notification"}'");
 
-                Console.Error.WriteLine($"[McpServer] Sent response for request ID: {request.Id}");
+                var response = await ProcessRequestAsync(request);
+                if (!isNotification)
+                {
+                    var responseJson = JsonSerializer.Serialize(response, _jsonOptions);
+                    await writer.WriteLineAsync(responseJson);
+
+                    Console.Error.WriteLine($"[McpServer] Sent response for request ID: {request.Id}");
+                }
+                else
+                {
+                    Console.Error.WriteLine($"[McpServer] Processed notification method='{request.Method}'");
+                }
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"[McpServer] Unexpected error: {ex.Message}");
-                Console.Error.WriteLine($"[McpServer] Stack trace: {ex.StackTrace}");
-                await SendErrorAsync(writer, null, McpErrorCodes.InternalError, "Internal error", ex.Message);
+                if (_verboseLogs)
+                {
+                    Console.Error.WriteLine($"[McpServer] Stack trace: {ex.StackTrace}");
+                }
+
+                await SendErrorAsync(writer, null, McpErrorCodes.InternalError, "Internal error", null);
             }
         }
 
@@ -185,6 +211,16 @@ public sealed class McpServer
     {
         try
         {
+            if (!string.Equals(request.JsonRpc, JsonRpcVersion, StringComparison.Ordinal))
+            {
+                return CreateErrorResponse(request.Id, McpErrorCodes.InvalidRequest, "Invalid JSON-RPC version", null);
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Method))
+            {
+                return CreateErrorResponse(request.Id, McpErrorCodes.InvalidRequest, "Method is required", null);
+            }
+
             // Handle standard JSON-RPC methods
             if (request.Method == "initialize")
             {
@@ -239,17 +275,10 @@ public sealed class McpServer
 
                 // Extract arguments from params
                 Dictionary<string, object>? arguments = null;
-                if (request.Params?.TryGetValue("arguments", out var argsObj) == true)
+                if (request.Params?.TryGetValue("arguments", out var argsObj) == true &&
+                    !TryExtractArguments(argsObj, out arguments, out var argumentError))
                 {
-                    if (argsObj is JsonElement jsonElement)
-                    {
-                        var argsJson = jsonElement.GetRawText();
-                        arguments = JsonSerializer.Deserialize<Dictionary<string, object>>(argsJson, _jsonOptions);
-                    }
-                    else if (argsObj is Dictionary<string, object> dict)
-                    {
-                        arguments = dict;
-                    }
+                    return CreateErrorResponse(request.Id, McpErrorCodes.InvalidParams, argumentError!, null);
                 }
 
                 Console.Error.WriteLine($"[McpServer] Executing tool: {toolName}");
@@ -333,5 +362,58 @@ public sealed class McpServer
         }
 
         return profile.Trim();
+    }
+
+    private static bool ResolveVerboseLogsFlag()
+    {
+        var value = Environment.GetEnvironmentVariable("SIH_MCP_VERBOSE_LOGS");
+        return value?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private bool TryExtractArguments(object? argsObj, out Dictionary<string, object>? arguments, out string? errorMessage)
+    {
+        arguments = null;
+        errorMessage = null;
+
+        if (argsObj == null)
+        {
+            return true;
+        }
+
+        if (argsObj is JsonElement jsonElement)
+        {
+            if (jsonElement.ValueKind == JsonValueKind.Null ||
+                jsonElement.ValueKind == JsonValueKind.Undefined)
+            {
+                return true;
+            }
+
+            if (jsonElement.ValueKind != JsonValueKind.Object)
+            {
+                errorMessage = "Tool arguments must be a JSON object.";
+                return false;
+            }
+
+            try
+            {
+                var argsJson = jsonElement.GetRawText();
+                arguments = JsonSerializer.Deserialize<Dictionary<string, object>>(argsJson, _jsonOptions);
+                return true;
+            }
+            catch (JsonException)
+            {
+                errorMessage = "Tool arguments payload is not a valid JSON object.";
+                return false;
+            }
+        }
+
+        if (argsObj is Dictionary<string, object> dictionary)
+        {
+            arguments = dictionary;
+            return true;
+        }
+
+        errorMessage = "Tool arguments must be an object map.";
+        return false;
     }
 }

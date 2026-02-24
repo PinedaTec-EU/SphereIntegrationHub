@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text;
 using FluentAssertions;
 using SphereIntegrationHub.MCP.Core;
 using SphereIntegrationHub.MCP.Services.Integration;
@@ -304,6 +305,163 @@ public class McpServerIntegrationTests : IDisposable
         responseJson.Should().Contain("\"id\"");
         responseJson.Should().Contain("\"result\"");
         responseJson.Should().NotContain("\"error\":");
+    }
+
+    [Fact]
+    public async Task McpServer_ToolsCall_WithArrayArguments_ReturnsInvalidParams()
+    {
+        // Arrange
+        var server = new McpServer(_adapter, _jsonOptions);
+        var request = new McpRequest
+        {
+            Id = 10,
+            Method = "tools/call",
+            Params = new Dictionary<string, object>
+            {
+                ["name"] = "list_api_catalog_versions",
+                ["arguments"] = JsonDocument.Parse("[]").RootElement
+            }
+        };
+
+        // Act
+        var response = await server.ProcessRequestAsync(request);
+
+        // Assert
+        response.Error.Should().NotBeNull();
+        response.Error!.Code.Should().Be(McpErrorCodes.InvalidParams);
+        response.Error.Message.Should().Contain("arguments");
+    }
+
+    [Fact]
+    public async Task McpServer_StartAsync_WithMalformedJson_ContinuesProcessingNextRequest()
+    {
+        // Arrange
+        var server = new McpServer(_adapter, _jsonOptions);
+        const string inputLines = """
+{ this-is-not-json }
+{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}
+""";
+
+        await using var input = new MemoryStream(Encoding.UTF8.GetBytes(inputLines));
+        await using var output = new MemoryStream();
+
+        // Act
+        await server.StartAsync(input, output);
+        var responses = ReadResponses(output);
+
+        // Assert
+        responses.Should().HaveCount(2);
+        responses[0].Error.Should().NotBeNull();
+        responses[0].Error!.Code.Should().Be(McpErrorCodes.ParseError);
+        responses[1].Error.Should().BeNull();
+        responses[1].Result.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task McpServer_StartAsync_WithNullRequest_ReturnsInvalidRequest()
+    {
+        // Arrange
+        var server = new McpServer(_adapter, _jsonOptions);
+        const string inputLines = "null\n";
+
+        await using var input = new MemoryStream(Encoding.UTF8.GetBytes(inputLines));
+        await using var output = new MemoryStream();
+
+        // Act
+        await server.StartAsync(input, output);
+        var responses = ReadResponses(output);
+
+        // Assert
+        responses.Should().HaveCount(1);
+        responses[0].Error.Should().NotBeNull();
+        responses[0].Error!.Code.Should().Be(McpErrorCodes.InvalidRequest);
+    }
+
+    [Fact]
+    public async Task McpServer_StartAsync_WithNotification_DoesNotEmitResponse()
+    {
+        // Arrange
+        var server = new McpServer(_adapter, _jsonOptions);
+        const string inputLines = """
+{"jsonrpc":"2.0","method":"tools/list","params":{}}
+""";
+
+        await using var input = new MemoryStream(Encoding.UTF8.GetBytes(inputLines));
+        await using var output = new MemoryStream();
+
+        // Act
+        await server.StartAsync(input, output);
+        var responses = ReadResponses(output);
+
+        // Assert
+        responses.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task McpServer_ProcessRequest_WithInvalidJsonRpcVersion_ReturnsInvalidRequest()
+    {
+        // Arrange
+        var server = new McpServer(_adapter, _jsonOptions);
+        var request = new McpRequest
+        {
+            Id = 88,
+            JsonRpc = "1.0",
+            Method = "tools/list",
+            Params = new Dictionary<string, object>()
+        };
+
+        // Act
+        var response = await server.ProcessRequestAsync(request);
+
+        // Assert
+        response.Error.Should().NotBeNull();
+        response.Error!.Code.Should().Be(McpErrorCodes.InvalidRequest);
+        response.Error.Message.Should().Contain("JSON-RPC version");
+    }
+
+    [Fact]
+    public async Task McpServer_StartAsync_WithOversizedRequest_ReturnsInvalidRequest()
+    {
+        // Arrange
+        var server = new McpServer(_adapter, _jsonOptions);
+        var oversizedPayload = new string('a', 262_145);
+        var line = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"generate_workflow_skeleton\",\"arguments\":{\"name\":\"w\",\"description\":\"" +
+                   oversizedPayload +
+                   "\"}}}\n";
+
+        await using var input = new MemoryStream(Encoding.UTF8.GetBytes(line));
+        await using var output = new MemoryStream();
+
+        // Act
+        await server.StartAsync(input, output);
+        var responses = ReadResponses(output);
+
+        // Assert
+        responses.Should().HaveCount(1);
+        responses[0].Error.Should().NotBeNull();
+        responses[0].Error!.Code.Should().Be(McpErrorCodes.InvalidRequest);
+        responses[0].Error.Message.Should().Contain("too large");
+    }
+
+    private List<McpResponse> ReadResponses(MemoryStream output)
+    {
+        output.Position = 0;
+        using var reader = new StreamReader(output, Encoding.UTF8, leaveOpen: true);
+        var responses = new List<McpResponse>();
+        while (!reader.EndOfStream)
+        {
+            var line = reader.ReadLine();
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            var response = JsonSerializer.Deserialize<McpResponse>(line, _jsonOptions);
+            response.Should().NotBeNull();
+            responses.Add(response!);
+        }
+
+        return responses;
     }
 
     public void Dispose()
