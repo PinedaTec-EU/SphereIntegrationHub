@@ -41,3 +41,38 @@ Only if fast path fails:
 - Prefer MCP tool calls over file exploration for cache tasks.
 - Avoid repeated retries with identical parameters.
 - Keep responses concise; report only selected/downloaded/failed and generated file names.
+
+### CLI Guidance Policy (Post-Generation)
+
+When MCP has created/updated artifacts (catalog, cache, workflow, wfvars), guide the user to runtime execution with CLI:
+
+1. Recommend `sih` launcher first (packaged runtime), not `dotnet run`.
+2. Suggest validation before execution:
+   - `./sih run --workflow <path> --env <env> --dry-run --refresh-cache`
+3. Then suggest real execution:
+   - `./sih run --workflow <path> --env <env>`
+4. If `.wfvars` exists, include it explicitly when needed:
+   - `--varsfile <path>`
+5. Mention `dotnet run --project src/SphereIntegrationHub.cli` only as fallback when packaged `sih` is unavailable.
+
+When user asks “how do I run this workflow?”, provide concrete command lines with the actual workflow path produced by MCP.
+
+### Autonomous CLI Execution Policy
+
+When user intent clearly asks to execute/validate a generated workflow, the agent should execute CLI commands directly instead of only suggesting them.
+
+Execution order:
+
+1. Run validation first:
+   - `./sih run --workflow <path> --env <env> --dry-run --refresh-cache`
+2. If dry-run succeeds and user intent implies real execution, run:
+   - `./sih run --workflow <path> --env <env>`
+
+Guardrails:
+
+- Prefer packaged launcher (`./sih`) when available.
+- If packaged launcher is unavailable, fallback to:
+  - `dotnet run --project src/SphereIntegrationHub.cli -- ...`
+- Always include concrete workflow path and environment.
+- If execution fails, report exact failing command and the actionable error summary.
+- Do not silently skip dry-run unless user explicitly requests direct execution.
