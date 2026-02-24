@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [[ $# -lt 1 ]]; then
+  echo "Usage: sih <run|mcp> [args]" >&2
+  exit 1
+fi
+
+command="$1"
+shift || true
+
+case "${command}" in
+  run)
+    exec "${BASE_DIR}/SphereIntegrationHub.cli" "$@"
+    ;;
+  mcp)
+    exec "${BASE_DIR}/SphereIntegrationHub.MCP" "$@"
+    ;;
+  *)
+    echo "Unknown command: ${command}" >&2
+    echo "Usage: sih <run|mcp> [args]" >&2
+    exit 1
+    ;;
+esac
