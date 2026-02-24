@@ -279,6 +279,26 @@ public class SemanticToolsTests : IDisposable
     }
 
     [Fact]
+    public async Task SuggestWorkflowFromGoal_WithoutVersion_UsesFirstCatalogVersionAndWarns()
+    {
+        // Arrange
+        var tool = new SuggestWorkflowFromGoalTool(_adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["goal"] = "List all accounts"
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.GetProperty("workflowYaml").GetString().Should().Contain("version: 3.10");
+        json.GetProperty("warnings").GetArrayLength().Should().BeGreaterThan(0);
+        json.GetProperty("wfvars").GetString().Should().Contain("username");
+    }
+
+    [Fact]
     public async Task SuggestWorkflowFromGoal_WithMissingGoal_ThrowsException()
     {
         // Arrange

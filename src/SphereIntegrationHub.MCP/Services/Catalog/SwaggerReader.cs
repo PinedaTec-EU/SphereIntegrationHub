@@ -41,27 +41,29 @@ public sealed class SwaggerReader
 
         var endpoints = new List<EndpointInfo>();
 
+        var definitions = ResolveDefinitions(swagger);
+
         foreach (var (path, pathItem) in swagger.Paths)
         {
             if (pathItem.Get != null)
             {
-                endpoints.Add(CreateEndpointInfo(apiName, path, "GET", pathItem.Get, swagger.Definitions));
+                endpoints.Add(CreateEndpointInfo(apiName, path, "GET", pathItem.Get, definitions, swagger.Components?.SecuritySchemes, swagger.Security));
             }
             if (pathItem.Post != null)
             {
-                endpoints.Add(CreateEndpointInfo(apiName, path, "POST", pathItem.Post, swagger.Definitions));
+                endpoints.Add(CreateEndpointInfo(apiName, path, "POST", pathItem.Post, definitions, swagger.Components?.SecuritySchemes, swagger.Security));
             }
             if (pathItem.Put != null)
             {
-                endpoints.Add(CreateEndpointInfo(apiName, path, "PUT", pathItem.Put, swagger.Definitions));
+                endpoints.Add(CreateEndpointInfo(apiName, path, "PUT", pathItem.Put, definitions, swagger.Components?.SecuritySchemes, swagger.Security));
             }
             if (pathItem.Delete != null)
             {
-                endpoints.Add(CreateEndpointInfo(apiName, path, "DELETE", pathItem.Delete, swagger.Definitions));
+                endpoints.Add(CreateEndpointInfo(apiName, path, "DELETE", pathItem.Delete, definitions, swagger.Components?.SecuritySchemes, swagger.Security));
             }
             if (pathItem.Patch != null)
             {
-                endpoints.Add(CreateEndpointInfo(apiName, path, "PATCH", pathItem.Patch, swagger.Definitions));
+                endpoints.Add(CreateEndpointInfo(apiName, path, "PATCH", pathItem.Patch, definitions, swagger.Components?.SecuritySchemes, swagger.Security));
             }
         }
 
@@ -84,7 +86,9 @@ public sealed class SwaggerReader
         string path,
         string verb,
         SwaggerOperation operation,
-        Dictionary<string, SwaggerSchema>? definitions)
+        Dictionary<string, SwaggerSchema>? definitions,
+        Dictionary<string, SwaggerSecurityScheme>? securitySchemes,
+        List<Dictionary<string, List<string>>>? rootSecurity)
     {
         var queryParams = new List<ParameterInfo>();
         var headerParams = new List<ParameterInfo>();
@@ -125,6 +129,24 @@ public sealed class SwaggerReader
             }
         }
 
+        if (operation.RequestBody?.Content != null)
+        {
+            var jsonContent = SelectJsonRequestBodyContent(operation.RequestBody.Content);
+            if (jsonContent?.Schema != null)
+            {
+                bodySchema = ExtractBodySchema(jsonContent.Schema, definitions);
+                if (bodySchema != null)
+                {
+                    bodySchema = bodySchema with
+                    {
+                        Example = ResolveRequestBodyExample(jsonContent)
+                    };
+                }
+            }
+        }
+
+        AddSecurityHeaders(operation, securitySchemes, rootSecurity, headerParams);
+
         var responses = new Dictionary<int, ResponseSchema>();
         if (operation.Responses != null)
         {
@@ -156,6 +178,131 @@ public sealed class SwaggerReader
             Responses = responses,
             Tags = operation.Tags ?? []
         };
+    }
+
+    private static SwaggerMediaType? SelectJsonRequestBodyContent(Dictionary<string, SwaggerMediaType> content)
+    {
+        if (content.Count == 0)
+        {
+            return null;
+        }
+
+        if (content.TryGetValue("application/json", out var jsonContent))
+        {
+            return jsonContent;
+        }
+
+        return content
+            .FirstOrDefault(kvp => kvp.Key.Contains("json", StringComparison.OrdinalIgnoreCase))
+            .Value
+            ?? content.Values.FirstOrDefault();
+    }
+
+    private static string? ResolveRequestBodyExample(SwaggerMediaType mediaType)
+    {
+        if (mediaType.Example.HasValue)
+        {
+            return mediaType.Example.Value.GetRawText();
+        }
+
+        if (mediaType.Examples != null && mediaType.Examples.Count > 0)
+        {
+            var first = mediaType.Examples.Values.FirstOrDefault();
+            if (first?.Value.HasValue == true)
+            {
+                return first.Value.Value.GetRawText();
+            }
+        }
+
+        if (mediaType.Schema?.Example.HasValue == true)
+        {
+            return mediaType.Schema.Example.Value.GetRawText();
+        }
+
+        return null;
+    }
+
+    private static Dictionary<string, SwaggerSchema>? ResolveDefinitions(SwaggerDocument swagger)
+    {
+        if (swagger.Definitions != null && swagger.Definitions.Count > 0)
+        {
+            return swagger.Definitions;
+        }
+
+        if (swagger.Components?.Schemas != null && swagger.Components.Schemas.Count > 0)
+        {
+            return swagger.Components.Schemas;
+        }
+
+        return null;
+    }
+
+    private static void AddSecurityHeaders(
+        SwaggerOperation operation,
+        Dictionary<string, SwaggerSecurityScheme>? securitySchemes,
+        List<Dictionary<string, List<string>>>? rootSecurity,
+        List<ParameterInfo> headerParams)
+    {
+        if (securitySchemes == null || securitySchemes.Count == 0)
+        {
+            return;
+        }
+
+        var effectiveSecurity = operation.Security ?? rootSecurity;
+        if (effectiveSecurity == null || effectiveSecurity.Count == 0)
+        {
+            return;
+        }
+
+        var existingHeaders = headerParams
+            .Select(p => p.Name)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var requirement in effectiveSecurity)
+        {
+            foreach (var schemeName in requirement.Keys)
+            {
+                if (!securitySchemes.TryGetValue(schemeName, out var scheme) || scheme == null)
+                {
+                    continue;
+                }
+
+                if (TryResolveHeaderName(scheme, out var headerName) &&
+                    existingHeaders.Add(headerName))
+                {
+                    headerParams.Add(new ParameterInfo
+                    {
+                        Name = headerName,
+                        Type = "string",
+                        Required = true,
+                        Description = $"Required by security scheme '{schemeName}'."
+                    });
+                }
+            }
+        }
+    }
+
+    private static bool TryResolveHeaderName(SwaggerSecurityScheme scheme, out string headerName)
+    {
+        headerName = string.Empty;
+
+        if (scheme.Type?.Equals("apiKey", StringComparison.OrdinalIgnoreCase) == true &&
+            scheme.In?.Equals("header", StringComparison.OrdinalIgnoreCase) == true &&
+            !string.IsNullOrWhiteSpace(scheme.Name))
+        {
+            headerName = scheme.Name;
+            return true;
+        }
+
+        if (scheme.Type?.Equals("http", StringComparison.OrdinalIgnoreCase) == true &&
+            scheme.Scheme?.Equals("bearer", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            headerName = "Authorization";
+            return true;
+        }
+
+        return false;
     }
 
     private static BodySchema? ExtractBodySchema(SwaggerSchema schema, Dictionary<string, SwaggerSchema>? definitions)
@@ -199,7 +346,9 @@ public sealed class SwaggerReader
                 Format = prop.Format,
                 Description = prop.Description,
                 IsArray = prop.Type == "array",
-                EnumValues = prop.Enum
+                EnumValues = prop.Enum?.Select(x => x.ValueKind == JsonValueKind.String
+                    ? x.GetString() ?? string.Empty
+                    : x.ToString()).ToList()
             };
         }
 
@@ -212,6 +361,14 @@ internal sealed class SwaggerDocument
 {
     public Dictionary<string, SwaggerPathItem>? Paths { get; set; }
     public Dictionary<string, SwaggerSchema>? Definitions { get; set; }
+    public SwaggerComponents? Components { get; set; }
+    public List<Dictionary<string, List<string>>>? Security { get; set; }
+}
+
+internal sealed class SwaggerComponents
+{
+    public Dictionary<string, SwaggerSecurityScheme>? SecuritySchemes { get; set; }
+    public Dictionary<string, SwaggerSchema>? Schemas { get; set; }
 }
 
 internal sealed class SwaggerPathItem
@@ -229,7 +386,27 @@ internal sealed class SwaggerOperation
     public string? Description { get; set; }
     public List<string>? Tags { get; set; }
     public List<SwaggerParameter>? Parameters { get; set; }
+    public SwaggerRequestBody? RequestBody { get; set; }
     public Dictionary<string, SwaggerResponse>? Responses { get; set; }
+    public List<Dictionary<string, List<string>>>? Security { get; set; }
+}
+
+internal sealed class SwaggerRequestBody
+{
+    public bool Required { get; set; }
+    public Dictionary<string, SwaggerMediaType>? Content { get; set; }
+}
+
+internal sealed class SwaggerMediaType
+{
+    public SwaggerSchema? Schema { get; set; }
+    public JsonElement? Example { get; set; }
+    public Dictionary<string, SwaggerNamedExample>? Examples { get; set; }
+}
+
+internal sealed class SwaggerNamedExample
+{
+    public JsonElement? Value { get; set; }
 }
 
 internal sealed class SwaggerParameter
@@ -257,7 +434,8 @@ internal sealed class SwaggerSchema
     public string? Ref { get; set; }
     public Dictionary<string, SwaggerSchema>? Properties { get; set; }
     public List<string>? Required { get; set; }
-    public List<string>? Enum { get; set; }
+    public List<JsonElement>? Enum { get; set; }
+    public JsonElement? Example { get; set; }
 
     [JsonPropertyName("$ref")]
     public string? RefProperty
@@ -265,4 +443,12 @@ internal sealed class SwaggerSchema
         get => Ref;
         set => Ref = value;
     }
+}
+
+internal sealed class SwaggerSecurityScheme
+{
+    public string? Type { get; set; }
+    public string? In { get; set; }
+    public string? Name { get; set; }
+    public string? Scheme { get; set; }
 }

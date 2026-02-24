@@ -1,5 +1,7 @@
 using SphereIntegrationHub.MCP.Core;
 using SphereIntegrationHub.MCP.Models;
+using SphereIntegrationHub.MCP.Services.Catalog;
+using SphereIntegrationHub.MCP.Services.Generation;
 using SphereIntegrationHub.MCP.Services.Integration;
 using SphereIntegrationHub.MCP.Services.Synthesis;
 using System.Text.Json;
@@ -13,10 +15,12 @@ namespace SphereIntegrationHub.MCP.Tools;
 public sealed class SynthesizeSystemFromDescriptionTool : IMcpTool
 {
     private readonly WorkflowSynthesizer _synthesizer;
+    private readonly ApiCatalogReader _catalogReader;
 
     public SynthesizeSystemFromDescriptionTool(SihServicesAdapter adapter)
     {
         _synthesizer = new WorkflowSynthesizer(adapter);
+        _catalogReader = new ApiCatalogReader(adapter);
     }
 
     public string Name => "synthesize_system_from_description";
@@ -30,7 +34,7 @@ public sealed class SynthesizeSystemFromDescriptionTool : IMcpTool
             version = new
             {
                 type = "string",
-                description = "API catalog version"
+                description = "API catalog version (optional: falls back to first catalog version)"
             },
             description = new
             {
@@ -89,13 +93,13 @@ public sealed class SynthesizeSystemFromDescriptionTool : IMcpTool
                 }
             }
         },
-        required = new[] { "version", "description" }
+        required = new[] { "description" }
     };
 
     public async Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
     {
-        var version = arguments?.GetValueOrDefault("version")?.ToString()
-            ?? throw new ArgumentException("version is required");
+        var warningMessages = new List<string>();
+        var version = await ResolveVersionAsync(arguments?.GetValueOrDefault("version")?.ToString(), warningMessages);
         var description = arguments?.GetValueOrDefault("description")?.ToString()
             ?? throw new ArgumentException("description is required");
 
@@ -131,7 +135,8 @@ public sealed class SynthesizeSystemFromDescriptionTool : IMcpTool
                 w.Stages,
                 w.Description,
                 yamlPreview = w.Yaml.Length > 500 ? w.Yaml[..500] + "..." : w.Yaml,
-                fullYaml = w.Yaml
+                fullYaml = w.Yaml,
+                wfvars = WorkflowArtifactHelper.GenerateWfvars(w.Yaml)
             }).ToList(),
             dependencies = systemDesign.Dependencies,
             testScenarios = systemDesign.TestScenarios,
@@ -149,8 +154,24 @@ public sealed class SynthesizeSystemFromDescriptionTool : IMcpTool
                 estimatedExecutionTime = systemDesign.EstimatedExecutionTime,
                 apisUsed = systemDesign.ApiUsage.Count
             },
-            summary = GenerateSummary(systemDesign)
+            summary = GenerateSummary(systemDesign),
+            warnings = warningMessages
         };
+    }
+
+    private async Task<string> ResolveVersionAsync(string? requestedVersion, List<string> warningMessages)
+    {
+        if (!string.IsNullOrWhiteSpace(requestedVersion))
+        {
+            return requestedVersion;
+        }
+
+        var versions = await _catalogReader.GetVersionsAsync();
+        var fallbackVersion = versions.FirstOrDefault()
+            ?? throw new InvalidOperationException("version was not provided and no catalog versions are available");
+
+        warningMessages.Add($"version was not provided; using first catalog version '{fallbackVersion}'.");
+        return fallbackVersion;
     }
 
     private static SystemRequirements ParseRequirements(JsonElement jsonElement, SystemRequirements defaults)

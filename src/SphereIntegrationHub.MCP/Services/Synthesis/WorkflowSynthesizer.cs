@@ -76,6 +76,7 @@ public sealed class WorkflowSynthesizer
         {
             var workflowName = $"workflow_{workflowIndex}";
             var yaml = GenerateWorkflowYaml(
+                version,
                 workflowName,
                 description,
                 workflowEndpoints,
@@ -96,7 +97,7 @@ public sealed class WorkflowSynthesizer
         // Step 7: Add authentication workflow if needed
         if (requirements.IncludeAuthentication)
         {
-            var authWorkflow = GenerateAuthenticationWorkflow();
+            var authWorkflow = GenerateAuthenticationWorkflow(version);
             workflowDesigns.Insert(0, authWorkflow);
         }
 
@@ -286,13 +287,13 @@ public sealed class WorkflowSynthesizer
     /// Generates workflow YAML from endpoints
     /// </summary>
     private static string GenerateWorkflowYaml(
+        string version,
         string name,
         string description,
         List<EndpointDependencies> endpoints,
         SystemRequirements requirements)
     {
-        var yaml = $@"version: 3.11
-id: {Guid.NewGuid():N}
+        var yaml = $"version: {version}\n" + $@"id: {Guid.NewGuid():N}
 name: {name}
 description: {description}
 output: true
@@ -346,10 +347,9 @@ stages:
     /// <summary>
     /// Generates authentication workflow
     /// </summary>
-    private static WorkflowDesign GenerateAuthenticationWorkflow()
+    private static WorkflowDesign GenerateAuthenticationWorkflow(string version)
     {
-        var yaml = @"version: 3.11
-id: AUTHWORKFLOW00000000000000000000
+        var yaml = $"version: {version}\n" + @"id: AUTHWORKFLOW00000000000000000000
 name: authentication
 description: OAuth authentication workflow
 output: true

@@ -8,6 +8,7 @@ public sealed record WorkflowSuggestion
     public required string Goal { get; init; }
     public required string WorkflowName { get; init; }
     public required string WorkflowYaml { get; init; }
+    public string? Wfvars { get; init; }
     public List<SuggestionStage> Stages { get; init; } = [];
     public List<string> RequiredApis { get; init; } = [];
     public List<string> Assumptions { get; init; } = [];

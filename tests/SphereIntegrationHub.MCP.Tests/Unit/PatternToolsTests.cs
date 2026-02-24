@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using FluentAssertions;
 using SphereIntegrationHub.MCP.Services.Integration;
 using SphereIntegrationHub.MCP.Tests.TestHelpers;
@@ -177,6 +178,30 @@ public class PatternToolsTests : IDisposable
     }
 
     [Fact]
+    public async Task GenerateCrudWorkflow_WithoutVersion_UsesFirstCatalogVersionAndWarns()
+    {
+        // Arrange
+        var tool = new GenerateCrudWorkflowTool(_adapter);
+        var operations = new[] { "create" };
+        var args = new Dictionary<string, object>
+        {
+            ["apiName"] = "AccountsAPI",
+            ["resource"] = "accounts",
+            ["operations"] = JsonSerializer.SerializeToElement(operations)
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.GetProperty("version").GetString().Should().Be("3.10");
+        json.GetProperty("warnings").GetArrayLength().Should().BeGreaterThan(0);
+        json.GetProperty("yaml").GetString().Should().Contain("version: 3.10");
+        json.GetProperty("wfvars").GetString().Should().BeNull();
+    }
+
+    [Fact]
     public async Task GenerateCrudWorkflow_IncludesCreateOperation()
     {
         // Arrange
@@ -295,6 +320,104 @@ public class PatternToolsTests : IDisposable
 
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentException>(() => tool.ExecuteAsync(args));
+    }
+
+    [Fact]
+    public async Task GenerateCrudWorkflow_WithApiKeySecurity_AddsHeaderInputsAndStageHeaders()
+    {
+        // Arrange
+        var swaggerNode = JsonNode.Parse(TestDataBuilder.CreateSampleSwagger("AccountsAPI"))!.AsObject();
+        var components = swaggerNode["components"]!.AsObject();
+        components["securitySchemes"] = new JsonObject
+        {
+            ["ApiConsumerHeader"] = new JsonObject
+            {
+                ["type"] = "apiKey",
+                ["in"] = "header",
+                ["name"] = "X-Api-Consumer"
+            },
+            ["ApiKeyHeader"] = new JsonObject
+            {
+                ["type"] = "apiKey",
+                ["in"] = "header",
+                ["name"] = "X-Api-Key"
+            }
+        };
+
+        var postOperation = swaggerNode["paths"]!["/api/accounts"]!["post"]!.AsObject();
+        postOperation["security"] = new JsonArray
+        {
+            new JsonObject
+            {
+                ["ApiConsumerHeader"] = new JsonArray(),
+                ["ApiKeyHeader"] = new JsonArray()
+            }
+        };
+
+        _mockFs.AddSwaggerFile("3.10", "AccountsAPI", swaggerNode.ToJsonString());
+
+        var tool = new GenerateCrudWorkflowTool(_adapter);
+        var operations = new[] { "create" };
+        var args = new Dictionary<string, object>
+        {
+            ["version"] = "3.10",
+            ["apiName"] = "AccountsAPI",
+            ["resource"] = "accounts",
+            ["operations"] = JsonSerializer.SerializeToElement(operations)
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+        var yaml = json.GetProperty("yaml").GetString();
+        var wfvars = json.GetProperty("wfvars").GetString();
+
+        // Assert
+        yaml.Should().Contain("- name: x_Api_Consumer");
+        yaml.Should().Contain("- name: x_Api_Key");
+        yaml.Should().Contain("\"X-Api-Consumer\": \"{{input.x_Api_Consumer}}\"");
+        yaml.Should().Contain("\"X-Api-Key\": \"{{input.x_Api_Key}}\"");
+        wfvars.Should().Contain("x_Api_Consumer");
+        wfvars.Should().Contain("x_Api_Key");
+    }
+
+    [Fact]
+    public async Task GenerateCrudWorkflow_WithRequestBodyExample_UsesSwaggerExampleInsteadOfResourceDataInput()
+    {
+        // Arrange
+        var swaggerNode = JsonNode.Parse(TestDataBuilder.CreateSampleSwagger("AccountsAPI"))!.AsObject();
+        var postOperation = swaggerNode["paths"]!["/api/accounts"]!["post"]!.AsObject();
+        postOperation["requestBody"]!["content"]!["application/json"]!["example"] = JsonNode.Parse("""
+{
+  "name": "Acme Inc",
+  "email": "contact@acme.test",
+  "organizationId": "11111111-1111-1111-1111-111111111111"
+}
+""");
+
+        _mockFs.AddSwaggerFile("3.10", "AccountsAPI", swaggerNode.ToJsonString());
+
+        var tool = new GenerateCrudWorkflowTool(_adapter);
+        var operations = new[] { "create" };
+        var args = new Dictionary<string, object>
+        {
+            ["version"] = "3.10",
+            ["apiName"] = "AccountsAPI",
+            ["resource"] = "accounts",
+            ["operations"] = JsonSerializer.SerializeToElement(operations)
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+        var yaml = json.GetProperty("yaml").GetString();
+        var wfvars = json.GetProperty("wfvars").GetString();
+
+        // Assert
+        yaml.Should().Contain("\"name\":\"Acme Inc\"");
+        yaml.Should().Contain("\"email\":\"contact@acme.test\"");
+        yaml.Should().NotContain("{{input.accountsData}}");
+        wfvars.Should().BeNull();
     }
 
     [Fact]

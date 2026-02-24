@@ -1,8 +1,10 @@
 using SphereIntegrationHub.MCP.Core;
 using SphereIntegrationHub.MCP.Models;
 using SphereIntegrationHub.MCP.Services.Catalog;
+using SphereIntegrationHub.MCP.Services.Generation;
 using SphereIntegrationHub.MCP.Services.Integration;
 using SphereIntegrationHub.MCP.Services.Semantic;
+using System.Text;
 using System.Text.Json;
 
 namespace SphereIntegrationHub.MCP.Tools;
@@ -137,11 +139,13 @@ public sealed class GenerateCrudWorkflowTool : IMcpTool
 {
     private readonly PatternDetector _detector;
     private readonly SwaggerReader _swaggerReader;
+    private readonly ApiCatalogReader _catalogReader;
 
     public GenerateCrudWorkflowTool(SihServicesAdapter adapter)
     {
         _detector = new PatternDetector(adapter);
         _swaggerReader = new SwaggerReader(adapter);
+        _catalogReader = new ApiCatalogReader(adapter);
     }
 
     public string Name => "generate_crud_workflow";
@@ -155,7 +159,7 @@ public sealed class GenerateCrudWorkflowTool : IMcpTool
             version = new
             {
                 type = "string",
-                description = "API catalog version"
+                description = "API catalog version (optional: falls back to first catalog version)"
             },
             apiName = new
             {
@@ -174,13 +178,13 @@ public sealed class GenerateCrudWorkflowTool : IMcpTool
                 items = new { type = "string" }
             }
         },
-        required = new[] { "version", "apiName", "resource", "operations" }
+        required = new[] { "apiName", "resource", "operations" }
     };
 
     public async Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
     {
-        var version = arguments?.GetValueOrDefault("version")?.ToString()
-            ?? throw new ArgumentException("version is required");
+        var warningMessages = new List<string>();
+        var version = await ResolveVersionAsync(arguments?.GetValueOrDefault("version")?.ToString(), warningMessages);
         var apiName = arguments?.GetValueOrDefault("apiName")?.ToString()
             ?? throw new ArgumentException("apiName is required");
         var resource = arguments?.GetValueOrDefault("resource")?.ToString()
@@ -223,14 +227,18 @@ public sealed class GenerateCrudWorkflowTool : IMcpTool
 
         // Build workflow
         var workflowName = $"{resource}_crud_workflow";
-        var yaml = GenerateCrudWorkflowYaml(workflowName, resource, crudPattern, operations, endpoints);
+        var yaml = GenerateCrudWorkflowYaml(version, workflowName, resource, crudPattern, operations, endpoints);
+        var wfvars = WorkflowArtifactHelper.GenerateWfvars(yaml);
 
         return new
         {
+            version,
             workflowName,
             resource,
             operations,
             yaml,
+            wfvars,
+            warnings = warningMessages,
             crudPattern = new
             {
                 resource = crudPattern.Resource,
@@ -241,185 +249,323 @@ public sealed class GenerateCrudWorkflowTool : IMcpTool
     }
 
     private static string GenerateCrudWorkflowYaml(
+        string version,
         string workflowName,
         string resource,
         CrudPattern pattern,
         List<string> operations,
         List<EndpointInfo> allEndpoints)
     {
-        var yaml = $@"version: 3.11
-id: {Guid.NewGuid():N}
-name: {workflowName}
-description: CRUD operations for {resource}
-output: true
-references:
-  apis:
-    - name: ""{allEndpoints.First().ApiName}""
-      definition: ""{allEndpoints.First().ApiName}""
+        var apiRef = allEndpoints.First().ApiName;
+        var normalizedOperations = operations
+            .Select(x => x.Trim().ToLowerInvariant())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToList();
+        var operationEndpoints = ResolveOperationEndpoints(pattern, normalizedOperations, allEndpoints);
+        var inputVariables = BuildInputVariables(pattern.IdParameter, normalizedOperations, operationEndpoints);
 
-input:
-  - name: username
-    type: Text
-    required: true
-";
+        var builder = new StringBuilder();
+        builder.AppendLine($"version: {version}");
+        builder.AppendLine($"id: {Guid.NewGuid():N}");
+        builder.AppendLine($"name: {workflowName}");
+        builder.AppendLine($"description: CRUD operations for {resource}");
+        builder.AppendLine("output: true");
+        builder.AppendLine("references:");
+        builder.AppendLine("  apis:");
+        builder.AppendLine($"    - name: \"{apiRef}\"");
+        builder.AppendLine($"      definition: \"{apiRef}\"");
+        builder.AppendLine();
+        AppendInputSection(builder, inputVariables);
+        builder.AppendLine("stages:");
 
-        // Add specific inputs based on operations
-        if (operations.Contains("create") || operations.Contains("update"))
+        if (normalizedOperations.Contains("list") &&
+            pattern.Endpoints.TryGetValue("list", out var listEndpoint) &&
+            TryParsePatternEndpoint(listEndpoint, out var listVerb, out var listPath))
         {
-            yaml += $@"  - name: {resource}Data
-    type: Text
-    required: true
-";
+            AppendStage(
+                builder,
+                stageName: $"list_{resource}",
+                apiRef,
+                endpoint: listPath,
+                httpVerb: listVerb,
+                expectedStatus: 200,
+                headers: operationEndpoints.GetValueOrDefault("list")?.HeaderParameters ?? [],
+                includeJsonContentType: false,
+                bodyTemplate: null);
+        }
+
+        if (normalizedOperations.Contains("create") &&
+            pattern.Endpoints.TryGetValue("create", out var createEndpoint) &&
+            TryParsePatternEndpoint(createEndpoint, out var createVerb, out var createPath))
+        {
+            AppendStage(
+                builder,
+                stageName: $"create_{resource}",
+                apiRef,
+                endpoint: createPath,
+                httpVerb: createVerb,
+                expectedStatus: 201,
+                headers: operationEndpoints.GetValueOrDefault("create")?.HeaderParameters ?? [],
+                includeJsonContentType: true,
+                bodyTemplate: ResolveBodyTemplate(operationEndpoints.GetValueOrDefault("create")));
+        }
+
+        if (normalizedOperations.Contains("read") &&
+            pattern.Endpoints.TryGetValue("read", out var readEndpoint) &&
+            TryParsePatternEndpoint(readEndpoint, out var readVerb, out var readPath))
+        {
+            var resolvedPath = ApplyPathInputTemplate(readPath, pattern.IdParameter);
+            AppendStage(
+                builder,
+                stageName: $"read_{resource}",
+                apiRef,
+                endpoint: resolvedPath,
+                httpVerb: readVerb,
+                expectedStatus: 200,
+                headers: operationEndpoints.GetValueOrDefault("read")?.HeaderParameters ?? [],
+                includeJsonContentType: false,
+                bodyTemplate: null);
+        }
+
+        if (normalizedOperations.Contains("update") &&
+            pattern.Endpoints.TryGetValue("update", out var updateEndpoint) &&
+            TryParsePatternEndpoint(updateEndpoint, out var updateVerb, out var updatePath))
+        {
+            var resolvedPath = ApplyPathInputTemplate(updatePath, pattern.IdParameter);
+            AppendStage(
+                builder,
+                stageName: $"update_{resource}",
+                apiRef,
+                endpoint: resolvedPath,
+                httpVerb: updateVerb,
+                expectedStatus: 200,
+                headers: operationEndpoints.GetValueOrDefault("update")?.HeaderParameters ?? [],
+                includeJsonContentType: true,
+                bodyTemplate: ResolveBodyTemplate(operationEndpoints.GetValueOrDefault("update")));
+        }
+
+        if (normalizedOperations.Contains("delete") &&
+            pattern.Endpoints.TryGetValue("delete", out var deleteEndpoint) &&
+            TryParsePatternEndpoint(deleteEndpoint, out var deleteVerb, out var deletePath))
+        {
+            var resolvedPath = ApplyPathInputTemplate(deletePath, pattern.IdParameter);
+            AppendStage(
+                builder,
+                stageName: $"delete_{resource}",
+                apiRef,
+                endpoint: resolvedPath,
+                httpVerb: deleteVerb,
+                expectedStatus: 200,
+                headers: operationEndpoints.GetValueOrDefault("delete")?.HeaderParameters ?? [],
+                includeJsonContentType: false,
+                bodyTemplate: null);
+        }
+
+        var resultStage = normalizedOperations.Contains("delete")
+            ? $"delete_{resource}"
+            : normalizedOperations.Contains("update")
+                ? $"update_{resource}"
+                : normalizedOperations.Contains("read")
+                    ? $"read_{resource}"
+                    : normalizedOperations.Contains("create")
+                        ? $"create_{resource}"
+                        : $"list_{resource}";
+        builder.AppendLine("endStage:");
+        builder.AppendLine("  output:");
+        builder.AppendLine("    success: \"true\"");
+        builder.AppendLine($"    result: \"{{{{stage:{resultStage}.output.dto}}}}\"");
+        return builder.ToString();
+    }
+
+    private async Task<string> ResolveVersionAsync(string? requestedVersion, List<string> warningMessages)
+    {
+        if (!string.IsNullOrWhiteSpace(requestedVersion))
+        {
+            return requestedVersion;
+        }
+
+        var versions = await _catalogReader.GetVersionsAsync();
+        var fallbackVersion = versions.FirstOrDefault()
+            ?? throw new InvalidOperationException("version was not provided and no catalog versions are available");
+
+        warningMessages.Add($"version was not provided; using first catalog version '{fallbackVersion}'.");
+        return fallbackVersion;
+    }
+
+    private static Dictionary<string, EndpointInfo> ResolveOperationEndpoints(
+        CrudPattern pattern,
+        IReadOnlyCollection<string> operations,
+        List<EndpointInfo> allEndpoints)
+    {
+        var endpointsByOperation = new Dictionary<string, EndpointInfo>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var operation in operations)
+        {
+            if (!pattern.Endpoints.TryGetValue(operation, out var endpointDefinition) ||
+                !TryParsePatternEndpoint(endpointDefinition, out var verb, out var endpointPath))
+            {
+                continue;
+            }
+
+            var endpointInfo = allEndpoints.FirstOrDefault(e =>
+                e.HttpVerb.Equals(verb, StringComparison.OrdinalIgnoreCase) &&
+                e.Endpoint.Equals(endpointPath, StringComparison.OrdinalIgnoreCase));
+
+            if (endpointInfo != null)
+            {
+                endpointsByOperation[operation] = endpointInfo;
+            }
+        }
+
+        return endpointsByOperation;
+    }
+
+    private static List<InputVariable> BuildInputVariables(
+        string idParameter,
+        IReadOnlyCollection<string> operations,
+        IReadOnlyDictionary<string, EndpointInfo> operationEndpoints)
+    {
+        var inputs = new List<InputVariable>();
+
+        foreach (var endpointInfo in operationEndpoints.Values)
+        {
+            foreach (var header in endpointInfo.HeaderParameters.Where(p => p.Required))
+            {
+                inputs.Add(new InputVariable(ToTokenName(header.Name), true));
+            }
         }
 
         if (operations.Contains("read") || operations.Contains("update") || operations.Contains("delete"))
         {
-            yaml += $@"  - name: {pattern.IdParameter}
-    type: Text
-    required: true
-";
+            inputs.Add(new InputVariable(idParameter, true));
         }
 
-        yaml += "\nstages:\n";
+        return inputs
+            .Where(i => !string.IsNullOrWhiteSpace(i.Name))
+            .GroupBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .ToList();
+    }
 
-        // Generate stages for each operation
-        if (operations.Contains("list"))
+    private static void AppendInputSection(StringBuilder builder, IReadOnlyCollection<InputVariable> inputVariables)
+    {
+        if (inputVariables.Count == 0)
         {
-            if (pattern.Endpoints.TryGetValue("list", out var listEndpoint))
+            builder.AppendLine("input: []");
+            builder.AppendLine();
+            return;
+        }
+
+        builder.AppendLine("input:");
+        foreach (var input in inputVariables)
+        {
+            builder.AppendLine($"  - name: {input.Name}");
+            builder.AppendLine("    type: Text");
+            builder.AppendLine($"    required: {input.Required.ToString().ToLowerInvariant()}");
+        }
+
+        builder.AppendLine();
+    }
+
+    private static void AppendStage(
+        StringBuilder builder,
+        string stageName,
+        string apiRef,
+        string endpoint,
+        string httpVerb,
+        int expectedStatus,
+        IReadOnlyCollection<ParameterInfo> headers,
+        bool includeJsonContentType,
+        string? bodyTemplate)
+    {
+        builder.AppendLine($"  - name: {stageName}");
+        builder.AppendLine("    kind: Endpoint");
+        builder.AppendLine($"    apiRef: {apiRef}");
+        builder.AppendLine($"    endpoint: {endpoint}");
+        builder.AppendLine($"    httpVerb: {httpVerb}");
+        builder.AppendLine($"    expectedStatus: {expectedStatus}");
+
+        var requiredHeaders = headers.Where(h => h.Required).ToList();
+        if (requiredHeaders.Count > 0 || includeJsonContentType)
+        {
+            builder.AppendLine("    headers:");
+            foreach (var header in requiredHeaders.GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase).Select(g => g.First()))
             {
-                var parts = listEndpoint.Split(' ');
-                var verb = parts[0];
-                var endpoint = parts.Length > 1 ? parts[1] : "";
+                builder.AppendLine($"      \"{header.Name}\": \"{{{{input.{ToTokenName(header.Name)}}}}}\"");
+            }
 
-                yaml += $@"  - name: list_{resource}
-    kind: Endpoint
-    apiRef: {allEndpoints.First().ApiName}
-    endpoint: {endpoint}
-    httpVerb: {verb}
-    expectedStatus: 200
-    output:
-      dto: ""{{{{response.body}}}}""
-      http_status: ""{{{{response.status}}}}""
-
-";
+            if (includeJsonContentType)
+            {
+                builder.AppendLine("      \"Content-Type\": \"application/json\"");
             }
         }
 
-        if (operations.Contains("create"))
+        if (!string.IsNullOrWhiteSpace(bodyTemplate))
         {
-            if (pattern.Endpoints.TryGetValue("create", out var createEndpoint))
+            builder.AppendLine("    body: |");
+            foreach (var line in bodyTemplate.Split('\n'))
             {
-                var parts = createEndpoint.Split(' ');
-                var verb = parts[0];
-                var endpoint = parts.Length > 1 ? parts[1] : "";
-
-                yaml += $@"  - name: create_{resource}
-    kind: Endpoint
-    apiRef: {allEndpoints.First().ApiName}
-    endpoint: {endpoint}
-    httpVerb: {verb}
-    expectedStatus: 201
-    body: |
-      {{{{
-        ""data"": ""{{{{input.{resource}Data}}}}""
-      }}}}
-    output:
-      dto: ""{{{{response.body}}}}""
-      http_status: ""{{{{response.status}}}}""
-
-";
+                builder.AppendLine($"      {line.TrimEnd('\r')}");
             }
         }
 
-        if (operations.Contains("read"))
+        builder.AppendLine("    output:");
+        builder.AppendLine("      dto: \"{{response.body}}\"");
+        builder.AppendLine("      http_status: \"{{response.status}}\"");
+        builder.AppendLine();
+    }
+
+    private static bool TryParsePatternEndpoint(string patternEndpoint, out string verb, out string endpoint)
+    {
+        verb = string.Empty;
+        endpoint = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(patternEndpoint))
         {
-            if (pattern.Endpoints.TryGetValue("read", out var readEndpoint))
-            {
-                var parts = readEndpoint.Split(' ');
-                var verb = parts[0];
-                var endpoint = parts.Length > 1 ? parts[1] : "";
-                endpoint = endpoint.Replace($"{{{pattern.IdParameter}}}", $"{{{{input.{pattern.IdParameter}}}}}", StringComparison.OrdinalIgnoreCase);
-
-                yaml += $@"  - name: read_{resource}
-    kind: Endpoint
-    apiRef: {allEndpoints.First().ApiName}
-    endpoint: {endpoint}
-    httpVerb: {verb}
-    expectedStatus: 200
-    output:
-      dto: ""{{{{response.body}}}}""
-      http_status: ""{{{{response.status}}}}""
-
-";
-            }
+            return false;
         }
 
-        if (operations.Contains("update"))
+        var separatorIndex = patternEndpoint.IndexOf(' ');
+        if (separatorIndex <= 0 || separatorIndex >= patternEndpoint.Length - 1)
         {
-            if (pattern.Endpoints.TryGetValue("update", out var updateEndpoint))
-            {
-                var parts = updateEndpoint.Split(' ');
-                var verb = parts[0];
-                var endpoint = parts.Length > 1 ? parts[1] : "";
-                endpoint = endpoint.Replace($"{{{pattern.IdParameter}}}", $"{{{{input.{pattern.IdParameter}}}}}", StringComparison.OrdinalIgnoreCase);
-
-                yaml += $@"  - name: update_{resource}
-    kind: Endpoint
-    apiRef: {allEndpoints.First().ApiName}
-    endpoint: {endpoint}
-    httpVerb: {verb}
-    expectedStatus: 200
-    body: |
-      {{{{
-        ""data"": ""{{{{input.{resource}Data}}}}""
-      }}}}
-    output:
-      dto: ""{{{{response.body}}}}""
-      http_status: ""{{{{response.status}}}}""
-
-";
-            }
+            return false;
         }
 
-        if (operations.Contains("delete"))
+        verb = patternEndpoint[..separatorIndex].Trim();
+        endpoint = patternEndpoint[(separatorIndex + 1)..].Trim();
+        return !string.IsNullOrWhiteSpace(verb) && !string.IsNullOrWhiteSpace(endpoint);
+    }
+
+    private static string ApplyPathInputTemplate(string endpoint, string idParameter)
+    {
+        return endpoint.Replace(
+            $"{{{idParameter}}}",
+            $"{{{{input.{idParameter}}}}}",
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ToTokenName(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
         {
-            if (pattern.Endpoints.TryGetValue("delete", out var deleteEndpoint))
-            {
-                var parts = deleteEndpoint.Split(' ');
-                var verb = parts[0];
-                var endpoint = parts.Length > 1 ? parts[1] : "";
-                endpoint = endpoint.Replace($"{{{pattern.IdParameter}}}", $"{{{{input.{pattern.IdParameter}}}}}", StringComparison.OrdinalIgnoreCase);
-
-                yaml += $@"  - name: delete_{resource}
-    kind: Endpoint
-    apiRef: {allEndpoints.First().ApiName}
-    endpoint: {endpoint}
-    httpVerb: {verb}
-    expectedStatus: 200
-    output:
-      dto: ""{{{{response.body}}}}""
-      http_status: ""{{{{response.status}}}}""
-
-";
-            }
+            return input;
         }
 
-        var resultStage = operations.Contains("delete")
-            ? $"delete_{resource}"
-            : operations.Contains("update")
-                ? $"update_{resource}"
-                : operations.Contains("read")
-                    ? $"read_{resource}"
-                    : operations.Contains("create")
-                        ? $"create_{resource}"
-                        : $"list_{resource}";
+        var normalized = System.Text.RegularExpressions.Regex.Replace(input, @"[^a-zA-Z0-9_]", "_");
+        return char.ToLowerInvariant(normalized[0]) + normalized[1..];
+    }
 
-        yaml += $@"endStage:
-  output:
-    success: ""true""
-    result: ""{{{{stage:{resultStage}.output.dto}}}}""
-";
+    private sealed record InputVariable(string Name, bool Required);
 
-        return yaml;
+    private static string ResolveBodyTemplate(EndpointInfo? endpointInfo)
+    {
+        if (!string.IsNullOrWhiteSpace(endpointInfo?.BodySchema?.Example))
+        {
+            return endpointInfo.BodySchema.Example!;
+        }
+
+        return "{\n" +
+               "  // put your payload here\n" +
+               "}";
     }
 }

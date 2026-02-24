@@ -32,7 +32,7 @@ public sealed class AnalyzeEndpointDependenciesTool : IMcpTool
             version = new
             {
                 type = "string",
-                description = "API catalog version"
+                description = "API catalog version (optional: falls back to first catalog version)"
             },
             apiName = new
             {
@@ -95,7 +95,7 @@ public sealed class InferDataFlowTool : IMcpTool
             version = new
             {
                 type = "string",
-                description = "API catalog version"
+                description = "API catalog version (optional: falls back to first catalog version)"
             },
             endpoints = new
             {
@@ -368,13 +368,13 @@ public sealed class SuggestWorkflowFromGoalTool : IMcpTool
                 description = "Whether to include authentication stage (default: true)"
             }
         },
-        required = new[] { "version", "goal" }
+        required = new[] { "goal" }
     };
 
     public async Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
     {
-        var version = arguments?.GetValueOrDefault("version")?.ToString()
-            ?? throw new ArgumentException("version is required");
+        var warnings = new List<string>();
+        var version = await ResolveVersionAsync(arguments?.GetValueOrDefault("version")?.ToString(), warnings);
         var goal = arguments?.GetValueOrDefault("goal")?.ToString()
             ?? throw new ArgumentException("goal is required");
         var includeAuth = arguments?.GetValueOrDefault("includeAuth") as bool? ?? true;
@@ -425,7 +425,6 @@ public sealed class SuggestWorkflowFromGoalTool : IMcpTool
         var stages = new List<SuggestionStage>();
         var workflowName = GenerateWorkflowName(goal);
         var assumptions = new List<string>();
-        var warnings = new List<string>();
 
         // Add authentication stage if requested
         if (includeAuth)
@@ -451,7 +450,8 @@ public sealed class SuggestWorkflowFromGoalTool : IMcpTool
         }
 
         // Generate YAML
-        var workflowYaml = GenerateWorkflowYaml(workflowName, goal, stages);
+        var workflowYaml = GenerateWorkflowYaml(version, workflowName, goal, stages);
+        var wfvars = WorkflowArtifactHelper.GenerateWfvars(workflowYaml);
 
         var confidence = selectedEndpoints.Count >= 3 ? "high" : selectedEndpoints.Count >= 2 ? "medium" : "low";
 
@@ -460,6 +460,7 @@ public sealed class SuggestWorkflowFromGoalTool : IMcpTool
             Goal = goal,
             WorkflowName = workflowName,
             WorkflowYaml = workflowYaml,
+            Wfvars = wfvars,
             Stages = stages,
             RequiredApis = stages.Select(s => s.ApiName).Distinct().ToList(),
             Assumptions = assumptions,
@@ -547,9 +548,9 @@ public sealed class SuggestWorkflowFromGoalTool : IMcpTool
         return System.Text.RegularExpressions.Regex.Replace(name, @"[^a-z0-9_]", "");
     }
 
-    private static string GenerateWorkflowYaml(string name, string description, List<SuggestionStage> stages)
+    private static string GenerateWorkflowYaml(string version, string name, string description, List<SuggestionStage> stages)
     {
-        var yaml = $@"version: 3.11
+        var yaml = $@"version: {version}
 id: {Guid.NewGuid():N}
 name: {name}
 description: {description}
@@ -585,5 +586,20 @@ stages:
 ";
 
         return yaml;
+    }
+
+    private async Task<string> ResolveVersionAsync(string? requestedVersion, List<string> warningMessages)
+    {
+        if (!string.IsNullOrWhiteSpace(requestedVersion))
+        {
+            return requestedVersion;
+        }
+
+        var versions = await _catalogReader.GetVersionsAsync();
+        var fallbackVersion = versions.FirstOrDefault()
+            ?? throw new InvalidOperationException("version was not provided and no catalog versions are available");
+
+        warningMessages.Add($"version was not provided; using first catalog version '{fallbackVersion}'.");
+        return fallbackVersion;
     }
 }
