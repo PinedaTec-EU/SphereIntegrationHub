@@ -95,6 +95,28 @@ cd SphereIntegrationHub
 dotnet build src/SphereIntegrationHub.MCP
 ```
 
+### Step 1.1: Build portable package (`sih` launcher)
+
+To package both the MCP server and runtime CLI in one distributable folder:
+
+```bash
+./dist/mcp/build-mcp.sh
+```
+
+This generates per-platform packages under `dist/mcp/<rid>/` with:
+
+- `sih` (`sih.cmd` on Windows): unified launcher
+- `SphereIntegrationHub.MCP` (`.exe` on Windows)
+- `SphereIntegrationHub.cli` (`.exe` on Windows)
+- `mcp` (`mcp.cmd` on Windows)
+
+Usage:
+
+```bash
+./dist/mcp/osx-arm64/sih mcp
+./dist/mcp/osx-arm64/sih run --workflow ./src/resources/workflows/create-account.workflow --env local --dry-run --refresh-cache
+```
+
 ### Step 2: Open the project in your IDE and the MCP is ready
 
 The repository includes **pre-configured MCP files** for the most common AI agents. No manual configuration needed:
@@ -174,8 +196,8 @@ Open **Settings > MCP Servers > Add Server** and fill in:
 | Field | Value |
 |-------|-------|
 | Name | `sphere-integration-hub` |
-| Command | `dotnet` |
-| Arguments | `run --project /absolute/path/to/SphereIntegrationHub/src/SphereIntegrationHub.MCP` |
+| Command | `/absolute/path/to/SphereIntegrationHub/dist/mcp/<rid>/sih` |
+| Arguments | `mcp` |
 | Environment | `SIH_PROJECT_ROOT=/absolute/path/to/SphereIntegrationHub` |
 
 ### Claude Desktop
@@ -189,11 +211,9 @@ Edit the config file:
 {
   "mcpServers": {
     "sphere-integration-hub": {
-      "command": "dotnet",
+      "command": "/absolute/path/to/SphereIntegrationHub/dist/mcp/<rid>/sih",
       "args": [
-        "run",
-        "--project",
-        "/absolute/path/to/SphereIntegrationHub/src/SphereIntegrationHub.MCP"
+        "mcp"
       ],
       "env": {
         "SIH_PROJECT_ROOT": "/absolute/path/to/SphereIntegrationHub"
@@ -216,8 +236,7 @@ If the server is working, the agent will call `list_api_catalog_versions` and re
 You can also test the server manually from the terminal:
 
 ```bash
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | \
-  SIH_PROJECT_ROOT=. dotnet run --project src/SphereIntegrationHub.MCP
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | SIH_PROJECT_ROOT=. ./dist/mcp/osx-arm64/sih mcp
 ```
 
 This should print a JSON response listing all 32 tools.
