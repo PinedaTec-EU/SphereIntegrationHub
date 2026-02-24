@@ -177,6 +177,9 @@ public class GenerationToolsTests : IDisposable
         yaml.Should().Contain("input:");
         yaml.Should().Contain("userId");
         yaml.Should().Contain("accountId");
+        json.TryGetProperty("wfvars", out var wfvarsEl).Should().BeTrue();
+        wfvarsEl.GetString().Should().Contain("userId");
+        wfvarsEl.GetString().Should().Contain("accountId");
     }
 
     [Fact]
@@ -200,7 +203,29 @@ public class GenerationToolsTests : IDisposable
     }
 
     [Fact]
-    public void GenerateWorkflowSkeleton_WithMissingName_ThrowsException()
+    public async Task GenerateWorkflowSkeleton_WithoutVersion_UsesFirstCatalogVersionAndWarns()
+    {
+        // Arrange
+        var tool = new GenerateWorkflowSkeletonTool(_adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["name"] = "fallback-version-workflow",
+            ["description"] = "Workflow without explicit version"
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.TryGetProperty("version", out var versionEl).Should().BeTrue();
+        versionEl.GetString().Should().Be("3.10");
+        json.TryGetProperty("warnings", out var warningsEl).Should().BeTrue();
+        warningsEl.GetArrayLength().Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task GenerateWorkflowSkeleton_WithMissingName_ThrowsException()
     {
         // Arrange
         var tool = new GenerateWorkflowSkeletonTool(_adapter);
@@ -210,7 +235,7 @@ public class GenerationToolsTests : IDisposable
         };
 
         // Act & Assert
-        Assert.Throws<ArgumentException>(() => tool.ExecuteAsync(args).Result);
+        await Assert.ThrowsAsync<ArgumentException>(() => tool.ExecuteAsync(args));
     }
 
     [Fact]
@@ -410,7 +435,7 @@ public class GenerationToolsTests : IDisposable
     }
 
     [Fact]
-    public async Task GenerateWorkflowBundle_ReturnsWorkflowAndWfvarsDrafts()
+    public async Task GenerateWorkflowBundle_ReturnsWorkflowAndWfvarss()
     {
         // Arrange
         var tool = new GenerateWorkflowBundleTool(_adapter);
@@ -446,9 +471,51 @@ public class GenerationToolsTests : IDisposable
 
         // Assert
         json.TryGetProperty("workflowDraft", out var workflowDraftEl).Should().BeTrue();
-        json.TryGetProperty("wfvarsDraft", out var wfvarsDraftEl).Should().BeTrue();
+        json.TryGetProperty("wfvars", out var wfvarsEl).Should().BeTrue();
         workflowDraftEl.GetString().Should().Contain("endStage:");
-        wfvarsDraftEl.GetString().Should().Contain("id");
+        wfvarsEl.GetString().Should().Contain("id");
+    }
+
+    [Fact]
+    public async Task GenerateWorkflowBundle_WithoutVersion_UsesFirstCatalogVersionAndWarns()
+    {
+        // Arrange
+        var tool = new GenerateWorkflowBundleTool(_adapter);
+        var endpoints = new[]
+        {
+            new
+            {
+                stageName = "list_accounts",
+                endpointSchema = new
+                {
+                    apiName = "AccountsAPI",
+                    endpoint = "/api/accounts/{id}",
+                    httpVerb = "GET",
+                    pathParameters = new[]
+                    {
+                        new { name = "id", type = "string", required = true }
+                    }
+                }
+            }
+        };
+
+        var args = new Dictionary<string, object>
+        {
+            ["workflowName"] = "generated-with-fallback-version",
+            ["apiName"] = "AccountsAPI",
+            ["endpoints"] = JsonSerializer.SerializeToElement(endpoints)
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.TryGetProperty("version", out var versionEl).Should().BeTrue();
+        versionEl.GetString().Should().Be("3.10");
+        json.TryGetProperty("warnings", out var warningsEl).Should().BeTrue();
+        warningsEl.GetArrayLength().Should().BeGreaterThan(0);
+        json.GetProperty("workflowDraft").GetString().Should().Contain("version: 3.10");
     }
 
     [Fact]
@@ -473,6 +540,208 @@ public class GenerationToolsTests : IDisposable
         countEl.GetInt32().Should().Be(2);
         File.Exists(Path.Combine(_mockFs.WorkflowsPath, "generated", "test.workflow")).Should().BeTrue();
         File.Exists(Path.Combine(_mockFs.WorkflowsPath, "generated", "test.wfvars")).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GenerateWfvarsFromWorkflow_WithInputs_WritesWfvars()
+    {
+        // Arrange
+        var tool = new GenerateWfvarsFromWorkflowTool(_adapter);
+        var workflowPath = Path.Combine(_mockFs.WorkflowsPath, "wfvars", "with-inputs.workflow");
+        Directory.CreateDirectory(Path.GetDirectoryName(workflowPath)!);
+        await File.WriteAllTextAsync(workflowPath, """
+version: "3.10"
+id: "W1"
+name: "wfvars-with-inputs"
+description: "wfvars generation test"
+output: true
+input:
+  - name: username
+    type: Text
+    required: true
+  - name: password
+    type: Text
+    required: false
+stages: []
+endStage:
+  output: {}
+""");
+
+        var args = new Dictionary<string, object>
+        {
+            ["workflowPath"] = "wfvars/with-inputs.workflow",
+            ["writeChanges"] = true
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.GetProperty("written").GetBoolean().Should().BeTrue();
+        json.GetProperty("hasInputs").GetBoolean().Should().BeTrue();
+        json.GetProperty("wfvars").GetString().Should().Contain("username");
+        var wfvarsPath = json.GetProperty("wfvarsPath").GetString();
+        File.Exists(wfvarsPath).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GenerateWfvarsFromWorkflow_WithoutInputs_ReturnsWarningAndDoesNotWrite()
+    {
+        // Arrange
+        var tool = new GenerateWfvarsFromWorkflowTool(_adapter);
+        var workflowPath = Path.Combine(_mockFs.WorkflowsPath, "wfvars", "without-inputs.workflow");
+        Directory.CreateDirectory(Path.GetDirectoryName(workflowPath)!);
+        await File.WriteAllTextAsync(workflowPath, """
+version: "3.10"
+id: "W2"
+name: "wfvars-without-inputs"
+description: "wfvars generation test"
+output: true
+stages: []
+endStage:
+  output: {}
+""");
+
+        var args = new Dictionary<string, object>
+        {
+            ["workflowPath"] = "wfvars/without-inputs.workflow",
+            ["writeChanges"] = true
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.GetProperty("written").GetBoolean().Should().BeFalse();
+        json.GetProperty("hasInputs").GetBoolean().Should().BeFalse();
+        json.GetProperty("warnings").GetArrayLength().Should().BeGreaterThan(0);
+        var wfvarsPath = json.GetProperty("wfvarsPath").GetString();
+        File.Exists(wfvarsPath).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task RepairWorkflowArtifacts_WhenWfvarsMissing_CreatesWfvars()
+    {
+        // Arrange
+        var tool = new RepairWorkflowArtifactsTool(_adapter);
+        var workflowPath = Path.Combine(_mockFs.WorkflowsPath, "repair", "sample.workflow");
+        Directory.CreateDirectory(Path.GetDirectoryName(workflowPath)!);
+        await File.WriteAllTextAsync(workflowPath, """
+version: "3.10"
+id: "R1"
+name: "repair-sample"
+description: "repair test"
+output: true
+input:
+  - name: username
+    type: Text
+    required: true
+stages: []
+endStage:
+  output: {}
+""");
+
+        var args = new Dictionary<string, object>
+        {
+            ["workflowPath"] = "repair/sample.workflow",
+            ["writeChanges"] = true
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.GetProperty("wfvars").GetProperty("created").GetBoolean().Should().BeTrue();
+        var wfvarsPath = json.GetProperty("wfvarsPath").GetString();
+        File.Exists(wfvarsPath).Should().BeTrue();
+        var wfvarsContent = await File.ReadAllTextAsync(wfvarsPath!);
+        wfvarsContent.Should().Contain("username");
+    }
+
+    [Fact]
+    public async Task RepairWorkflowArtifacts_WhenWfvarsMissingRequiredInputs_RepairsFile()
+    {
+        // Arrange
+        var tool = new RepairWorkflowArtifactsTool(_adapter);
+        var workflowPath = Path.Combine(_mockFs.WorkflowsPath, "repair", "mismatch.workflow");
+        var wfvarsPath = Path.Combine(_mockFs.WorkflowsPath, "repair", "mismatch.wfvars");
+        Directory.CreateDirectory(Path.GetDirectoryName(workflowPath)!);
+        await File.WriteAllTextAsync(workflowPath, """
+version: "3.10"
+id: "R2"
+name: "repair-mismatch"
+description: "repair test"
+output: true
+input:
+  - name: username
+    type: Text
+    required: true
+  - name: password
+    type: Text
+    required: true
+stages: []
+endStage:
+  output: {}
+""");
+        await File.WriteAllTextAsync(wfvarsPath, """
+username: "demo"
+""");
+
+        var args = new Dictionary<string, object>
+        {
+            ["workflowPath"] = "repair/mismatch.workflow",
+            ["writeChanges"] = true
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.GetProperty("wfvars").GetProperty("updated").GetBoolean().Should().BeTrue();
+        var wfvarsContent = await File.ReadAllTextAsync(wfvarsPath);
+        wfvarsContent.Should().Contain("password");
+    }
+
+    [Fact]
+    public async Task RepairWorkflowArtifacts_WithWriteChangesFalse_DoesNotWriteButReturnsDraft()
+    {
+        // Arrange
+        var tool = new RepairWorkflowArtifactsTool(_adapter);
+        var workflowPath = Path.Combine(_mockFs.WorkflowsPath, "repair", "preview.workflow");
+        Directory.CreateDirectory(Path.GetDirectoryName(workflowPath)!);
+        await File.WriteAllTextAsync(workflowPath, """
+version: "3.10"
+id: "R3"
+name: "repair-preview"
+description: "repair test"
+output: true
+input:
+  - name: username
+    type: Text
+    required: true
+stages: []
+endStage:
+  output: {}
+""");
+
+        var args = new Dictionary<string, object>
+        {
+            ["workflowPath"] = "repair/preview.workflow",
+            ["writeChanges"] = false
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.GetProperty("wfvars").GetProperty("draft").GetString().Should().Contain("username");
+        var wfvarsPath = json.GetProperty("wfvarsPath").GetString();
+        File.Exists(wfvarsPath).Should().BeFalse();
     }
 
     [Fact]
@@ -887,6 +1156,58 @@ public class GenerationToolsTests : IDisposable
         File.Exists(adapter.GetSwaggerCachePath("0.1", "api-5009")).Should().BeFalse();
         File.Exists(adapter.GetSwaggerCachePath("0.1", "api-5007")).Should().BeFalse();
         File.Exists(adapter.GetSwaggerCachePath("0.1", "api-5005")).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task QuickRefreshSwaggerCache_WithDefaults_RefreshesVersion010Local()
+    {
+        // Arrange
+        var adapter = new SihServicesAdapter(new SihPathOptions
+        {
+            ProjectRoot = _mockFs.RootPath,
+            ResourcesPath = "src/resources-quick-refresh"
+        });
+
+        var swaggerDir = Path.Combine(_mockFs.RootPath, "tmp", "quick-refresh", "swagger");
+        Directory.CreateDirectory(Path.Combine(swaggerDir, "v1"));
+        var jsonPath = Path.Combine(swaggerDir, "v1", "swagger.json");
+        await File.WriteAllTextAsync(jsonPath, TestDataBuilder.CreateSampleSwagger("QuickRefreshApi"));
+
+        var catalog = new[]
+        {
+            new
+            {
+                Version = "0.1",
+                BaseUrl = new Dictionary<string, string> { ["local"] = "https://localhost" },
+                Definitions = new[]
+                {
+                    new
+                    {
+                        Name = "QuickRefreshApi",
+                        BasePath = "/api",
+                        SwaggerUrl = new Uri(jsonPath).AbsoluteUri
+                    }
+                }
+            }
+        };
+
+        var catalogJson = JsonSerializer.Serialize(catalog, new JsonSerializerOptions { WriteIndented = true });
+        Directory.CreateDirectory(Path.GetDirectoryName(adapter.ApiCatalogPath)!);
+        await File.WriteAllTextAsync(adapter.ApiCatalogPath, catalogJson);
+
+        var tool = new QuickRefreshSwaggerCacheTool(adapter);
+
+        // Act
+        var result = await tool.ExecuteAsync(null);
+        var json = ToJson(result);
+
+        // Assert
+        json.GetProperty("version").GetString().Should().Be("0.1");
+        json.GetProperty("environment").GetString().Should().Be("local");
+        json.GetProperty("refresh").GetBoolean().Should().BeTrue();
+        json.GetProperty("counts").GetProperty("downloaded").GetInt32().Should().Be(1);
+        json.GetProperty("counts").GetProperty("failed").GetInt32().Should().Be(0);
+        File.Exists(adapter.GetSwaggerCachePath("0.1", "QuickRefreshApi")).Should().BeTrue();
     }
 
     public void Dispose()

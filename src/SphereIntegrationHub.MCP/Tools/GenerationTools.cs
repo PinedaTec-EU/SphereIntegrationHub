@@ -4,7 +4,11 @@ using SphereIntegrationHub.MCP.Models;
 using SphereIntegrationHub.MCP.Services.Catalog;
 using SphereIntegrationHub.MCP.Services.Generation;
 using SphereIntegrationHub.MCP.Services.Integration;
+using SphereIntegrationHub.MCP.Services.Validation;
 using System.Text.Json;
+using WorkflowDefinition = SphereIntegrationHub.Definitions.WorkflowDefinition;
+using YamlDotNet.Serialization;
+using YamlDotNet.Serialization.NamingConventions;
 
 namespace SphereIntegrationHub.MCP.Tools;
 
@@ -254,10 +258,12 @@ public sealed class GenerateEndpointStageTool : IMcpTool
 public sealed class GenerateWorkflowSkeletonTool : IMcpTool
 {
     private readonly StageGenerator _generator;
+    private readonly ApiCatalogReader _catalogReader;
 
     public GenerateWorkflowSkeletonTool(SihServicesAdapter adapter)
     {
         _generator = new StageGenerator(adapter);
+        _catalogReader = new ApiCatalogReader(adapter);
     }
 
     public string Name => "generate_workflow_skeleton";
@@ -270,7 +276,7 @@ public sealed class GenerateWorkflowSkeletonTool : IMcpTool
         {
             name = new { type = "string", description = "Workflow name" },
             description = new { type = "string", description = "Workflow description" },
-            version = new { type = "string", description = "Catalog version (default: 3.11)" },
+            version = new { type = "string", description = "Catalog version (optional: falls back to first catalog version)" },
             inputParameters = new
             {
                 type = "array",
@@ -281,13 +287,14 @@ public sealed class GenerateWorkflowSkeletonTool : IMcpTool
         required = new[] { "name", "description" }
     };
 
-    public Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
+    public async Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
     {
         var name = arguments?.GetValueOrDefault("name")?.ToString()
             ?? throw new ArgumentException("name is required");
         var description = arguments?.GetValueOrDefault("description")?.ToString()
             ?? throw new ArgumentException("description is required");
-        var version = arguments?.GetValueOrDefault("version")?.ToString() ?? "3.11";
+        var warningMessages = new List<string>();
+        var version = await ResolveVersionAsync(arguments?.GetValueOrDefault("version")?.ToString(), warningMessages);
 
         List<string> inputParameters = [];
         if (arguments?.TryGetValue("inputParameters", out var inputParamsObj) == true)
@@ -306,7 +313,30 @@ public sealed class GenerateWorkflowSkeletonTool : IMcpTool
         }
 
         var yaml = _generator.GenerateWorkflowSkeleton(name, description, inputParameters, version);
-        return Task.FromResult<object>(new { name, yaml });
+        var wfvars = WorkflowArtifactHelper.GenerateWfvars(yaml);
+        return new
+        {
+            name,
+            version,
+            yaml,
+            wfvars,
+            warnings = warningMessages
+        };
+    }
+
+    private async Task<string> ResolveVersionAsync(string? requestedVersion, List<string> warningMessages)
+    {
+        if (!string.IsNullOrWhiteSpace(requestedVersion))
+        {
+            return requestedVersion;
+        }
+
+        var versions = await _catalogReader.GetVersionsAsync();
+        var fallbackVersion = versions.FirstOrDefault()
+            ?? throw new InvalidOperationException("version was not provided and no catalog versions are available");
+
+        warningMessages.Add($"version was not provided; using first catalog version '{fallbackVersion}'.");
+        return fallbackVersion;
     }
 }
 
@@ -383,10 +413,12 @@ public sealed class GenerateMockPayloadTool : IMcpTool
 public sealed class GenerateWorkflowBundleTool : IMcpTool
 {
     private readonly StageGenerator _generator;
+    private readonly ApiCatalogReader _catalogReader;
 
     public GenerateWorkflowBundleTool(SihServicesAdapter adapter)
     {
         _generator = new StageGenerator(adapter);
+        _catalogReader = new ApiCatalogReader(adapter);
     }
 
     public string Name => "generate_workflow_bundle";
@@ -397,7 +429,7 @@ public sealed class GenerateWorkflowBundleTool : IMcpTool
         type = "object",
         properties = new
         {
-            version = new { type = "string", description = "Catalog version" },
+            version = new { type = "string", description = "Catalog version (optional: falls back to first catalog version)" },
             workflowName = new { type = "string", description = "Workflow name" },
             description = new { type = "string", description = "Workflow description" },
             apiName = new { type = "string", description = "Default apiRef/definition name" },
@@ -419,13 +451,13 @@ public sealed class GenerateWorkflowBundleTool : IMcpTool
                 }
             }
         },
-        required = new[] { "version", "workflowName", "apiName", "endpoints" }
+        required = new[] { "workflowName", "apiName", "endpoints" }
     };
 
     public async Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
     {
-        var version = arguments?.GetValueOrDefault("version")?.ToString()
-            ?? throw new ArgumentException("version is required");
+        var warningMessages = new List<string>();
+        var version = await ResolveVersionAsync(arguments?.GetValueOrDefault("version")?.ToString(), warningMessages);
         var workflowName = arguments?.GetValueOrDefault("workflowName")?.ToString()
             ?? throw new ArgumentException("workflowName is required");
         var description = arguments?.GetValueOrDefault("description")?.ToString() ?? $"Workflow generated for {workflowName}";
@@ -537,14 +569,31 @@ public sealed class GenerateWorkflowBundleTool : IMcpTool
             stages,
             inputNames);
 
-        var wfvarsDraft = _generator.GenerateWfvars(inputNames);
+        var wfvars = _generator.GenerateWfvars(inputNames);
 
         return new
         {
+            version,
             workflowDraft,
-            wfvarsDraft,
-            payloadDrafts = payloads
+            wfvars,
+            payloadDrafts = payloads,
+            warnings = warningMessages
         };
+    }
+
+    private async Task<string> ResolveVersionAsync(string? requestedVersion, List<string> warningMessages)
+    {
+        if (!string.IsNullOrWhiteSpace(requestedVersion))
+        {
+            return requestedVersion;
+        }
+
+        var versions = await _catalogReader.GetVersionsAsync();
+        var fallbackVersion = versions.FirstOrDefault()
+            ?? throw new InvalidOperationException("version was not provided and no catalog versions are available");
+
+        warningMessages.Add($"version was not provided; using first catalog version '{fallbackVersion}'.");
+        return fallbackVersion;
     }
 
     private static Dictionary<string, object?> DeserializeYamlMap(string yaml)
@@ -718,6 +767,414 @@ public sealed class WriteWorkflowArtifactsTool : IMcpTool
         {
             Directory.CreateDirectory(directory);
         }
+    }
+}
+
+/// <summary>
+/// Generates wfvars draft from an existing workflow definition.
+/// </summary>
+[McpTool("generate_wfvars_from_workflow", "Generates wfvars draft from workflow inputs and optionally writes it to disk", Category = "Generation", Level = "L1")]
+public sealed class GenerateWfvarsFromWorkflowTool : IMcpTool
+{
+    private readonly SihServicesAdapter _adapter;
+
+    public GenerateWfvarsFromWorkflowTool(SihServicesAdapter adapter)
+    {
+        _adapter = adapter;
+    }
+
+    public string Name => "generate_wfvars_from_workflow";
+    public string Description => "Reads a workflow file, derives wfvars keys from input parameters, and optionally writes the .wfvars file.";
+
+    public object InputSchema => new
+    {
+        type = "object",
+        properties = new
+        {
+            workflowPath = new { type = "string", description = "Workflow file path (.workflow/.yaml), absolute or relative to workflows root" },
+            wfvarsPath = new { type = "string", description = "Optional wfvars output path; defaults to workflow sibling with .wfvars extension" },
+            writeChanges = new { type = "boolean", description = "Write generated wfvars file to disk (default: true)" }
+        },
+        required = new[] { "workflowPath" }
+    };
+
+    public async Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
+    {
+        var workflowPathArg = arguments?.GetValueOrDefault("workflowPath")?.ToString()
+            ?? throw new ArgumentException("workflowPath is required");
+        var wfvarsPathArg = arguments?.GetValueOrDefault("wfvarsPath")?.ToString();
+        var writeChanges = TryReadBool(arguments, "writeChanges", true);
+
+        var workflowPath = ResolvePath(workflowPathArg);
+        if (!File.Exists(workflowPath))
+        {
+            throw new FileNotFoundException($"Workflow file not found: {workflowPath}", workflowPath);
+        }
+
+        var workflowYaml = await File.ReadAllTextAsync(workflowPath);
+        var wfvars = WorkflowArtifactHelper.GenerateWfvars(workflowYaml);
+        var resolvedWfvarsPath = ResolveWfvarsPath(workflowPath, wfvarsPathArg);
+        var warnings = new List<string>();
+        var written = false;
+
+        if (string.IsNullOrWhiteSpace(wfvars))
+        {
+            warnings.Add("Workflow has no input variables; no wfvars content was generated.");
+        }
+        else if (writeChanges)
+        {
+            EnsureDirectory(resolvedWfvarsPath);
+            await File.WriteAllTextAsync(resolvedWfvarsPath, wfvars);
+            written = true;
+        }
+
+        return new
+        {
+            workflowPath,
+            wfvarsPath = resolvedWfvarsPath,
+            writeChanges,
+            written,
+            hasInputs = !string.IsNullOrWhiteSpace(wfvars),
+            wfvars,
+            warnings
+        };
+    }
+
+    private string ResolvePath(string path)
+    {
+        if (Path.IsPathRooted(path))
+        {
+            return Path.GetFullPath(path);
+        }
+
+        return Path.GetFullPath(Path.Combine(_adapter.WorkflowsPath, path));
+    }
+
+    private static string ResolveWfvarsPath(string workflowPath, string? wfvarsPathArg)
+    {
+        if (!string.IsNullOrWhiteSpace(wfvarsPathArg))
+        {
+            if (Path.IsPathRooted(wfvarsPathArg))
+            {
+                return Path.GetFullPath(wfvarsPathArg);
+            }
+
+            return Path.GetFullPath(Path.Combine(Path.GetDirectoryName(workflowPath) ?? string.Empty, wfvarsPathArg));
+        }
+
+        return Path.ChangeExtension(workflowPath, ".wfvars");
+    }
+
+    private static void EnsureDirectory(string filePath)
+    {
+        var directory = Path.GetDirectoryName(filePath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+    }
+
+    private static bool TryReadBool(Dictionary<string, object>? arguments, string key, bool defaultValue)
+    {
+        if (arguments?.TryGetValue(key, out var obj) != true)
+        {
+            return defaultValue;
+        }
+
+        if (obj is bool boolValue)
+        {
+            return boolValue;
+        }
+
+        return obj.ToString()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
+    }
+}
+
+/// <summary>
+/// Repairs workflow artifacts by validating workflow YAML and ensuring wfvars exists/aligns with workflow inputs.
+/// </summary>
+[McpTool("repair_workflow_artifacts", "Repairs workflow artifacts: validates workflow and creates/validates wfvars", Category = "Generation", Level = "L1")]
+public sealed class RepairWorkflowArtifactsTool : IMcpTool
+{
+    private readonly SihServicesAdapter _adapter;
+    private readonly WorkflowValidatorService _workflowValidator;
+    private static readonly IDeserializer YamlDeserializer = new DeserializerBuilder()
+        .WithNamingConvention(CamelCaseNamingConvention.Instance)
+        .IgnoreUnmatchedProperties()
+        .Build();
+
+    public RepairWorkflowArtifactsTool(SihServicesAdapter adapter)
+    {
+        _adapter = adapter;
+        _workflowValidator = new WorkflowValidatorService(adapter);
+    }
+
+    public string Name => "repair_workflow_artifacts";
+    public string Description => "Validates workflow and ensures wfvars exists and matches workflow inputs.";
+
+    public object InputSchema => new
+    {
+        type = "object",
+        properties = new
+        {
+            workflowPath = new { type = "string", description = "Workflow file path (.workflow/.yaml), absolute or relative to workflows root" },
+            wfvarsPath = new { type = "string", description = "Optional wfvars path override; defaults to workflow sibling with .wfvars extension" },
+            writeChanges = new { type = "boolean", description = "Write repairs to disk (default: true)" }
+        },
+        required = new[] { "workflowPath" }
+    };
+
+    public async Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
+    {
+        var workflowPathArg = arguments?.GetValueOrDefault("workflowPath")?.ToString()
+            ?? throw new ArgumentException("workflowPath is required");
+        var wfvarsPathArg = arguments?.GetValueOrDefault("wfvarsPath")?.ToString();
+        var writeChanges = TryReadBool(arguments, "writeChanges", true);
+
+        var workflowPath = ResolvePath(workflowPathArg);
+        if (!File.Exists(workflowPath))
+        {
+            throw new FileNotFoundException($"Workflow file not found: {workflowPath}", workflowPath);
+        }
+
+        var workflowYaml = await File.ReadAllTextAsync(workflowPath);
+        var workflowValidation = await _workflowValidator.ValidateWorkflowAsync(workflowPath);
+        var inputDefinitions = ExtractWorkflowInputs(workflowYaml);
+        var inputNames = inputDefinitions.Select(x => x.Name).ToList();
+        var requiredInputNames = inputDefinitions.Where(x => x.Required).Select(x => x.Name).ToList();
+
+        var resolvedWfvarsPath = ResolveWfvarsPath(workflowPath, wfvarsPathArg);
+        var wfvarsExists = File.Exists(resolvedWfvarsPath);
+        var wfvarsCreated = false;
+        var wfvarsUpdated = false;
+        var repairs = new List<string>();
+        var warnings = new List<string>();
+        string? wfvarsYaml;
+
+        if (inputNames.Count == 0)
+        {
+            wfvarsYaml = wfvarsExists ? await File.ReadAllTextAsync(resolvedWfvarsPath) : null;
+            var noInputParseErrors = wfvarsExists ? ParseWfvars(wfvarsYaml!).errors : [];
+            if (wfvarsExists)
+            {
+                warnings.Add("Workflow has no inputs; existing wfvars is optional.");
+            }
+
+            return new
+            {
+                workflowPath,
+                wfvarsPath = resolvedWfvarsPath,
+                writeChanges,
+                workflowValidation = ToValidationContract(workflowValidation),
+                wfvars = new
+                {
+                    exists = wfvarsExists,
+                    created = false,
+                    updated = false,
+                    isValid = !wfvarsExists || noInputParseErrors.Count == 0,
+                    missingRequiredInputs = Array.Empty<string>(),
+                    missingOptionalInputs = Array.Empty<string>(),
+                    extraKeys = Array.Empty<string>(),
+                    parseErrors = noInputParseErrors,
+                    draft = (string?)null
+                },
+                repairs,
+                warnings
+            };
+        }
+
+        if (!wfvarsExists)
+        {
+            wfvarsYaml = WorkflowArtifactHelper.GenerateWfvars(workflowYaml)
+                ?? throw new InvalidOperationException("Failed to generate wfvars draft from workflow inputs.");
+            wfvarsCreated = true;
+            repairs.Add($"wfvars file was missing and generated at '{resolvedWfvarsPath}'.");
+
+            if (writeChanges)
+            {
+                EnsureDirectory(resolvedWfvarsPath);
+                await File.WriteAllTextAsync(resolvedWfvarsPath, wfvarsYaml);
+            }
+        }
+        else
+        {
+            wfvarsYaml = await File.ReadAllTextAsync(resolvedWfvarsPath);
+        }
+
+        var (wfvarsData, wfvarsParseErrors) = ParseWfvars(wfvarsYaml);
+        var missingRequiredInputs = requiredInputNames.Where(name => !wfvarsData.ContainsKey(name)).ToList();
+        var missingOptionalInputs = inputNames.Except(requiredInputNames, StringComparer.OrdinalIgnoreCase)
+            .Where(name => !wfvarsData.ContainsKey(name))
+            .ToList();
+        var extraKeys = wfvarsData.Keys.Where(key => !inputNames.Contains(key, StringComparer.OrdinalIgnoreCase)).ToList();
+
+        if (wfvarsParseErrors.Count > 0)
+        {
+            warnings.Add("wfvars file could not be fully parsed as key/value YAML map.");
+        }
+
+        if (missingRequiredInputs.Count > 0 || missingOptionalInputs.Count > 0)
+        {
+            var generatedMap = ParseWfvars(WorkflowArtifactHelper.GenerateWfvars(workflowYaml) ?? string.Empty).values;
+            foreach (var missing in missingRequiredInputs.Concat(missingOptionalInputs))
+            {
+                if (!wfvarsData.ContainsKey(missing) && generatedMap.TryGetValue(missing, out var generatedValue))
+                {
+                    wfvarsData[missing] = generatedValue;
+                }
+            }
+
+            wfvarsUpdated = true;
+            repairs.Add("wfvars file was repaired by adding missing input keys.");
+        }
+
+        if ((wfvarsCreated || wfvarsUpdated) && writeChanges)
+        {
+            var serializer = new SerializerBuilder().Build();
+            await File.WriteAllTextAsync(resolvedWfvarsPath, serializer.Serialize(wfvarsData));
+            wfvarsYaml = await File.ReadAllTextAsync(resolvedWfvarsPath);
+        }
+
+        var wfvarsIsValid = wfvarsParseErrors.Count == 0 && missingRequiredInputs.Count == 0;
+        return new
+        {
+            workflowPath,
+            wfvarsPath = resolvedWfvarsPath,
+            writeChanges,
+            workflowValidation = ToValidationContract(workflowValidation),
+            wfvars = new
+            {
+                exists = File.Exists(resolvedWfvarsPath),
+                created = wfvarsCreated,
+                updated = wfvarsUpdated,
+                isValid = wfvarsIsValid,
+                missingRequiredInputs,
+                missingOptionalInputs,
+                extraKeys,
+                parseErrors = wfvarsParseErrors,
+                draft = !writeChanges ? wfvarsYaml : null
+            },
+            repairs,
+            warnings
+        };
+    }
+
+    private static object ToValidationContract(ValidationResult result)
+    {
+        return new
+        {
+            isValid = result.Valid,
+            errors = result.Errors.Select(e => new
+            {
+                category = e.Category,
+                stage = e.Stage,
+                field = e.Field,
+                message = e.Message,
+                suggestion = e.Suggestion,
+                location = e.Location
+            }).ToList(),
+            warnings = result.Warnings.Select(w => new
+            {
+                category = w.Category,
+                message = w.Message,
+                suggestion = w.Suggestion
+            }).ToList()
+        };
+    }
+
+    private static List<(string Name, bool Required)> ExtractWorkflowInputs(string workflowYaml)
+    {
+        if (string.IsNullOrWhiteSpace(workflowYaml))
+        {
+            return [];
+        }
+
+        var workflow = YamlDeserializer.Deserialize<WorkflowDefinition>(workflowYaml);
+        if (workflow?.Input == null)
+        {
+            return [];
+        }
+
+        return workflow.Input
+            .Where(x => !string.IsNullOrWhiteSpace(x.Name))
+            .Select(x => (x.Name, x.Required))
+            .DistinctBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static (Dictionary<string, string> values, List<string> errors) ParseWfvars(string wfvarsYaml)
+    {
+        var errors = new List<string>();
+        try
+        {
+            var raw = YamlDeserializer.Deserialize<Dictionary<string, object?>>(wfvarsYaml) ?? [];
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (key, value) in raw)
+            {
+                if (string.IsNullOrWhiteSpace(key))
+                {
+                    continue;
+                }
+
+                map[key] = value?.ToString() ?? string.Empty;
+            }
+
+            return (map, errors);
+        }
+        catch (Exception ex)
+        {
+            errors.Add($"Failed to parse wfvars YAML: {ex.Message}");
+            return (new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), errors);
+        }
+    }
+
+    private string ResolvePath(string path)
+    {
+        if (Path.IsPathRooted(path))
+        {
+            return Path.GetFullPath(path);
+        }
+
+        return Path.GetFullPath(Path.Combine(_adapter.WorkflowsPath, path));
+    }
+
+    private static string ResolveWfvarsPath(string workflowPath, string? wfvarsPathArg)
+    {
+        if (!string.IsNullOrWhiteSpace(wfvarsPathArg))
+        {
+            if (Path.IsPathRooted(wfvarsPathArg))
+            {
+                return Path.GetFullPath(wfvarsPathArg);
+            }
+
+            return Path.GetFullPath(Path.Combine(Path.GetDirectoryName(workflowPath) ?? string.Empty, wfvarsPathArg));
+        }
+
+        return Path.ChangeExtension(workflowPath, ".wfvars");
+    }
+
+    private static void EnsureDirectory(string filePath)
+    {
+        var directory = Path.GetDirectoryName(filePath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+    }
+
+    private static bool TryReadBool(Dictionary<string, object>? arguments, string key, bool defaultValue)
+    {
+        if (arguments?.TryGetValue(key, out var obj) != true)
+        {
+            return defaultValue;
+        }
+
+        if (obj is bool boolValue)
+        {
+            return boolValue;
+        }
+
+        return obj.ToString()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
     }
 }
 
@@ -1474,7 +1931,7 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
             return payload;
         }
 
-        using var httpClient = new HttpClient();
+        using var httpClient = CreateHttpClientForSwaggerDownload();
         payload = await httpClient.GetStringAsync(swaggerUri);
         if (IsLikelyHtml(payload))
         {
@@ -1569,7 +2026,7 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
                     }
                     else
                     {
-                        using var client = new HttpClient();
+                        using var client = CreateHttpClientForSwaggerDownload();
                         candidatePayload = await client.GetStringAsync(candidate);
                     }
                 }
@@ -1685,6 +2142,16 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
         }
 
         return obj.ToString()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private static HttpClient CreateHttpClientForSwaggerDownload()
+    {
+        var handler = new SocketsHttpHandler
+        {
+            UseCookies = false
+        };
+
+        return new HttpClient(handler, disposeHandler: true);
     }
 }
 
@@ -1914,7 +2381,7 @@ public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
             return payload;
         }
 
-        using var httpClient = new HttpClient();
+        using var httpClient = CreateHttpClientForSwaggerDownload();
         payload = await httpClient.GetStringAsync(swaggerUri);
         if (IsLikelyHtml(payload))
         {
@@ -2071,7 +2538,7 @@ public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
                     }
                     else
                     {
-                        using var client = new HttpClient();
+                        using var client = CreateHttpClientForSwaggerDownload();
                         candidatePayload = await client.GetStringAsync(candidate);
                     }
                 }
@@ -2162,6 +2629,83 @@ public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
         }
 
         return candidates;
+    }
+
+    private static bool TryReadBool(Dictionary<string, object>? arguments, string key, bool defaultValue)
+    {
+        if (arguments?.TryGetValue(key, out var obj) != true)
+        {
+            return defaultValue;
+        }
+
+        if (obj is bool boolValue)
+        {
+            return boolValue;
+        }
+
+        return obj.ToString()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private static HttpClient CreateHttpClientForSwaggerDownload()
+    {
+        var handler = new SocketsHttpHandler
+        {
+            UseCookies = false
+        };
+
+        return new HttpClient(handler, disposeHandler: true);
+    }
+}
+
+/// <summary>
+/// Fast-path cache refresh to reduce exploratory/tool-chaining behavior in LLM agents.
+/// </summary>
+[McpTool("quick_refresh_swagger_cache", "Fast path: refreshes swagger cache from api-catalog with practical defaults (version=0.1, environment=local, refresh=true)", Category = "Generation", Level = "L1")]
+public sealed class QuickRefreshSwaggerCacheTool : IMcpTool
+{
+    private readonly RefreshSwaggerCacheFromCatalogTool _refreshTool;
+
+    public QuickRefreshSwaggerCacheTool(SihServicesAdapter adapter)
+    {
+        _refreshTool = new RefreshSwaggerCacheFromCatalogTool(adapter);
+    }
+
+    public string Name => "quick_refresh_swagger_cache";
+    public string Description =>
+        "Use this first when user asks to regenerate cache. Executes refresh_swagger_cache_from_catalog with defaults to avoid extra discovery.";
+
+    public object InputSchema => new
+    {
+        type = "object",
+        properties = new
+        {
+            version = new { type = "string", description = "Catalog version (default: 0.1)" },
+            environment = new { type = "string", description = "Environment key (default: local)" },
+            refresh = new { type = "boolean", description = "Force redownload (default: true)" },
+            apiNames = new
+            {
+                type = "array",
+                description = "Optional subset of definition names",
+                items = new { type = "string" }
+            }
+        }
+    };
+
+    public Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
+    {
+        var delegatedArgs = new Dictionary<string, object>
+        {
+            ["version"] = arguments?.GetValueOrDefault("version")?.ToString() ?? "0.1",
+            ["environment"] = arguments?.GetValueOrDefault("environment")?.ToString() ?? "local",
+            ["refresh"] = TryReadBool(arguments, "refresh", true)
+        };
+
+        if (arguments?.TryGetValue("apiNames", out var apiNamesObj) == true)
+        {
+            delegatedArgs["apiNames"] = apiNamesObj;
+        }
+
+        return _refreshTool.ExecuteAsync(delegatedArgs);
     }
 
     private static bool TryReadBool(Dictionary<string, object>? arguments, string key, bool defaultValue)
