@@ -16,6 +16,7 @@ public sealed class McpServer
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly Dictionary<string, IMcpTool> _tools;
     private readonly string _serverVersion;
+    private readonly string _toolProfile;
 
     public McpServer(SihServicesAdapter servicesAdapter, JsonSerializerOptions jsonOptions)
     {
@@ -23,6 +24,7 @@ public sealed class McpServer
         _jsonOptions = jsonOptions ?? throw new ArgumentNullException(nameof(jsonOptions));
         _tools = new Dictionary<string, IMcpTool>(StringComparer.OrdinalIgnoreCase);
         _serverVersion = ResolveServerVersion();
+        _toolProfile = ResolveToolProfile();
 
         RegisterTools();
     }
@@ -32,6 +34,13 @@ public sealed class McpServer
     /// </summary>
     private void RegisterTools()
     {
+        if (_toolProfile.Equals("cache", StringComparison.OrdinalIgnoreCase))
+        {
+            RegisterCacheProfileTools();
+            Console.Error.WriteLine($"[McpServer] Registered {_tools.Count} tools (profile: {_toolProfile})");
+            return;
+        }
+
         // Level 1 Tools (18 tools)
 
         // Catalog Tools (4 tools)
@@ -51,10 +60,13 @@ public sealed class McpServer
         RegisterTool(new GenerateMockPayloadTool(_servicesAdapter));
         RegisterTool(new GenerateWorkflowBundleTool(_servicesAdapter));
         RegisterTool(new WriteWorkflowArtifactsTool(_servicesAdapter));
+        RegisterTool(new GenerateWfvarsFromWorkflowTool(_servicesAdapter));
+        RegisterTool(new RepairWorkflowArtifactsTool(_servicesAdapter));
         RegisterTool(new GenerateStartupBootstrapTool());
         RegisterTool(new GenerateApiCatalogFileTool(_servicesAdapter));
         RegisterTool(new UpsertApiCatalogAndCacheTool(_servicesAdapter));
         RegisterTool(new RefreshSwaggerCacheFromCatalogTool(_servicesAdapter));
+        RegisterTool(new QuickRefreshSwaggerCacheTool(_servicesAdapter));
 
         // Analysis Tools (3 tools)
         RegisterTool(new GetAvailableVariablesTool(_servicesAdapter));
@@ -92,7 +104,17 @@ public sealed class McpServer
         RegisterTool(new SuggestOptimizationsTool(_servicesAdapter));
         RegisterTool(new AnalyzeSwaggerCoverageTool(_servicesAdapter));
 
-        Console.Error.WriteLine($"[McpServer] Registered {_tools.Count} tools (L1: 24, L2: 5, L3: 1, L4: 2)");
+        Console.Error.WriteLine($"[McpServer] Registered {_tools.Count} tools (profile: {_toolProfile})");
+    }
+
+    private void RegisterCacheProfileTools()
+    {
+        // Minimal toolset for fast cache operations with low token overhead.
+        RegisterTool(new ListApiCatalogVersionsTool(_servicesAdapter));
+        RegisterTool(new GenerateApiCatalogFileTool(_servicesAdapter));
+        RegisterTool(new UpsertApiCatalogAndCacheTool(_servicesAdapter));
+        RegisterTool(new RefreshSwaggerCacheFromCatalogTool(_servicesAdapter));
+        RegisterTool(new QuickRefreshSwaggerCacheTool(_servicesAdapter));
     }
 
     private void RegisterTool(IMcpTool tool)
@@ -300,5 +322,16 @@ public sealed class McpServer
         }
 
         return "0.0.0";
+    }
+
+    private static string ResolveToolProfile()
+    {
+        var profile = Environment.GetEnvironmentVariable("SIH_MCP_PROFILE");
+        if (string.IsNullOrWhiteSpace(profile))
+        {
+            return "full";
+        }
+
+        return profile.Trim();
     }
 }

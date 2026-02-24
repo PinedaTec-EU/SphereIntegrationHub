@@ -10,6 +10,14 @@ This MCP server exposes 32 tools organized in 4 levels (L1-L4) that enable LLMs 
 - Optimize execution strategies
 - Design complex integration systems
 
+## Agent Instructions (Maintained with MCP)
+
+Agent-specific operating rules are maintained in:
+
+- `src/SphereIntegrationHub.MCP/AGENTS.md`
+
+Keep that file as the authoritative source for cache-refresh fast paths and low-token behavior.
+
 ## Architecture
 
 ```
@@ -45,16 +53,19 @@ McpServer (stdio JSON-RPC)
 - `validate_stage` - Validates single stage
 - `plan_workflow_execution` - Analyzes execution plan
 
-### Generation Tools (9)
+### Generation Tools (12)
 - `generate_endpoint_stage` - Generates stage from endpoint
 - `generate_workflow_skeleton` - Creates workflow template
 - `generate_mock_payload` - Generates test payload
 - `generate_workflow_bundle` - Generates `workflow` + `.wfvars` + payload drafts
 - `write_workflow_artifacts` - Writes generated artifacts to disk
+- `generate_wfvars_from_workflow` - Generates `.wfvars` from workflow `input`
+- `repair_workflow_artifacts` - Validates workflow and creates/repairs `.wfvars`
 - `generate_startup_bootstrap` - Generates startup integration for app boot
 - `generate_api_catalog_file` - Generates/writes `api-catalog.json`
 - `upsert_api_catalog_and_cache` - Creates/updates catalog from swagger URL and downloads cache
 - `refresh_swagger_cache_from_catalog` - Downloads cache files from existing catalog
+- `quick_refresh_swagger_cache` - Fast-path cache refresh with defaults (`version=0.1`, `environment=local`, `refresh=true`)
 
 ### Analysis Tools (3)
 - `get_available_variables` - Shows available variables at a point
@@ -116,8 +127,9 @@ Use this short conversation flow with your LLM to get the first workflow generat
    - Prompt: `Use MCP tool upsert_api_catalog_and_cache with version 3.11, apiName AccountsAPI, swaggerUrl <YOUR_SWAGGER_URL>, basePath /api/accounts.`
 3. If catalog exists and you only need cache refresh:
    - Prompt: `Use MCP tool refresh_swagger_cache_from_catalog for version 3.11 with refresh=true.`
+   - Fast-path prompt (recommended for local setups): `Use MCP tool quick_refresh_swagger_cache.`
 4. Generate workflow draft bundle:
-   - Prompt: `Use MCP to generate a workflow bundle for "create account" and include workflowDraft + wfvarsDraft.`
+   - Prompt: `Use MCP to generate a workflow bundle for "create account" and include workflowDraft + wfvars.`
 5. Persist artifacts:
    - Prompt: `Use MCP write_workflow_artifacts to save the generated .workflow and .wfvars under the workflows path.`
 6. Validate:
@@ -219,6 +231,7 @@ MCP can run against any repository layout by setting environment variables:
 - `SIH_API_CATALOG_PATH`: explicit `api-catalog.json` path.
 - `SIH_CACHE_PATH`: explicit swagger cache folder.
 - `SIH_WORKFLOWS_PATH`: explicit workflows folder.
+- `SIH_MCP_PROFILE`: optional MCP tool profile (`full` default, `cache` for cache-only toolset).
 
 Default resolution when env vars are not provided:
 - Preferred default: `<project>/.sphere`
@@ -228,6 +241,21 @@ Inside the selected resources root:
 - catalog: `<resources>/api-catalog.json`
 - cache: `<resources>/cache`
 - workflows: `<resources>/workflows`
+
+### Token/Latency Optimization: Cache Profile
+
+If your agent mainly regenerates Swagger cache, set:
+
+`SIH_MCP_PROFILE=cache`
+
+This exposes only a minimal subset of tools:
+- `list_api_catalog_versions`
+- `generate_api_catalog_file`
+- `upsert_api_catalog_and_cache`
+- `refresh_swagger_cache_from_catalog`
+- `quick_refresh_swagger_cache`
+
+This reduces `tools/list` payload and usually lowers discovery tokens/latency in generic LLM agents.
 
 Example (`.vscode/mcp.json`) for a different repository:
 

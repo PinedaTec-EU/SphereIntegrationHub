@@ -40,7 +40,7 @@ Input options:
 
 Generates an automation bundle:
 - `workflowDraft` (YAML)
-- `wfvarsDraft` (YAML key/value)
+- `wfvars` (YAML key/value)
 - `payloadDrafts` (JSON examples for write endpoints)
 
 Use this for end-to-end workflow authoring from developer directives.
@@ -51,6 +51,22 @@ Persists generated artifacts in configured workflows path:
 - `.workflow`
 - `.wfvars`
 - optional payload files
+
+### `generate_wfvars_from_workflow`
+
+Generates `.wfvars` from an existing workflow:
+- reads workflow YAML from `workflowPath`
+- derives keys from `input`
+- returns `wfvars`
+- optionally writes the file (default `writeChanges=true`)
+
+### `repair_workflow_artifacts`
+
+Repairs workflow artifacts from an existing workflow file:
+- validates workflow YAML
+- creates missing `.wfvars` if workflow has inputs
+- repairs missing wfvars keys based on workflow inputs
+- reports missing/extra keys and parse issues
 
 ### `generate_startup_bootstrap`
 
@@ -64,6 +80,17 @@ Generates startup bootstrap artifacts for API projects:
 
 Generates `api-catalog.json` content and can write it directly to disk.
 Use this first when onboarding MCP in repositories that do not have catalog files yet.
+
+### `quick_refresh_swagger_cache`
+
+Fast-path cache regeneration from catalog, designed to minimize LLM exploration steps.
+
+Defaults:
+- `version`: `0.1`
+- `environment`: `local`
+- `refresh`: `true`
+
+Use when user says "regenerate cache" and catalog already exists.
 
 ## Validation Tools
 

@@ -5,10 +5,16 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PROJECT_FILE="${PROJECT_ROOT}/src/SphereIntegrationHub.MCP/SphereIntegrationHub.MCP.csproj"
+AGENTS_FILE="${PROJECT_ROOT}/src/SphereIntegrationHub.MCP/AGENTS.md"
 OUTPUT_ROOT="${PROJECT_ROOT}/dist/mcp"
 
 if [[ ! -f "${PROJECT_FILE}" ]]; then
   echo "Project file not found: ${PROJECT_FILE}" >&2
+  exit 1
+fi
+
+if [[ ! -f "${AGENTS_FILE}" ]]; then
+  echo "Agent instructions file not found: ${AGENTS_FILE}" >&2
   exit 1
 fi
 
@@ -39,6 +45,8 @@ for rid in "${RIDS[@]}"; do
     /p:PublishTrimmed=false \
     /p:DebugType=None \
     -o "${out_dir}"
+
+  cp "${AGENTS_FILE}" "${out_dir}/AGENTS.md"
 
   echo "Done: ${out_dir}"
 done
