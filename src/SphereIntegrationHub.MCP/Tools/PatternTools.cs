@@ -1,5 +1,6 @@
 using SphereIntegrationHub.MCP.Core;
 using SphereIntegrationHub.MCP.Models;
+using SphereIntegrationHub.MCP.Services;
 using SphereIntegrationHub.MCP.Services.Catalog;
 using SphereIntegrationHub.MCP.Services.Generation;
 using SphereIntegrationHub.MCP.Services.Integration;
@@ -57,77 +58,10 @@ public sealed class DetectApiPatternsTool : IMcpTool
         {
             apiName,
             version,
-            patterns = patterns.Patterns.Select(p => SerializePattern(p)).ToList(),
+            patterns = patterns.Patterns.Select(ApiPatternSerializer.Serialize).ToList(),
             patternCount = patterns.Patterns.Count,
-            summary = GeneratePatternSummary(patterns)
+            summary = ApiPatternSerializer.BuildSummary(patterns)
         };
-    }
-
-    private static object SerializePattern(ApiPattern pattern)
-    {
-        return pattern switch
-        {
-            OAuth2Pattern oauth => new
-            {
-                type = oauth.Type,
-                confidence = oauth.Confidence,
-                endpoints = oauth.Endpoints,
-                grantTypes = oauth.GrantTypes,
-                tokenLocation = oauth.TokenLocation
-            },
-            CrudPattern crud => new
-            {
-                type = crud.Type,
-                confidence = crud.Confidence,
-                resource = crud.Resource,
-                endpoints = crud.Endpoints,
-                idParameter = crud.IdParameter,
-                idType = crud.IdType
-            },
-            PaginationPattern pagination => new
-            {
-                type = pagination.Type,
-                confidence = pagination.Confidence,
-                mechanism = pagination.Mechanism,
-                queryParams = pagination.QueryParams,
-                responseSchema = new
-                {
-                    dataField = pagination.ResponseSchema.DataField,
-                    totalField = pagination.ResponseSchema.TotalField,
-                    hasNextField = pagination.ResponseSchema.HasNextField
-                }
-            },
-            FilteringPattern filtering => new
-            {
-                type = filtering.Type,
-                confidence = filtering.Confidence,
-                queryParams = filtering.QueryParams
-            },
-            BatchOperationPattern batch => new
-            {
-                type = batch.Type,
-                confidence = batch.Confidence,
-                endpoint = batch.Endpoint,
-                httpVerb = batch.HttpVerb,
-                arrayField = batch.ArrayField
-            },
-            _ => new { type = pattern.Type, confidence = pattern.Confidence }
-        };
-    }
-
-    private static Dictionary<string, object> GeneratePatternSummary(ApiPatternCollection patterns)
-    {
-        var summary = new Dictionary<string, object>
-        {
-            ["totalPatterns"] = patterns.Patterns.Count,
-            ["hasOAuth"] = patterns.Patterns.Any(p => p is OAuth2Pattern),
-            ["crudResources"] = patterns.Patterns.OfType<CrudPattern>().Select(p => p.Resource).ToList(),
-            ["supportsPagination"] = patterns.Patterns.Any(p => p is PaginationPattern),
-            ["supportsFiltering"] = patterns.Patterns.Any(p => p is FilteringPattern),
-            ["supportsBatchOperations"] = patterns.Patterns.Any(p => p is BatchOperationPattern)
-        };
-
-        return summary;
     }
 }
 
@@ -184,7 +118,7 @@ public sealed class GenerateCrudWorkflowTool : IMcpTool
     public async Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
     {
         var warningMessages = new List<string>();
-        var version = await ResolveVersionAsync(arguments?.GetValueOrDefault("version")?.ToString(), warningMessages);
+        var version = await VersionResolver.ResolveAsync(arguments?.GetValueOrDefault("version")?.ToString(), _catalogReader, warningMessages);
         var apiName = arguments?.GetValueOrDefault("apiName")?.ToString()
             ?? throw new ArgumentException("apiName is required");
         var resource = arguments?.GetValueOrDefault("resource")?.ToString()
@@ -382,21 +316,6 @@ public sealed class GenerateCrudWorkflowTool : IMcpTool
         builder.AppendLine("    success: \"true\"");
         builder.AppendLine($"    result: \"{{{{stage:{resultStage}.output.dto}}}}\"");
         return builder.ToString();
-    }
-
-    private async Task<string> ResolveVersionAsync(string? requestedVersion, List<string> warningMessages)
-    {
-        if (!string.IsNullOrWhiteSpace(requestedVersion))
-        {
-            return requestedVersion;
-        }
-
-        var versions = await _catalogReader.GetVersionsAsync();
-        var fallbackVersion = versions.FirstOrDefault()
-            ?? throw new InvalidOperationException("version was not provided and no catalog versions are available");
-
-        warningMessages.Add($"version was not provided; using first catalog version '{fallbackVersion}'.");
-        return fallbackVersion;
     }
 
     private async Task<string?> ResolveApiBasePathAsync(string version, string apiName)
