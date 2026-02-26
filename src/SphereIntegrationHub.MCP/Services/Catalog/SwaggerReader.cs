@@ -117,57 +117,53 @@ public sealed class SwaggerReader
 
     private static Uri ResolveSwaggerUri(ApiCatalogVersion versionEntry, ApiDefinition definition)
     {
-        var swaggerUrl = definition.SwaggerUrl;
-        if (Uri.TryCreate(swaggerUrl, UriKind.Absolute, out var absolute))
-        {
-            return absolute;
-        }
-
-        if (!TryResolveBaseUrl(versionEntry, definition, out var baseUrl) ||
-            !Uri.TryCreate(baseUrl, UriKind.Absolute, out var baseUri))
-        {
-            throw new InvalidOperationException(
-                $"Cannot resolve relative swaggerUrl '{swaggerUrl}' for API '{definition.Name}' in version '{versionEntry.Version}'.");
-        }
-
-        return new Uri(baseUri, swaggerUrl);
+        var environment = ResolvePreferredEnvironment(versionEntry, definition);
+        return SwaggerUriResolver.Resolve(versionEntry, definition, environment);
     }
 
-    private static bool TryResolveBaseUrl(ApiCatalogVersion versionEntry, ApiDefinition definition, out string? baseUrl)
+    private static string ResolvePreferredEnvironment(ApiCatalogVersion versionEntry, ApiDefinition definition)
     {
-        if (definition.BaseUrl != null && TryResolvePreferredEnvironmentBaseUrl(definition.BaseUrl, out baseUrl))
+        if (definition.BaseUrl is { Count: > 0 } &&
+            TryResolvePreferredEnvironment(definition.BaseUrl, out var definitionEnvironment))
         {
-            return true;
+            return definitionEnvironment;
         }
 
-        return TryResolvePreferredEnvironmentBaseUrl(versionEntry.BaseUrl, out baseUrl);
+        if (TryResolvePreferredEnvironment(versionEntry.BaseUrl, out var versionEnvironment))
+        {
+            return versionEnvironment;
+        }
+
+        return "local";
     }
 
-    private static bool TryResolvePreferredEnvironmentBaseUrl(IReadOnlyDictionary<string, string> map, out string? baseUrl)
+    private static bool TryResolvePreferredEnvironment(IReadOnlyDictionary<string, string> map, out string environment)
     {
-        if (TryGetIgnoreCase(map, "local", out baseUrl) ||
-            TryGetIgnoreCase(map, "pre", out baseUrl) ||
-            TryGetIgnoreCase(map, "prod", out baseUrl))
+        if (TryGetIgnoreCase(map, "local", out environment) ||
+            TryGetIgnoreCase(map, "pre", out environment) ||
+            TryGetIgnoreCase(map, "prod", out environment))
         {
             return true;
         }
 
-        var first = map.FirstOrDefault(kvp => !string.IsNullOrWhiteSpace(kvp.Value));
-        if (!string.IsNullOrWhiteSpace(first.Value))
+        var first = map.FirstOrDefault(kvp =>
+            !string.IsNullOrWhiteSpace(kvp.Key) &&
+            !string.IsNullOrWhiteSpace(kvp.Value));
+        if (!string.IsNullOrWhiteSpace(first.Key))
         {
-            baseUrl = first.Value;
+            environment = first.Key;
             return true;
         }
 
-        baseUrl = null;
+        environment = string.Empty;
         return false;
     }
 
-    private static bool TryGetIgnoreCase(IReadOnlyDictionary<string, string> map, string key, out string? value)
+    private static bool TryGetIgnoreCase(IReadOnlyDictionary<string, string> map, string key, out string value)
     {
         if (map.TryGetValue(key, out var direct) && !string.IsNullOrWhiteSpace(direct))
         {
-            value = direct;
+            value = key;
             return true;
         }
 
@@ -176,12 +172,12 @@ public sealed class SwaggerReader
             if (pair.Key.Equals(key, StringComparison.OrdinalIgnoreCase) &&
                 !string.IsNullOrWhiteSpace(pair.Value))
             {
-                value = pair.Value;
+                value = pair.Key;
                 return true;
             }
         }
 
-        value = null;
+        value = string.Empty;
         return false;
     }
 
