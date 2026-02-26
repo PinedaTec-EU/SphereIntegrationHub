@@ -121,7 +121,7 @@ internal static class CatalogSwaggerUrlNormalizer
 [McpTool("generate_endpoint_stage", "Generates a workflow stage definition from an API endpoint", Category = "Generation", Level = "L1")]
 public sealed class GenerateEndpointStageTool : IMcpTool
 {
-    private readonly StageGenerator _generator;
+    private readonly IStageGenerator _generator;
 
     public GenerateEndpointStageTool(SihServicesAdapter adapter)
     {
@@ -195,7 +195,7 @@ public sealed class GenerateEndpointStageTool : IMcpTool
 [McpTool("generate_workflow_skeleton", "Generates a complete workflow skeleton with basic structure", Category = "Generation", Level = "L1")]
 public sealed class GenerateWorkflowSkeletonTool : IMcpTool
 {
-    private readonly StageGenerator _generator;
+    private readonly IStageGenerator _generator;
     private readonly ApiCatalogReader _catalogReader;
 
     public GenerateWorkflowSkeletonTool(SihServicesAdapter adapter)
@@ -269,7 +269,7 @@ public sealed class GenerateWorkflowSkeletonTool : IMcpTool
 [McpTool("generate_mock_payload", "Generates a mock JSON payload for an API endpoint", Category = "Generation", Level = "L1")]
 public sealed class GenerateMockPayloadTool : IMcpTool
 {
-    private readonly StageGenerator _generator;
+    private readonly IStageGenerator _generator;
 
     public GenerateMockPayloadTool(SihServicesAdapter adapter)
     {
@@ -335,7 +335,7 @@ public sealed class GenerateMockPayloadTool : IMcpTool
 [McpTool("generate_workflow_bundle", "Generates workflow YAML + wfvars draft + payload templates", Category = "Generation", Level = "L1")]
 public sealed class GenerateWorkflowBundleTool : IMcpTool
 {
-    private readonly StageGenerator _generator;
+    private readonly IStageGenerator _generator;
     private readonly ApiCatalogReader _catalogReader;
 
     public GenerateWorkflowBundleTool(SihServicesAdapter adapter)

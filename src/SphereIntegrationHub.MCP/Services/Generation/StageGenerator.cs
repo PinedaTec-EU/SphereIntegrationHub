@@ -10,7 +10,7 @@ namespace SphereIntegrationHub.MCP.Services.Generation;
 /// <summary>
 /// Generates workflow artifacts aligned with SphereIntegrationHub workflow schema.
 /// </summary>
-public sealed class StageGenerator
+public sealed class StageGenerator : IStageGenerator
 {
     private readonly SwaggerReader _swaggerReader;
     private readonly ISerializer _yamlSerializer;

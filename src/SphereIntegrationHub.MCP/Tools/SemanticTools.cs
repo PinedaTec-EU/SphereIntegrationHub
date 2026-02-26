@@ -335,7 +335,7 @@ public sealed class SuggestWorkflowFromGoalTool : IMcpTool
     private readonly SwaggerSemanticAnalyzer _analyzer;
     private readonly ApiCatalogReader _catalogReader;
     private readonly SwaggerReader _swaggerReader;
-    private readonly StageGenerator _stageGenerator;
+    private readonly IStageGenerator _stageGenerator;
 
     public SuggestWorkflowFromGoalTool(SihServicesAdapter adapter)
     {
