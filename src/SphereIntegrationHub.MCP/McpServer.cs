@@ -1,9 +1,10 @@
-using SphereIntegrationHub.MCP.Core;
-using SphereIntegrationHub.MCP.Services.Integration;
-using SphereIntegrationHub.MCP.Tools;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
+
+using SphereIntegrationHub.MCP.Core;
+using SphereIntegrationHub.MCP.Services.Integration;
+using SphereIntegrationHub.MCP.Tools;
 
 namespace SphereIntegrationHub.MCP;
 
@@ -13,7 +14,6 @@ namespace SphereIntegrationHub.MCP;
 public sealed class McpServer
 {
     private const int MaxRequestCharacters = 262_144; // 256 KiB JSON line cap
-    private const string JsonRpcVersion = "2.0";
     private readonly SihServicesAdapter _servicesAdapter;
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly McpToolRegistry _registry;
@@ -211,7 +211,7 @@ public sealed class McpServer
     {
         try
         {
-            if (!string.Equals(request.JsonRpc, JsonRpcVersion, StringComparison.Ordinal))
+            if (!string.Equals(request.JsonRpc, McpConstants.JsonRpcVersion, StringComparison.Ordinal))
             {
                 return CreateErrorResponse(request.Id, McpErrorCodes.InvalidRequest, "Invalid JSON-RPC version", null);
             }
@@ -222,7 +222,7 @@ public sealed class McpServer
             }
 
             // Handle standard JSON-RPC methods
-            if (request.Method == "initialize")
+            if (request.Method == McpConstants.MethodInitialize)
             {
                 return new McpResponse
                 {
@@ -243,7 +243,7 @@ public sealed class McpServer
                 };
             }
 
-            if (request.Method == "tools/list")
+            if (request.Method == McpConstants.MethodToolsList)
             {
                 return new McpResponse
                 {
@@ -260,7 +260,7 @@ public sealed class McpServer
                 };
             }
 
-            if (request.Method == "tools/call")
+            if (request.Method == McpConstants.MethodToolsCall)
             {
                 var toolName = request.Params?.GetValueOrDefault("name")?.ToString();
                 if (string.IsNullOrEmpty(toolName))

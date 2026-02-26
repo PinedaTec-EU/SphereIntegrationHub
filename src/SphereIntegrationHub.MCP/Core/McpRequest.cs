@@ -8,7 +8,7 @@ namespace SphereIntegrationHub.MCP.Core;
 public sealed class McpRequest
 {
     [JsonPropertyName("jsonrpc")]
-    public string JsonRpc { get; set; } = "2.0";
+    public string JsonRpc { get; set; } = McpConstants.JsonRpcVersion;
 
     [JsonPropertyName("id")]
     public object? Id { get; set; }
@@ -26,7 +26,7 @@ public sealed class McpRequest
 public sealed class McpResponse
 {
     [JsonPropertyName("jsonrpc")]
-    public string JsonRpc { get; set; } = "2.0";
+    public string JsonRpc { get; set; } = McpConstants.JsonRpcVersion;
 
     [JsonPropertyName("id")]
     public object? Id { get; set; }

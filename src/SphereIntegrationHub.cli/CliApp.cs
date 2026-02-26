@@ -41,7 +41,7 @@ internal sealed class CliApp
     {
         // Resolve assembly version
         var assemblyVersion = typeof(global::Program).Assembly.GetName().Version;
-        var message = $" API Orchestrator Sphere CLI v.{assemblyVersion}";
+        var message = $"{CliConstants.CliVersionPrefix}{assemblyVersion}";
 
         _output.Out.WriteLine(message);
         _output.Out.WriteLine(new string('-', message.Length + 1));
