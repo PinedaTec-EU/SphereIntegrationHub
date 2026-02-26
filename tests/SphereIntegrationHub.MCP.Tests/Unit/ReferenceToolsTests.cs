@@ -194,6 +194,25 @@ public class ReferenceToolsTests : IDisposable
     }
 
     [Fact]
+    public async Task GetWorkflowInputsOutputs_WithWorkflowYamlSuffix_ResolvesToWorkflowFile()
+    {
+        var workflow = TestDataBuilder.CreateSampleWorkflow();
+        _mockFs.AddWorkflow("create-tier.workflow", workflow);
+
+        var tool = new GetWorkflowInputsOutputsTool(_adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["workflowPath"] = "create-tier.workflow.yaml"
+        };
+
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        json.TryGetProperty("workflowName", out var workflowName).Should().BeTrue();
+        workflowName.ValueKind.Should().NotBe(JsonValueKind.Null);
+    }
+
+    [Fact]
     public async Task GetWorkflowInputsOutputs_WithNoInputs_ReturnsEmptyInputList()
     {
         // Arrange

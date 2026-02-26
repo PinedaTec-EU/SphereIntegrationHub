@@ -81,6 +81,17 @@ McpServer (stdio JSON-RPC)
 - `get_plugin_capabilities` - Lists stage types & features
 - `suggest_resilience_config` - Suggests retry/timeout config
 
+## Community
+
+If SphereIntegrationHub is helping your team integrate APIs faster, let us know!
+
+- Give us a ⭐ on [GitHub](https://github.com/PinedaTec-EU/SphereIntegrationHub)
+- Share your experience on [LinkedIn](https://www.linkedin.com/in/jmrpineda) mentioning **#SphereIntegrationHub**
+- Send us a note at [sih@pinedatec.eu](mailto:sih@pinedatec.eu)
+
+> The CLI (`sih run`) collects anonymous usage stats (version, OS, run count) at most once every 7 days.
+> Opt out: `SIH_USAGE_PING=0`
+
 ## Quick Start
 
 ### Prerequisites
