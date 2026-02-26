@@ -129,9 +129,9 @@ internal static class SwaggerDownloader
                     $"[SphereIntegrationHub.MCP] Info: resolved OpenAPI fallback URL '{candidate}' from HTML source '{sourceUri}'.");
                 return candidatePayload;
             }
-            catch
+            catch (Exception ex)
             {
-                // continue trying candidates
+                Console.Error.WriteLine($"[SphereIntegrationHub.MCP] Warning: fallback candidate '{candidate}' failed — {ex.Message}");
             }
         }
 
