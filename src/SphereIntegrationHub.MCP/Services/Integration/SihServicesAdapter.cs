@@ -39,6 +39,7 @@ public sealed class SihServicesAdapter
         WorkflowsPath = ResolvePath(options.WorkflowsPath ?? Path.Combine(ResourcesPath, WorkflowsFolderName));
         ApiCatalogPath = ResolvePath(options.ApiCatalogPath ?? Path.Combine(ResourcesPath, ApiCatalogFileName));
 
+        EnsureWorkflowConfigExists();
         ApiCatalogExists = File.Exists(ApiCatalogPath);
     }
 
@@ -136,5 +137,12 @@ public sealed class SihServicesAdapter
         }
 
         return spherePath;
+    }
+
+    private void EnsureWorkflowConfigExists()
+    {
+        Directory.CreateDirectory(WorkflowsPath);
+        var workflowConfigPath = Path.Combine(WorkflowsPath, WorkflowConfigDefaults.FileName);
+        WorkflowConfigDefaults.EnsureExists(workflowConfigPath);
     }
 }
