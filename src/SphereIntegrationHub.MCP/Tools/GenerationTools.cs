@@ -4,6 +4,7 @@ using SphereIntegrationHub.MCP.Models;
 using SphereIntegrationHub.MCP.Services.Catalog;
 using SphereIntegrationHub.MCP.Services.Generation;
 using SphereIntegrationHub.MCP.Services.Integration;
+using SphereIntegrationHub.MCP.Services;
 using SphereIntegrationHub.MCP.Services.Validation;
 using System.Text.Json;
 using WorkflowDefinition = SphereIntegrationHub.Definitions.WorkflowDefinition;
@@ -151,7 +152,7 @@ public sealed class GenerateEndpointStageTool : IMcpTool
     public async Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
     {
         var stageName = arguments?.GetValueOrDefault("stageName")?.ToString();
-        var fallbackEndpoint = TryParseEndpointSchema(arguments, false);
+        var fallbackEndpoint = ToolArgumentParser.TryParseEndpointSchema(arguments, false);
 
         var version = arguments?.GetValueOrDefault("version")?.ToString();
         var apiName = arguments?.GetValueOrDefault("apiName")?.ToString() ?? fallbackEndpoint?.ApiName;
@@ -186,171 +187,6 @@ public sealed class GenerateEndpointStageTool : IMcpTool
         };
     }
 
-    internal static EndpointInfo? TryParseEndpointSchema(Dictionary<string, object>? arguments, bool required)
-    {
-        if (arguments?.TryGetValue("endpointSchema", out var endpointSchemaObj) != true)
-        {
-            if (required)
-            {
-                throw new ArgumentException("endpointSchema is required");
-            }
-
-            return null;
-        }
-
-        JsonElement endpointJson;
-        if (endpointSchemaObj is JsonElement element && element.ValueKind == JsonValueKind.Object)
-        {
-            endpointJson = element;
-        }
-        else
-        {
-            throw new ArgumentException("endpointSchema must be a JSON object");
-        }
-
-        var apiName = endpointJson.TryGetProperty("apiName", out var apiEl)
-            ? apiEl.GetString()
-            : null;
-        var endpoint = endpointJson.TryGetProperty("endpoint", out var endpointEl)
-            ? endpointEl.GetString()
-            : null;
-        var httpVerb = endpointJson.TryGetProperty("httpVerb", out var verbEl)
-            ? verbEl.GetString()
-            : null;
-
-        if (string.IsNullOrWhiteSpace(apiName) ||
-            string.IsNullOrWhiteSpace(endpoint) ||
-            string.IsNullOrWhiteSpace(httpVerb))
-        {
-            throw new ArgumentException("endpointSchema must include apiName, endpoint and httpVerb");
-        }
-
-        var queryParameters = ParseParameters(endpointJson, "queryParameters");
-        var headerParameters = ParseParameters(endpointJson, "headerParameters");
-        var pathParameters = ParseParameters(endpointJson, "pathParameters");
-        var bodySchema = ParseBodySchema(endpointJson);
-        var responses = ParseResponses(endpointJson);
-
-        return new EndpointInfo
-        {
-            ApiName = apiName!,
-            Endpoint = endpoint!,
-            HttpVerb = httpVerb!.ToUpperInvariant(),
-            Summary = endpointJson.TryGetProperty("summary", out var summaryEl) ? summaryEl.GetString() ?? string.Empty : string.Empty,
-            Description = endpointJson.TryGetProperty("description", out var descriptionEl) ? descriptionEl.GetString() ?? string.Empty : string.Empty,
-            QueryParameters = queryParameters,
-            HeaderParameters = headerParameters,
-            PathParameters = pathParameters,
-            BodySchema = bodySchema,
-            Responses = responses,
-            Tags = endpointJson.TryGetProperty("tags", out var tagsEl) && tagsEl.ValueKind == JsonValueKind.Array
-                ? tagsEl.EnumerateArray().Select(x => x.GetString() ?? string.Empty).Where(x => !string.IsNullOrWhiteSpace(x)).ToList()
-                : []
-        };
-    }
-
-    private static List<ParameterInfo> ParseParameters(JsonElement root, string propertyName)
-    {
-        if (!root.TryGetProperty(propertyName, out var arrayEl) || arrayEl.ValueKind != JsonValueKind.Array)
-        {
-            return [];
-        }
-
-        var parameters = new List<ParameterInfo>();
-        foreach (var item in arrayEl.EnumerateArray())
-        {
-            var name = item.TryGetProperty("name", out var nameEl) ? nameEl.GetString() : null;
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                continue;
-            }
-
-            var type = item.TryGetProperty("type", out var typeEl) ? typeEl.GetString() : "string";
-            var required = item.TryGetProperty("required", out var reqEl) && reqEl.ValueKind is JsonValueKind.True or JsonValueKind.False
-                ? reqEl.GetBoolean()
-                : false;
-
-            parameters.Add(new ParameterInfo
-            {
-                Name = name!,
-                Type = string.IsNullOrWhiteSpace(type) ? "string" : type!,
-                Required = required,
-                Description = item.TryGetProperty("description", out var descEl) ? descEl.GetString() : null,
-                DefaultValue = item.TryGetProperty("defaultValue", out var defaultEl) ? defaultEl.ToString() : null
-            });
-        }
-
-        return parameters;
-    }
-
-    private static BodySchema? ParseBodySchema(JsonElement root)
-    {
-        if (!root.TryGetProperty("bodySchema", out var bodyEl) || bodyEl.ValueKind != JsonValueKind.Object)
-        {
-            return null;
-        }
-
-        if (!bodyEl.TryGetProperty("fields", out var fieldsEl) || fieldsEl.ValueKind != JsonValueKind.Object)
-        {
-            return null;
-        }
-
-        var fields = new Dictionary<string, FieldSchema>(StringComparer.OrdinalIgnoreCase);
-        foreach (var property in fieldsEl.EnumerateObject())
-        {
-            var fieldValue = property.Value;
-            var type = fieldValue.TryGetProperty("type", out var typeEl) ? typeEl.GetString() : "string";
-
-            fields[property.Name] = new FieldSchema
-            {
-                Type = string.IsNullOrWhiteSpace(type) ? "string" : type!,
-                Format = fieldValue.TryGetProperty("format", out var formatEl) ? formatEl.GetString() : null,
-                Description = fieldValue.TryGetProperty("description", out var descriptionEl) ? descriptionEl.GetString() : null,
-                IsArray = fieldValue.TryGetProperty("isArray", out var isArrayEl) &&
-                    isArrayEl.ValueKind is JsonValueKind.True or JsonValueKind.False &&
-                    isArrayEl.GetBoolean(),
-                EnumValues = fieldValue.TryGetProperty("enumValues", out var enumEl) && enumEl.ValueKind == JsonValueKind.Array
-                    ? enumEl.EnumerateArray().Select(x => x.GetString() ?? string.Empty).Where(x => !string.IsNullOrWhiteSpace(x)).ToList()
-                    : null
-            };
-        }
-
-        var requiredFields = bodyEl.TryGetProperty("requiredFields", out var requiredEl) && requiredEl.ValueKind == JsonValueKind.Array
-            ? requiredEl.EnumerateArray().Select(x => x.GetString() ?? string.Empty).Where(x => !string.IsNullOrWhiteSpace(x)).ToList()
-            : [];
-
-        return new BodySchema
-        {
-            Fields = fields,
-            RequiredFields = requiredFields
-        };
-    }
-
-    private static Dictionary<int, ResponseSchema> ParseResponses(JsonElement root)
-    {
-        if (!root.TryGetProperty("responses", out var responsesEl) || responsesEl.ValueKind != JsonValueKind.Array)
-        {
-            return [];
-        }
-
-        var responses = new Dictionary<int, ResponseSchema>();
-        foreach (var responseEl in responsesEl.EnumerateArray())
-        {
-            if (!responseEl.TryGetProperty("statusCode", out var statusCodeEl) || !statusCodeEl.TryGetInt32(out var statusCode))
-            {
-                continue;
-            }
-
-            responses[statusCode] = new ResponseSchema
-            {
-                StatusCode = statusCode,
-                Description = responseEl.TryGetProperty("description", out var descEl) ? descEl.GetString() ?? string.Empty : string.Empty,
-                Fields = null
-            };
-        }
-
-        return responses;
-    }
 }
 
 /// <summary>
@@ -396,7 +232,7 @@ public sealed class GenerateWorkflowSkeletonTool : IMcpTool
         var description = arguments?.GetValueOrDefault("description")?.ToString()
             ?? throw new ArgumentException("description is required");
         var warningMessages = new List<string>();
-        var version = await ResolveVersionAsync(arguments?.GetValueOrDefault("version")?.ToString(), warningMessages);
+        var version = await VersionResolver.ResolveAsync(arguments?.GetValueOrDefault("version")?.ToString(), _catalogReader, warningMessages);
 
         List<string> inputParameters = [];
         if (arguments?.TryGetValue("inputParameters", out var inputParamsObj) == true)
@@ -424,21 +260,6 @@ public sealed class GenerateWorkflowSkeletonTool : IMcpTool
             wfvars,
             warnings = warningMessages
         };
-    }
-
-    private async Task<string> ResolveVersionAsync(string? requestedVersion, List<string> warningMessages)
-    {
-        if (!string.IsNullOrWhiteSpace(requestedVersion))
-        {
-            return requestedVersion;
-        }
-
-        var versions = await _catalogReader.GetVersionsAsync();
-        var fallbackVersion = versions.FirstOrDefault()
-            ?? throw new InvalidOperationException("version was not provided and no catalog versions are available");
-
-        warningMessages.Add($"version was not provided; using first catalog version '{fallbackVersion}'.");
-        return fallbackVersion;
     }
 }
 
@@ -473,7 +294,7 @@ public sealed class GenerateMockPayloadTool : IMcpTool
 
     public async Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
     {
-        var fallbackEndpoint = GenerateEndpointStageTool.TryParseEndpointSchema(arguments, false);
+        var fallbackEndpoint = ToolArgumentParser.TryParseEndpointSchema(arguments, false);
         var version = arguments?.GetValueOrDefault("version")?.ToString();
         var apiName = arguments?.GetValueOrDefault("apiName")?.ToString() ?? fallbackEndpoint?.ApiName;
         var endpoint = arguments?.GetValueOrDefault("endpoint")?.ToString() ?? fallbackEndpoint?.Endpoint;
@@ -559,7 +380,7 @@ public sealed class GenerateWorkflowBundleTool : IMcpTool
     public async Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
     {
         var warningMessages = new List<string>();
-        var version = await ResolveVersionAsync(arguments?.GetValueOrDefault("version")?.ToString(), warningMessages);
+        var version = await VersionResolver.ResolveAsync(arguments?.GetValueOrDefault("version")?.ToString(), _catalogReader, warningMessages);
         var workflowName = arguments?.GetValueOrDefault("workflowName")?.ToString()
             ?? throw new ArgumentException("workflowName is required");
         var description = arguments?.GetValueOrDefault("description")?.ToString() ?? $"Workflow generated for {workflowName}";
@@ -585,7 +406,7 @@ public sealed class GenerateWorkflowBundleTool : IMcpTool
 
             var fallbackEndpoint = endpointSchema == null
                 ? null
-                : GenerateEndpointStageTool.TryParseEndpointSchema(endpointSchema, true);
+                : ToolArgumentParser.TryParseEndpointSchema(endpointSchema, true);
 
             var itemApiName = endpointItem.TryGetProperty("apiName", out var itemApiEl)
                 ? itemApiEl.GetString()
@@ -681,21 +502,6 @@ public sealed class GenerateWorkflowBundleTool : IMcpTool
             payloadDrafts = payloads,
             warnings = warningMessages
         };
-    }
-
-    private async Task<string> ResolveVersionAsync(string? requestedVersion, List<string> warningMessages)
-    {
-        if (!string.IsNullOrWhiteSpace(requestedVersion))
-        {
-            return requestedVersion;
-        }
-
-        var versions = await _catalogReader.GetVersionsAsync();
-        var fallbackVersion = versions.FirstOrDefault()
-            ?? throw new InvalidOperationException("version was not provided and no catalog versions are available");
-
-        warningMessages.Add($"version was not provided; using first catalog version '{fallbackVersion}'.");
-        return fallbackVersion;
     }
 
     private static Dictionary<string, object?> DeserializeYamlMap(string yaml)
@@ -960,7 +766,7 @@ public sealed class GenerateWfvarsFromWorkflowTool : IMcpTool
         var workflowPathArg = arguments?.GetValueOrDefault("workflowPath")?.ToString()
             ?? throw new ArgumentException("workflowPath is required");
         var wfvarsPathArg = arguments?.GetValueOrDefault("wfvarsPath")?.ToString();
-        var writeChanges = TryReadBool(arguments, "writeChanges", true);
+        var writeChanges = ToolArgumentParser.TryReadBool(arguments, "writeChanges", true);
 
         var workflowPath = ResolvePath(workflowPathArg);
         if (!File.Exists(workflowPath))
@@ -1026,20 +832,6 @@ public sealed class GenerateWfvarsFromWorkflowTool : IMcpTool
         }
     }
 
-    private static bool TryReadBool(Dictionary<string, object>? arguments, string key, bool defaultValue)
-    {
-        if (arguments?.TryGetValue(key, out var obj) != true)
-        {
-            return defaultValue;
-        }
-
-        if (obj is bool boolValue)
-        {
-            return boolValue;
-        }
-
-        return obj.ToString()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
-    }
 }
 
 /// <summary>
@@ -1081,7 +873,7 @@ public sealed class RepairWorkflowArtifactsTool : IMcpTool
         var workflowPathArg = arguments?.GetValueOrDefault("workflowPath")?.ToString()
             ?? throw new ArgumentException("workflowPath is required");
         var wfvarsPathArg = arguments?.GetValueOrDefault("wfvarsPath")?.ToString();
-        var writeChanges = TryReadBool(arguments, "writeChanges", true);
+        var writeChanges = ToolArgumentParser.TryReadBool(arguments, "writeChanges", true);
 
         var workflowPath = ResolvePath(workflowPathArg);
         if (!File.Exists(workflowPath))
@@ -1309,20 +1101,6 @@ public sealed class RepairWorkflowArtifactsTool : IMcpTool
         }
     }
 
-    private static bool TryReadBool(Dictionary<string, object>? arguments, string key, bool defaultValue)
-    {
-        if (arguments?.TryGetValue(key, out var obj) != true)
-        {
-            return defaultValue;
-        }
-
-        if (obj is bool boolValue)
-        {
-            return boolValue;
-        }
-
-        return obj.ToString()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
-    }
 }
 
 /// <summary>
@@ -1360,9 +1138,9 @@ public sealed class GenerateStartupBootstrapTool : IMcpTool
         var varsFilePath = arguments?.GetValueOrDefault("varsFilePath")?.ToString();
         var catalogPath = arguments?.GetValueOrDefault("catalogPath")?.ToString();
         var envFilePath = arguments?.GetValueOrDefault("envFilePath")?.ToString();
-        var refreshCache = TryReadBool(arguments, "refreshCache");
-        var mocked = TryReadBool(arguments, "mocked");
-        var dryRun = TryReadBool(arguments, "dryRun");
+        var refreshCache = ToolArgumentParser.TryReadBool(arguments, "refreshCache");
+        var mocked = ToolArgumentParser.TryReadBool(arguments, "mocked");
+        var dryRun = ToolArgumentParser.TryReadBool(arguments, "dryRun");
 
         var cliArgs = BuildCliArgs(
             workflowPath,
@@ -1458,21 +1236,6 @@ builder.Services.AddHostedService<WorkflowBootstrapHostedService>();
                 "Use --dry-run in early adoption to validate workflow at startup without HTTP calls."
             }
         });
-    }
-
-    private static bool TryReadBool(Dictionary<string, object>? arguments, string key)
-    {
-        if (arguments?.TryGetValue(key, out var obj) != true)
-        {
-            return false;
-        }
-
-        if (obj is bool boolValue)
-        {
-            return boolValue;
-        }
-
-        return obj.ToString()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
     }
 
     private static string BuildCliArgs(
@@ -1681,7 +1444,7 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
         }
 
         var json = JsonSerializer.Serialize(versions, CreateCatalogJsonOptions());
-        var writeToDisk = TryReadBool(arguments, "writeToDisk", true);
+        var writeToDisk = ToolArgumentParser.TryReadBool(arguments, "writeToDisk", true);
         var outputPath = arguments?.GetValueOrDefault("outputPath")?.ToString();
         outputPath = ResolveOutputPath(outputPath);
 
@@ -1718,21 +1481,6 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
         }
 
         return Path.GetFullPath(Path.Combine(_adapter.ProjectRoot, outputPath));
-    }
-
-    private static bool TryReadBool(Dictionary<string, object>? arguments, string key, bool defaultValue)
-    {
-        if (arguments?.TryGetValue(key, out var obj) != true)
-        {
-            return defaultValue;
-        }
-
-        if (obj is bool boolValue)
-        {
-            return boolValue;
-        }
-
-        return obj.ToString()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
     }
 
     private static Dictionary<string, string> ParseDefinitionBaseUrl(JsonElement definitionItem)
@@ -1832,8 +1580,8 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
         swaggerUrl = CatalogSwaggerUrlNormalizer.NormalizeForCatalog(swaggerUrl);
         var basePath = arguments?.GetValueOrDefault("basePath")?.ToString();
         var environment = arguments?.GetValueOrDefault("environment")?.ToString() ?? DefaultEnvironment;
-        var downloadCache = TryReadBool(arguments, "downloadCache", true);
-        var overwriteDefinition = TryReadBool(arguments, "overwriteDefinition", true);
+        var downloadCache = ToolArgumentParser.TryReadBool(arguments, "downloadCache", true);
+        var overwriteDefinition = ToolArgumentParser.TryReadBool(arguments, "overwriteDefinition", true);
         var requestedApiName = apiName;
 
         var baseUrlOverrides = ParseBaseUrlMap(arguments);
@@ -1878,8 +1626,8 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
                     BaseUrl = InferDefinitionBaseUrl(swaggerUrl, environment)
                 };
 
-                var swaggerUri = ResolveSwaggerUri(versionEntry, tempDefinition, environment);
-                prefetchedPayload = await DownloadSwaggerPayloadAsync(swaggerUri);
+                var swaggerUri = SwaggerUriResolver.Resolve(versionEntry,tempDefinition, environment);
+                prefetchedPayload = await SwaggerDownloader.DownloadAsync(swaggerUri);
                 var title = TryExtractOpenApiTitle(prefetchedPayload);
                 inferredApiName = NormalizeApiName(title);
                 if (!string.IsNullOrWhiteSpace(inferredApiName) &&
@@ -2030,8 +1778,8 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
         var payload = prefetchedPayload;
         if (string.IsNullOrWhiteSpace(payload))
         {
-            var swaggerUri = ResolveSwaggerUri(versionEntry, definition, environment);
-            payload = await DownloadSwaggerPayloadAsync(swaggerUri);
+            var swaggerUri = SwaggerUriResolver.Resolve(versionEntry,definition, environment);
+            payload = await SwaggerDownloader.DownloadAsync(swaggerUri);
         }
 
         var directory = Path.GetDirectoryName(cachePath);
@@ -2106,27 +1854,6 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
         return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 
-    private static Uri ResolveSwaggerUri(ApiCatalogVersion versionEntry, ApiDefinition definition, string environment)
-    {
-        if (Uri.TryCreate(definition.SwaggerUrl, UriKind.Absolute, out var absolute))
-        {
-            return absolute;
-        }
-
-        if (!TryResolveBaseUrl(versionEntry, definition, environment, out var baseUrl))
-        {
-            throw new InvalidOperationException(
-                $"Cannot resolve relative swaggerUrl '{definition.SwaggerUrl}' because baseUrl is missing for version '{versionEntry.Version}' and definition '{definition.Name}'.");
-        }
-
-        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var baseUri))
-        {
-            throw new InvalidOperationException($"Invalid baseUrl '{baseUrl}' for version '{versionEntry.Version}'.");
-        }
-
-        return new Uri(baseUri, definition.SwaggerUrl.TrimStart('/'));
-    }
-
     private static Dictionary<string, string> InferDefinitionBaseUrl(string swaggerUrl, string environment)
     {
         if (string.IsNullOrWhiteSpace(swaggerUrl) ||
@@ -2145,245 +1872,6 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
         };
     }
 
-    private static bool TryResolveBaseUrl(ApiCatalogVersion versionEntry, ApiDefinition definition, string environment, out string? baseUrl)
-    {
-        if (definition.BaseUrl is { Count: > 0 } &&
-            TryResolveFromMap(definition.BaseUrl, environment, out baseUrl))
-        {
-            return true;
-        }
-
-        return TryResolveFromMap(versionEntry.BaseUrl, environment, out baseUrl);
-    }
-
-    private static bool TryResolveFromMap(IReadOnlyDictionary<string, string> map, string environment, out string? baseUrl)
-    {
-        if (map.TryGetValue(environment, out baseUrl) && !string.IsNullOrWhiteSpace(baseUrl))
-        {
-            return true;
-        }
-
-        baseUrl = map.Values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
-        return !string.IsNullOrWhiteSpace(baseUrl);
-    }
-
-    private static async Task<string> DownloadSwaggerPayloadAsync(Uri swaggerUri)
-    {
-        string payload;
-        if (swaggerUri.IsFile)
-        {
-            if (!File.Exists(swaggerUri.LocalPath))
-            {
-                throw new FileNotFoundException($"Swagger source file not found: {swaggerUri.LocalPath}", swaggerUri.LocalPath);
-            }
-
-            payload = await File.ReadAllTextAsync(swaggerUri.LocalPath);
-            if (IsLikelyHtml(payload))
-            {
-                Console.Error.WriteLine(
-                    $"[SphereIntegrationHub.MCP] Warning: swagger source '{swaggerUri}' returned HTML. Trying known JSON fallback URLs.");
-                var fallbackPayload = await TryResolveOpenApiFromHtmlFallbackAsync(swaggerUri);
-                if (fallbackPayload != null)
-                {
-                    return fallbackPayload;
-                }
-
-                throw new InvalidOperationException(
-                    $"Swagger source '{swaggerUri}' returned HTML content. Tried JSON fallbacks but none returned a valid OpenAPI document.");
-            }
-
-            ValidateSwaggerPayload(payload, swaggerUri);
-            return payload;
-        }
-
-        using var httpClient = CreateHttpClientForSwaggerDownload();
-        payload = await httpClient.GetStringAsync(swaggerUri);
-        if (IsLikelyHtml(payload))
-        {
-            Console.Error.WriteLine(
-                $"[SphereIntegrationHub.MCP] Warning: swagger source '{swaggerUri}' returned HTML. Trying known JSON fallback URLs.");
-            var fallbackPayload = await TryResolveOpenApiFromHtmlFallbackAsync(swaggerUri, httpClient);
-            if (fallbackPayload != null)
-            {
-                return fallbackPayload;
-            }
-
-            throw new InvalidOperationException(
-                $"Swagger source '{swaggerUri}' returned HTML content. Tried JSON fallbacks but none returned a valid OpenAPI document.");
-        }
-
-        ValidateSwaggerPayload(payload, swaggerUri);
-        return payload;
-    }
-
-    private static void ValidateSwaggerPayload(string payload, Uri sourceUri)
-    {
-        var trimmed = payload.TrimStart();
-        if (trimmed.StartsWith("<", StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException(
-                $"Swagger source '{sourceUri}' returned HTML content. Use the OpenAPI JSON endpoint (for example: /swagger/v1/swagger.json or /openapi.json).");
-        }
-
-        JsonDocument document;
-        try
-        {
-            document = JsonDocument.Parse(payload);
-        }
-        catch (JsonException ex)
-        {
-            throw new InvalidOperationException(
-                $"Swagger source '{sourceUri}' did not return valid JSON: {ex.Message}", ex);
-        }
-
-        using (document)
-        {
-            if (document.RootElement.ValueKind != JsonValueKind.Object)
-            {
-                throw new InvalidOperationException(
-                    $"Swagger source '{sourceUri}' returned JSON but not an OpenAPI document object.");
-            }
-
-            var root = document.RootElement;
-            var hasOpenApi = root.TryGetProperty("openapi", out _);
-            var hasSwagger2 = root.TryGetProperty("swagger", out _);
-            if (!hasOpenApi && !hasSwagger2)
-            {
-                throw new InvalidOperationException(
-                    $"Swagger source '{sourceUri}' returned JSON but missing 'openapi'/'swagger' fields.");
-            }
-        }
-    }
-
-    private static bool IsLikelyHtml(string payload)
-    {
-        var trimmed = payload.TrimStart();
-        return trimmed.StartsWith("<", StringComparison.Ordinal);
-    }
-
-    private static async Task<string?> TryResolveOpenApiFromHtmlFallbackAsync(Uri sourceUri, HttpClient? sharedClient = null)
-    {
-        var candidates = BuildSwaggerJsonFallbackCandidates(sourceUri);
-        if (candidates.Count == 0)
-        {
-            return null;
-        }
-
-        foreach (var candidate in candidates)
-        {
-            try
-            {
-                string candidatePayload;
-                if (candidate.IsFile)
-                {
-                    if (!File.Exists(candidate.LocalPath))
-                    {
-                        continue;
-                    }
-
-                    candidatePayload = await File.ReadAllTextAsync(candidate.LocalPath);
-                }
-                else
-                {
-                    if (sharedClient != null)
-                    {
-                        candidatePayload = await sharedClient.GetStringAsync(candidate);
-                    }
-                    else
-                    {
-                        using var client = CreateHttpClientForSwaggerDownload();
-                        candidatePayload = await client.GetStringAsync(candidate);
-                    }
-                }
-
-                if (IsLikelyHtml(candidatePayload))
-                {
-                    continue;
-                }
-
-                ValidateSwaggerPayload(candidatePayload, candidate);
-                Console.Error.WriteLine(
-                    $"[SphereIntegrationHub.MCP] Info: resolved OpenAPI fallback URL '{candidate}' from HTML source '{sourceUri}'.");
-                return candidatePayload;
-            }
-            catch
-            {
-                // Continue trying candidates
-            }
-        }
-
-        return null;
-    }
-
-    private static List<Uri> BuildSwaggerJsonFallbackCandidates(Uri sourceUri)
-    {
-        var path = sourceUri.AbsolutePath;
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return [];
-        }
-
-        var prefix = path;
-        if (prefix.EndsWith("/index.html", StringComparison.OrdinalIgnoreCase))
-        {
-            prefix = prefix[..^"/index.html".Length];
-        }
-        else if (prefix.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
-        {
-            var slashIndex = prefix.LastIndexOf('/');
-            prefix = slashIndex > 0 ? prefix[..slashIndex] : prefix;
-        }
-
-        prefix = prefix.TrimEnd('/');
-        if (string.IsNullOrWhiteSpace(prefix))
-        {
-            return [];
-        }
-
-        var candidatePaths = new List<string>
-        {
-            $"{prefix}/v1/swagger.json",
-            $"{prefix}/swagger.json",
-            $"{prefix}/openapi.json"
-        };
-
-        if (prefix.EndsWith("/swagger", StringComparison.OrdinalIgnoreCase))
-        {
-            var parent = prefix[..^"/swagger".Length];
-            if (!string.IsNullOrWhiteSpace(parent))
-            {
-                candidatePaths.Add($"{parent}/swagger/v1/swagger.json");
-                candidatePaths.Add($"{parent}/swagger.json");
-                candidatePaths.Add($"{parent}/openapi.json");
-            }
-        }
-
-        var unique = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var candidates = new List<Uri>();
-
-        foreach (var candidatePath in candidatePaths)
-        {
-            var builder = new UriBuilder(sourceUri)
-            {
-                Path = candidatePath,
-                Query = string.Empty,
-                Fragment = string.Empty
-            };
-            var uri = builder.Uri;
-            if (uri.AbsoluteUri.Equals(sourceUri.AbsoluteUri, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            if (unique.Add(uri.AbsoluteUri))
-            {
-                candidates.Add(uri);
-            }
-        }
-
-        return candidates;
-    }
-
     private static Dictionary<string, string> CreateDefaultBaseUrlMap()
     {
         return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -2392,31 +1880,6 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
             ["pre"] = "https://pre.example.com",
             ["prod"] = "https://api.example.com"
         };
-    }
-
-    private static bool TryReadBool(Dictionary<string, object>? arguments, string key, bool defaultValue)
-    {
-        if (arguments?.TryGetValue(key, out var obj) != true)
-        {
-            return defaultValue;
-        }
-
-        if (obj is bool boolValue)
-        {
-            return boolValue;
-        }
-
-        return obj.ToString()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
-    }
-
-    private static HttpClient CreateHttpClientForSwaggerDownload()
-    {
-        var handler = new SocketsHttpHandler
-        {
-            UseCookies = false
-        };
-
-        return new HttpClient(handler, disposeHandler: true);
     }
 }
 
@@ -2460,7 +1923,7 @@ public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
         var version = arguments?.GetValueOrDefault("version")?.ToString()
             ?? throw new ArgumentException("version is required");
         var environment = arguments?.GetValueOrDefault("environment")?.ToString() ?? DefaultEnvironment;
-        var refresh = TryReadBool(arguments, "refresh", false);
+        var refresh = ToolArgumentParser.TryReadBool(arguments, "refresh", false);
         var apiNames = ParseApiNames(arguments);
 
         if (!File.Exists(_adapter.ApiCatalogPath))
@@ -2499,8 +1962,8 @@ public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
                     continue;
                 }
 
-                var swaggerUri = ResolveSwaggerUri(versionEntry, definition, environment);
-                var payload = await DownloadSwaggerPayloadAsync(swaggerUri);
+                var swaggerUri = SwaggerUriResolver.Resolve(versionEntry,definition, environment);
+                var payload = await SwaggerDownloader.DownloadAsync(swaggerUri);
                 if (IsGenericApiName(definition.Name))
                 {
                     var inferredName = NormalizeApiName(TryExtractOpenApiTitle(payload));
@@ -2591,143 +2054,6 @@ public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
-    private static Uri ResolveSwaggerUri(ApiCatalogVersion versionEntry, ApiDefinition definition, string environment)
-    {
-        if (Uri.TryCreate(definition.SwaggerUrl, UriKind.Absolute, out var absolute))
-        {
-            return absolute;
-        }
-
-        if (!TryResolveBaseUrl(versionEntry, definition, environment, out var baseUrl))
-        {
-            throw new InvalidOperationException(
-                $"Cannot resolve relative swaggerUrl '{definition.SwaggerUrl}' because baseUrl is missing for version '{versionEntry.Version}' and definition '{definition.Name}'.");
-        }
-
-        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var baseUri))
-        {
-            throw new InvalidOperationException($"Invalid baseUrl '{baseUrl}' for version '{versionEntry.Version}'.");
-        }
-
-        return new Uri(baseUri, definition.SwaggerUrl.TrimStart('/'));
-    }
-
-    private static bool TryResolveBaseUrl(ApiCatalogVersion versionEntry, ApiDefinition definition, string environment, out string? baseUrl)
-    {
-        if (definition.BaseUrl is { Count: > 0 } &&
-            TryResolveFromMap(definition.BaseUrl, environment, out baseUrl))
-        {
-            return true;
-        }
-
-        return TryResolveFromMap(versionEntry.BaseUrl, environment, out baseUrl);
-    }
-
-    private static bool TryResolveFromMap(IReadOnlyDictionary<string, string> map, string environment, out string? baseUrl)
-    {
-        if (map.TryGetValue(environment, out baseUrl) && !string.IsNullOrWhiteSpace(baseUrl))
-        {
-            return true;
-        }
-
-        baseUrl = map.Values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
-        return !string.IsNullOrWhiteSpace(baseUrl);
-    }
-
-    private static async Task<string> DownloadSwaggerPayloadAsync(Uri swaggerUri)
-    {
-        string payload;
-        if (swaggerUri.IsFile)
-        {
-            if (!File.Exists(swaggerUri.LocalPath))
-            {
-                throw new FileNotFoundException($"Swagger source file not found: {swaggerUri.LocalPath}", swaggerUri.LocalPath);
-            }
-
-            payload = await File.ReadAllTextAsync(swaggerUri.LocalPath);
-            if (IsLikelyHtml(payload))
-            {
-                Console.Error.WriteLine(
-                    $"[SphereIntegrationHub.MCP] Warning: swagger source '{swaggerUri}' returned HTML. Trying known JSON fallback URLs.");
-                var fallbackPayload = await TryResolveOpenApiFromHtmlFallbackAsync(swaggerUri);
-                if (fallbackPayload != null)
-                {
-                    return fallbackPayload;
-                }
-
-                throw new InvalidOperationException(
-                    $"Swagger source '{swaggerUri}' returned HTML content. Tried JSON fallbacks but none returned a valid OpenAPI document.");
-            }
-
-            ValidateSwaggerPayload(payload, swaggerUri);
-            return payload;
-        }
-
-        using var httpClient = CreateHttpClientForSwaggerDownload();
-        payload = await httpClient.GetStringAsync(swaggerUri);
-        if (IsLikelyHtml(payload))
-        {
-            Console.Error.WriteLine(
-                $"[SphereIntegrationHub.MCP] Warning: swagger source '{swaggerUri}' returned HTML. Trying known JSON fallback URLs.");
-            var fallbackPayload = await TryResolveOpenApiFromHtmlFallbackAsync(swaggerUri, httpClient);
-            if (fallbackPayload != null)
-            {
-                return fallbackPayload;
-            }
-
-            throw new InvalidOperationException(
-                $"Swagger source '{swaggerUri}' returned HTML content. Tried JSON fallbacks but none returned a valid OpenAPI document.");
-        }
-
-        ValidateSwaggerPayload(payload, swaggerUri);
-        return payload;
-    }
-
-    private static void ValidateSwaggerPayload(string payload, Uri sourceUri)
-    {
-        var trimmed = payload.TrimStart();
-        if (trimmed.StartsWith("<", StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException(
-                $"Swagger source '{sourceUri}' returned HTML content. Use the OpenAPI JSON endpoint (for example: /swagger/v1/swagger.json or /openapi.json).");
-        }
-
-        JsonDocument document;
-        try
-        {
-            document = JsonDocument.Parse(payload);
-        }
-        catch (JsonException ex)
-        {
-            throw new InvalidOperationException(
-                $"Swagger source '{sourceUri}' did not return valid JSON: {ex.Message}", ex);
-        }
-
-        using (document)
-        {
-            if (document.RootElement.ValueKind != JsonValueKind.Object)
-            {
-                throw new InvalidOperationException(
-                    $"Swagger source '{sourceUri}' returned JSON but not an OpenAPI document object.");
-            }
-
-            var root = document.RootElement;
-            var hasOpenApi = root.TryGetProperty("openapi", out _);
-            var hasSwagger2 = root.TryGetProperty("swagger", out _);
-            if (!hasOpenApi && !hasSwagger2)
-            {
-                throw new InvalidOperationException(
-                    $"Swagger source '{sourceUri}' returned JSON but missing 'openapi'/'swagger' fields.");
-            }
-        }
-    }
-
-    private static bool IsLikelyHtml(string payload)
-    {
-        var trimmed = payload.TrimStart();
-        return trimmed.StartsWith("<", StringComparison.Ordinal);
-    }
-
     private static bool IsGenericApiName(string apiName)
     {
         if (string.IsNullOrWhiteSpace(apiName))
@@ -2790,144 +2116,6 @@ public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
         return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 
-    private static async Task<string?> TryResolveOpenApiFromHtmlFallbackAsync(Uri sourceUri, HttpClient? sharedClient = null)
-    {
-        var candidates = BuildSwaggerJsonFallbackCandidates(sourceUri);
-        if (candidates.Count == 0)
-        {
-            return null;
-        }
-
-        foreach (var candidate in candidates)
-        {
-            try
-            {
-                string candidatePayload;
-                if (candidate.IsFile)
-                {
-                    if (!File.Exists(candidate.LocalPath))
-                    {
-                        continue;
-                    }
-
-                    candidatePayload = await File.ReadAllTextAsync(candidate.LocalPath);
-                }
-                else
-                {
-                    if (sharedClient != null)
-                    {
-                        candidatePayload = await sharedClient.GetStringAsync(candidate);
-                    }
-                    else
-                    {
-                        using var client = CreateHttpClientForSwaggerDownload();
-                        candidatePayload = await client.GetStringAsync(candidate);
-                    }
-                }
-
-                if (IsLikelyHtml(candidatePayload))
-                {
-                    continue;
-                }
-
-                ValidateSwaggerPayload(candidatePayload, candidate);
-                Console.Error.WriteLine(
-                    $"[SphereIntegrationHub.MCP] Info: resolved OpenAPI fallback URL '{candidate}' from HTML source '{sourceUri}'.");
-                return candidatePayload;
-            }
-            catch
-            {
-                // Continue trying candidates
-            }
-        }
-
-        return null;
-    }
-
-    private static List<Uri> BuildSwaggerJsonFallbackCandidates(Uri sourceUri)
-    {
-        var path = sourceUri.AbsolutePath;
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return [];
-        }
-
-        var prefix = path;
-        if (prefix.EndsWith("/index.html", StringComparison.OrdinalIgnoreCase))
-        {
-            prefix = prefix[..^"/index.html".Length];
-        }
-        else if (prefix.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
-        {
-            var slashIndex = prefix.LastIndexOf('/');
-            prefix = slashIndex > 0 ? prefix[..slashIndex] : prefix;
-        }
-
-        prefix = prefix.TrimEnd('/');
-        if (string.IsNullOrWhiteSpace(prefix))
-        {
-            return [];
-        }
-
-        var candidatePaths = new List<string>
-        {
-            $"{prefix}/v1/swagger.json",
-            $"{prefix}/swagger.json",
-            $"{prefix}/openapi.json"
-        };
-
-        if (prefix.EndsWith("/swagger", StringComparison.OrdinalIgnoreCase))
-        {
-            var parent = prefix[..^"/swagger".Length];
-            if (!string.IsNullOrWhiteSpace(parent))
-            {
-                candidatePaths.Add($"{parent}/swagger/v1/swagger.json");
-                candidatePaths.Add($"{parent}/swagger.json");
-                candidatePaths.Add($"{parent}/openapi.json");
-            }
-        }
-
-        var unique = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var candidates = new List<Uri>();
-
-        foreach (var candidatePath in candidatePaths)
-        {
-            var builder = new UriBuilder(sourceUri)
-            {
-                Path = candidatePath,
-                Query = string.Empty,
-                Fragment = string.Empty
-            };
-            var uri = builder.Uri;
-            if (uri.AbsoluteUri.Equals(sourceUri.AbsoluteUri, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            if (unique.Add(uri.AbsoluteUri))
-            {
-                candidates.Add(uri);
-            }
-        }
-
-        return candidates;
-    }
-
-    private static bool TryReadBool(Dictionary<string, object>? arguments, string key, bool defaultValue)
-    {
-        if (arguments?.TryGetValue(key, out var obj) != true)
-        {
-            return defaultValue;
-        }
-
-        if (obj is bool boolValue)
-        {
-            return boolValue;
-        }
-
-        return obj.ToString()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
-    }
-
     private static JsonSerializerOptions CreateCatalogJsonOptions()
     {
         return new JsonSerializerOptions
@@ -2936,16 +2124,6 @@ public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
         };
-    }
-
-    private static HttpClient CreateHttpClientForSwaggerDownload()
-    {
-        var handler = new SocketsHttpHandler
-        {
-            UseCookies = false
-        };
-
-        return new HttpClient(handler, disposeHandler: true);
     }
 }
 
@@ -2989,7 +2167,7 @@ public sealed class QuickRefreshSwaggerCacheTool : IMcpTool
         {
             ["version"] = arguments?.GetValueOrDefault("version")?.ToString() ?? "0.1",
             ["environment"] = arguments?.GetValueOrDefault("environment")?.ToString() ?? "local",
-            ["refresh"] = TryReadBool(arguments, "refresh", true)
+            ["refresh"] = ToolArgumentParser.TryReadBool(arguments, "refresh", true)
         };
 
         if (arguments?.TryGetValue("apiNames", out var apiNamesObj) == true)
@@ -3000,18 +2178,4 @@ public sealed class QuickRefreshSwaggerCacheTool : IMcpTool
         return _refreshTool.ExecuteAsync(delegatedArgs);
     }
 
-    private static bool TryReadBool(Dictionary<string, object>? arguments, string key, bool defaultValue)
-    {
-        if (arguments?.TryGetValue(key, out var obj) != true)
-        {
-            return defaultValue;
-        }
-
-        if (obj is bool boolValue)
-        {
-            return boolValue;
-        }
-
-        return obj.ToString()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
-    }
 }

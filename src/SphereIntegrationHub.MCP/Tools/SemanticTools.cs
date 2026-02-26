@@ -2,6 +2,7 @@ using SphereIntegrationHub.MCP.Core;
 using SphereIntegrationHub.MCP.Models;
 using SphereIntegrationHub.MCP.Services.Catalog;
 using SphereIntegrationHub.MCP.Services.Generation;
+using SphereIntegrationHub.MCP.Services;
 using SphereIntegrationHub.MCP.Services.Integration;
 using SphereIntegrationHub.MCP.Services.Semantic;
 using System.Text.Json;
@@ -374,7 +375,7 @@ public sealed class SuggestWorkflowFromGoalTool : IMcpTool
     public async Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
     {
         var warnings = new List<string>();
-        var version = await ResolveVersionAsync(arguments?.GetValueOrDefault("version")?.ToString(), warnings);
+        var version = await VersionResolver.ResolveAsync(arguments?.GetValueOrDefault("version")?.ToString(), _catalogReader, warnings);
         var goal = arguments?.GetValueOrDefault("goal")?.ToString()
             ?? throw new ArgumentException("goal is required");
         var includeAuth = arguments?.GetValueOrDefault("includeAuth") as bool? ?? true;
@@ -588,18 +589,4 @@ stages:
         return yaml;
     }
 
-    private async Task<string> ResolveVersionAsync(string? requestedVersion, List<string> warningMessages)
-    {
-        if (!string.IsNullOrWhiteSpace(requestedVersion))
-        {
-            return requestedVersion;
-        }
-
-        var versions = await _catalogReader.GetVersionsAsync();
-        var fallbackVersion = versions.FirstOrDefault()
-            ?? throw new InvalidOperationException("version was not provided and no catalog versions are available");
-
-        warningMessages.Add($"version was not provided; using first catalog version '{fallbackVersion}'.");
-        return fallbackVersion;
-    }
 }

@@ -2,6 +2,7 @@ using SphereIntegrationHub.MCP.Core;
 using SphereIntegrationHub.MCP.Models;
 using SphereIntegrationHub.MCP.Services.Catalog;
 using SphereIntegrationHub.MCP.Services.Generation;
+using SphereIntegrationHub.MCP.Services;
 using SphereIntegrationHub.MCP.Services.Integration;
 using SphereIntegrationHub.MCP.Services.Synthesis;
 using System.Text.Json;
@@ -99,7 +100,7 @@ public sealed class SynthesizeSystemFromDescriptionTool : IMcpTool
     public async Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
     {
         var warningMessages = new List<string>();
-        var version = await ResolveVersionAsync(arguments?.GetValueOrDefault("version")?.ToString(), warningMessages);
+        var version = await VersionResolver.ResolveAsync(arguments?.GetValueOrDefault("version")?.ToString(), _catalogReader, warningMessages);
         var description = arguments?.GetValueOrDefault("description")?.ToString()
             ?? throw new ArgumentException("description is required");
 
@@ -157,21 +158,6 @@ public sealed class SynthesizeSystemFromDescriptionTool : IMcpTool
             summary = GenerateSummary(systemDesign),
             warnings = warningMessages
         };
-    }
-
-    private async Task<string> ResolveVersionAsync(string? requestedVersion, List<string> warningMessages)
-    {
-        if (!string.IsNullOrWhiteSpace(requestedVersion))
-        {
-            return requestedVersion;
-        }
-
-        var versions = await _catalogReader.GetVersionsAsync();
-        var fallbackVersion = versions.FirstOrDefault()
-            ?? throw new InvalidOperationException("version was not provided and no catalog versions are available");
-
-        warningMessages.Add($"version was not provided; using first catalog version '{fallbackVersion}'.");
-        return fallbackVersion;
     }
 
     private static SystemRequirements ParseRequirements(JsonElement jsonElement, SystemRequirements defaults)
