@@ -856,6 +856,25 @@ endStage:
     }
 
     [Fact]
+    public void SihServicesAdapter_CreatesDefaultWorkflowsConfig_WhenMissing()
+    {
+        using var fs = new MockFileSystem();
+        var workflowsConfigPath = Path.Combine(fs.WorkflowsPath, "workflows.config");
+        if (File.Exists(workflowsConfigPath))
+        {
+            File.Delete(workflowsConfigPath);
+        }
+
+        var adapter = new SihServicesAdapter(fs.RootPath);
+
+        adapter.Should().NotBeNull();
+        File.Exists(workflowsConfigPath).Should().BeTrue();
+        var content = File.ReadAllText(workflowsConfigPath);
+        content.Should().Contain("features:");
+        content.Should().Contain("openTelemetry: false");
+    }
+
+    [Fact]
     public async Task GenerateApiCatalogFile_WritesCatalog()
     {
         // Arrange

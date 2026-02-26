@@ -64,7 +64,71 @@ public sealed class ApiEndpointValidatorLoggerTests
         var errors = validator.Validate(workflow, catalog, cacheRoot, validateRequiredParameters: false, verbose: true);
 
         Assert.Empty(errors);
-        Assert.Contains(logger.Messages, message => message.Contains("matched swagger path", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(logger.Messages, message => message.Contains("Validated endpoint stage", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validate_EndpointWithoutBasePath_MatchesSwaggerUsingDefinitionBasePath()
+    {
+        var validator = new ApiEndpointValidator();
+        var workflow = new WorkflowDefinition
+        {
+            References = new WorkflowReference
+            {
+                Apis = new List<ApiReferenceItem>
+                {
+                    new() { Name = "licensing", Definition = "licensing" }
+                }
+            },
+            Stages = new List<WorkflowStageDefinition>
+            {
+                new()
+                {
+                    Name = "create-tier",
+                    Kind = WorkflowStageKind.Endpoint,
+                    ApiRef = "licensing",
+                    Endpoint = "/licensing/tiers",
+                    HttpVerb = "POST"
+                }
+            }
+        };
+
+        var catalog = new ApiCatalogVersion
+        {
+            Version = "v1",
+            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["local"] = "https://localhost"
+            },
+            Definitions = new List<ApiDefinition>
+            {
+                new ApiDefinition
+                {
+                    Name = "licensing",
+                    SwaggerUrl = "swagger.json",
+                    BasePath = "/api"
+                }
+            }
+        };
+
+        var cacheRoot = Path.Combine(Path.GetTempPath(), $"aos-cache-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(cacheRoot);
+        var swaggerPath = Path.Combine(cacheRoot, "licensing.json");
+        File.WriteAllText(swaggerPath, """
+        {
+          "paths": {
+            "/api/licensing/tiers": {
+              "post": {
+                "parameters": []
+              }
+            }
+          }
+        }
+        """);
+
+        var errors = validator.Validate(workflow, catalog, cacheRoot, validateRequiredParameters: false, verbose: false);
+
+        Assert.Empty(errors);
     }
 
     private sealed class TestLogger : IExecutionLogger

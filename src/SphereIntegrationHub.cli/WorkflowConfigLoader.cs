@@ -1,4 +1,5 @@
 using SphereIntegrationHub.Services;
+using SphereIntegrationHub.Definitions;
 
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
@@ -37,10 +38,7 @@ internal sealed class WorkflowConfigLoader : IWorkflowConfigLoader
             ? CliConstants.WorkflowConfigFileName
             : Path.Combine(directory, CliConstants.WorkflowConfigFileName);
         activity?.SetTag(TelemetryConstants.TagFilePath, configPath);
-        if (!File.Exists(configPath))
-        {
-            return new WorkflowConfig();
-        }
+        WorkflowConfigDefaults.EnsureExists(configPath);
 
         var yaml = File.ReadAllText(configPath);
         var config = _deserializer.Deserialize<WorkflowConfig>(yaml);
