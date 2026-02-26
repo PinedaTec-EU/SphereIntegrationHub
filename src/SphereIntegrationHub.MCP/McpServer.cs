@@ -45,70 +45,48 @@ public sealed class McpServer
             return;
         }
 
-        // Level 1 Tools (18 tools)
-
-        // Catalog Tools (4 tools)
-        RegisterTool(new ListApiCatalogVersionsTool(_servicesAdapter));
-        RegisterTool(new GetApiDefinitionsTool(_servicesAdapter));
-        RegisterTool(new GetApiEndpointsTool(_servicesAdapter));
-        RegisterTool(new GetEndpointSchemaTool(_servicesAdapter));
-
-        // Validation Tools (3 tools)
-        RegisterTool(new ValidateWorkflowTool(_servicesAdapter));
-        RegisterTool(new ValidateStageTool(_servicesAdapter));
-        RegisterTool(new PlanWorkflowExecutionTool(_servicesAdapter));
-
-        // Generation Tools (7 tools)
-        RegisterTool(new GenerateEndpointStageTool(_servicesAdapter));
-        RegisterTool(new GenerateWorkflowSkeletonTool(_servicesAdapter));
-        RegisterTool(new GenerateMockPayloadTool(_servicesAdapter));
-        RegisterTool(new GenerateWorkflowBundleTool(_servicesAdapter));
-        RegisterTool(new WriteWorkflowArtifactsTool(_servicesAdapter));
-        RegisterTool(new GenerateWfvarsFromWorkflowTool(_servicesAdapter));
-        RegisterTool(new RepairWorkflowArtifactsTool(_servicesAdapter));
-        RegisterTool(new GenerateStartupBootstrapTool());
-        RegisterTool(new GenerateApiCatalogFileTool(_servicesAdapter));
-        RegisterTool(new UpsertApiCatalogAndCacheTool(_servicesAdapter));
-        RegisterTool(new RefreshSwaggerCacheFromCatalogTool(_servicesAdapter));
-        RegisterTool(new QuickRefreshSwaggerCacheTool(_servicesAdapter));
-
-        // Analysis Tools (3 tools)
-        RegisterTool(new GetAvailableVariablesTool(_servicesAdapter));
-        RegisterTool(new ResolveTemplateTokenTool(_servicesAdapter));
-        RegisterTool(new AnalyzeContextFlowTool(_servicesAdapter));
-
-        // Reference Tools (2 tools)
-        RegisterTool(new ListAvailableWorkflowsTool(_servicesAdapter));
-        RegisterTool(new GetWorkflowInputsOutputsTool(_servicesAdapter));
-
-        // Diagnostic Tools (3 tools)
-        RegisterTool(new ExplainValidationErrorTool(_servicesAdapter));
-        RegisterTool(new GetPluginCapabilitiesTool(_servicesAdapter));
-        RegisterTool(new SuggestResilienceConfigTool(_servicesAdapter));
-
-        // Level 2 Tools (5 tools)
-
-        // Semantic Analysis Tools (3 tools)
-        RegisterTool(new AnalyzeEndpointDependenciesTool(_servicesAdapter));
-        RegisterTool(new InferDataFlowTool(_servicesAdapter));
-        RegisterTool(new SuggestWorkflowFromGoalTool(_servicesAdapter));
-
-        // Pattern Detection Tools (2 tools)
-        RegisterTool(new DetectApiPatternsTool(_servicesAdapter));
-        RegisterTool(new GenerateCrudWorkflowTool(_servicesAdapter));
-
-        // Level 3 Tools (1 tool)
-
-        // Synthesis Tool
-        RegisterTool(new SynthesizeSystemFromDescriptionTool(_servicesAdapter));
-
-        // Level 4 Tools (2 tools)
-
-        // Optimization Tools
-        RegisterTool(new SuggestOptimizationsTool(_servicesAdapter));
-        RegisterTool(new AnalyzeSwaggerCoverageTool(_servicesAdapter));
-
+        RegisterAllToolsViaReflection();
         Console.Error.WriteLine($"[McpServer] Registered {_registry.Count} tools (profile: {_toolProfile})");
+    }
+
+    private void RegisterAllToolsViaReflection()
+    {
+        var toolTypes = Assembly.GetExecutingAssembly()
+            .GetTypes()
+            .Where(t => t is { IsClass: true, IsAbstract: false }
+                        && typeof(IMcpTool).IsAssignableFrom(t)
+                        && t.GetCustomAttribute<McpToolAttribute>() != null);
+
+        foreach (var type in toolTypes)
+        {
+            var tool = TryCreateTool(type);
+            if (tool != null)
+            {
+                RegisterTool(tool);
+            }
+        }
+    }
+
+    private IMcpTool? TryCreateTool(Type type)
+    {
+        try
+        {
+            if (type.GetConstructor([typeof(SihServicesAdapter)]) != null)
+            {
+                return (IMcpTool)Activator.CreateInstance(type, _servicesAdapter)!;
+            }
+
+            if (type.GetConstructor(Type.EmptyTypes) != null)
+            {
+                return (IMcpTool)Activator.CreateInstance(type)!;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[McpServer] Failed to instantiate tool '{type.Name}': {ex.Message}");
+        }
+
+        return null;
     }
 
     private void RegisterCacheProfileTools()
