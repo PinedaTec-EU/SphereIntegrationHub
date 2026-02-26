@@ -146,6 +146,54 @@ public class CatalogToolsTests : IDisposable
     }
 
     [Fact]
+    public async Task GetApiEndpoints_WithoutCachedSwagger_AutoLoadsFromHtmlSwaggerUrlFallback()
+    {
+        var adapter = new SihServicesAdapter(new SihPathOptions
+        {
+            ProjectRoot = _mockFs.RootPath,
+            ResourcesPath = "src/resources-autoload-endpoints"
+        });
+
+        var swaggerDir = Path.Combine(_mockFs.RootPath, "tmp", "admin", "swagger");
+        Directory.CreateDirectory(Path.Combine(swaggerDir, "v1"));
+        var htmlPath = Path.Combine(swaggerDir, "index.html");
+        var jsonPath = Path.Combine(swaggerDir, "v1", "swagger.json");
+        await File.WriteAllTextAsync(htmlPath, "<html><body>Swagger UI</body></html>");
+        await File.WriteAllTextAsync(jsonPath, TestDataBuilder.CreateSampleSwagger("AdminApi"));
+
+        var catalog = """
+[
+  {
+    "version": "1.0",
+    "baseUrl": { "local": "http://localhost" },
+    "definitions": [
+      {
+        "name": "AdminApi",
+        "basePath": "/api/admin",
+        "swaggerUrl": "__SWAGGER__"
+      }
+    ]
+  }
+]
+""".Replace("__SWAGGER__", new Uri(htmlPath).AbsoluteUri);
+        Directory.CreateDirectory(Path.GetDirectoryName(adapter.ApiCatalogPath)!);
+        await File.WriteAllTextAsync(adapter.ApiCatalogPath, catalog);
+
+        var tool = new GetApiEndpointsTool(adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["version"] = "1.0",
+            ["apiName"] = "AdminApi"
+        };
+
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        json.GetProperty("count").GetInt32().Should().BeGreaterThan(0);
+        File.Exists(adapter.GetSwaggerCachePath("1.0", "AdminApi")).Should().BeTrue();
+    }
+
+    [Fact]
     public async Task GetEndpointSchema_WithValidEndpoint_ReturnsSchemaDetails()
     {
         // Arrange

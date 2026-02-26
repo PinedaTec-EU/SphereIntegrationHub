@@ -543,6 +543,76 @@ public class GenerationToolsTests : IDisposable
     }
 
     [Fact]
+    public async Task WriteWorkflowArtifacts_WithYamlExtension_NormalizesToWorkflowExtension()
+    {
+        // Arrange
+        var tool = new WriteWorkflowArtifactsTool(_adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["workflowPath"] = "generated/from-llm.yaml",
+            ["workflowYaml"] = "name: test"
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        var resolvedPath = json.GetProperty("workflowPathResolved").GetString();
+        resolvedPath.Should().EndWith("generated/from-llm.workflow");
+        File.Exists(resolvedPath).Should().BeTrue();
+        json.GetProperty("warnings").GetArrayLength().Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task WriteWorkflowArtifacts_WithoutWfvarsPath_UsesWorkflowBaseNameWithWfvarsExtension()
+    {
+        // Arrange
+        var tool = new WriteWorkflowArtifactsTool(_adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["workflowPath"] = "generated/abc123.yaml",
+            ["workflowYaml"] = "name: test",
+            ["wfvarsYaml"] = "username: demo"
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        var workflowPath = json.GetProperty("workflowPathResolved").GetString();
+        var wfvarsPath = json.GetProperty("wfvarsPathResolved").GetString();
+        workflowPath.Should().EndWith("generated/abc123.workflow");
+        wfvarsPath.Should().EndWith("generated/abc123.wfvars");
+        File.Exists(workflowPath).Should().BeTrue();
+        File.Exists(wfvarsPath).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task WriteWorkflowArtifacts_WithWrongWfvarsExtension_NormalizesToWfvars()
+    {
+        // Arrange
+        var tool = new WriteWorkflowArtifactsTool(_adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["workflowPath"] = "generated/abc123.workflow",
+            ["workflowYaml"] = "name: test",
+            ["wfvarsPath"] = "generated/abc123.yaml",
+            ["wfvarsYaml"] = "username: demo"
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        var wfvarsPath = json.GetProperty("wfvarsPathResolved").GetString();
+        wfvarsPath.Should().EndWith("generated/abc123.wfvars");
+        File.Exists(wfvarsPath).Should().BeTrue();
+    }
+
+    [Fact]
     public async Task GenerateWfvarsFromWorkflow_WithInputs_WritesWfvars()
     {
         // Arrange
@@ -821,6 +891,92 @@ endStage:
     }
 
     [Fact]
+    public async Task GenerateApiCatalogFile_WithAbsoluteSwaggerUrl_InfersDefinitionBaseUrl()
+    {
+        // Arrange
+        var tool = new GenerateApiCatalogFileTool(_adapter);
+        var payload = new[]
+        {
+            new
+            {
+                version = "1.0",
+                baseUrl = new { local = "https://localhost" },
+                definitions = new[]
+                {
+                    new
+                    {
+                        name = "TravelAgent.Admin.Licensing.Api",
+                        basePath = "/api",
+                        swaggerUrl = "https://localhost:5005/swagger/v1/swagger.json"
+                    }
+                }
+            }
+        };
+
+        var outputPath = Path.Combine(_mockFs.RootPath, "src", "resources", "api-catalog.inferred.json");
+        var args = new Dictionary<string, object>
+        {
+            ["versions"] = JsonSerializer.SerializeToElement(payload),
+            ["outputPath"] = outputPath,
+            ["writeToDisk"] = true
+        };
+
+        // Act
+        await tool.ExecuteAsync(args);
+        var catalogJson = await File.ReadAllTextAsync(outputPath);
+        var catalogDoc = JsonDocument.Parse(catalogJson);
+
+        // Assert
+        var baseUrl = catalogDoc.RootElement[0]
+            .GetProperty("definitions")[0]
+            .GetProperty("baseUrl")
+            .GetProperty("local")
+            .GetString();
+        baseUrl.Should().Be("https://localhost:5005");
+    }
+
+    [Fact]
+    public async Task GenerateApiCatalogFile_WithHtmlSwaggerUrl_NormalizesToJsonUrl()
+    {
+        var tool = new GenerateApiCatalogFileTool(_adapter);
+        var payload = new[]
+        {
+            new
+            {
+                version = "1.0",
+                baseUrl = new { local = "https://localhost" },
+                definitions = new[]
+                {
+                    new
+                    {
+                        name = "TravelAgent.Admin.Licensing.Api",
+                        basePath = "/api",
+                        swaggerUrl = "https://localhost:5005/swagger/index.html"
+                    }
+                }
+            }
+        };
+
+        var outputPath = Path.Combine(_mockFs.RootPath, "src", "resources", "api-catalog.normalized.json");
+        var args = new Dictionary<string, object>
+        {
+            ["versions"] = JsonSerializer.SerializeToElement(payload),
+            ["outputPath"] = outputPath,
+            ["writeToDisk"] = true
+        };
+
+        await tool.ExecuteAsync(args);
+        var catalogJson = await File.ReadAllTextAsync(outputPath);
+        var catalogDoc = JsonDocument.Parse(catalogJson);
+
+        var storedSwaggerUrl = catalogDoc.RootElement[0]
+            .GetProperty("definitions")[0]
+            .GetProperty("swaggerUrl")
+            .GetString();
+        storedSwaggerUrl.Should().Be("https://localhost:5005/swagger/v1/swagger.json");
+    }
+
+    [Fact]
     public async Task UpsertApiCatalogAndCache_WhenCatalogMissing_CreatesCatalogAndDownloadsCache()
     {
         // Arrange
@@ -854,6 +1010,41 @@ endStage:
 
         File.Exists(adapter.ApiCatalogPath).Should().BeTrue();
         File.Exists(adapter.GetSwaggerCachePath("9.99", "BootstrapApi")).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task UpsertApiCatalogAndCache_WithAbsoluteSwaggerUrl_StoresDefinitionBaseUrlForEnvironment()
+    {
+        // Arrange
+        var adapter = new SihServicesAdapter(new SihPathOptions
+        {
+            ProjectRoot = _mockFs.RootPath,
+            ResourcesPath = "src/resources-upsert-baseurl"
+        });
+
+        var tool = new UpsertApiCatalogAndCacheTool(adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["version"] = "0.1",
+            ["apiName"] = "TravelAgent.Admin.Licensing.Api",
+            ["swaggerUrl"] = "https://localhost:5005/swagger/v1/swagger.json",
+            ["basePath"] = "/api",
+            ["environment"] = "local",
+            ["downloadCache"] = false
+        };
+
+        // Act
+        await tool.ExecuteAsync(args);
+        var catalogJson = await File.ReadAllTextAsync(adapter.ApiCatalogPath);
+        var catalogDoc = JsonDocument.Parse(catalogJson);
+
+        // Assert
+        var definitionBaseUrl = catalogDoc.RootElement[0]
+            .GetProperty("definitions")[0]
+            .GetProperty("baseUrl")
+            .GetProperty("local")
+            .GetString();
+        definitionBaseUrl.Should().Be("https://localhost:5005");
     }
 
     [Fact]
@@ -985,6 +1176,14 @@ endStage:
         // Assert
         json.GetProperty("cacheDownloaded").GetBoolean().Should().BeTrue();
         File.Exists(adapter.GetSwaggerCachePath("5.10", "FallbackApi")).Should().BeTrue();
+
+        var catalogJson = await File.ReadAllTextAsync(adapter.ApiCatalogPath);
+        var catalogDoc = JsonDocument.Parse(catalogJson);
+        var storedSwaggerUrl = catalogDoc.RootElement[0]
+            .GetProperty("definitions")[0]
+            .GetProperty("swaggerUrl")
+            .GetString();
+        storedSwaggerUrl.Should().EndWith("/swagger/v1/swagger.json");
     }
 
     [Fact]
@@ -1143,12 +1342,12 @@ endStage:
         json.GetProperty("counts").GetProperty("failed").GetInt32().Should().Be(0);
 
         var updatedCatalogJson = await File.ReadAllTextAsync(adapter.ApiCatalogPath);
-        updatedCatalogJson.Should().Contain("\"Name\": \"TravelAgent.Admin.Api\"");
-        updatedCatalogJson.Should().Contain("\"Name\": \"TravelAgent.Licensing.PublicApi\"");
-        updatedCatalogJson.Should().Contain("\"Name\": \"TravelAgent.Admin.Licensing.Api\"");
-        updatedCatalogJson.Should().NotContain("\"Name\": \"api-5009\"");
-        updatedCatalogJson.Should().NotContain("\"Name\": \"api-5007\"");
-        updatedCatalogJson.Should().NotContain("\"Name\": \"api-5005\"");
+        updatedCatalogJson.Should().Contain("\"name\": \"TravelAgent.Admin.Api\"");
+        updatedCatalogJson.Should().Contain("\"name\": \"TravelAgent.Licensing.PublicApi\"");
+        updatedCatalogJson.Should().Contain("\"name\": \"TravelAgent.Admin.Licensing.Api\"");
+        updatedCatalogJson.Should().NotContain("\"name\": \"api-5009\"");
+        updatedCatalogJson.Should().NotContain("\"name\": \"api-5007\"");
+        updatedCatalogJson.Should().NotContain("\"name\": \"api-5005\"");
 
         File.Exists(adapter.GetSwaggerCachePath("0.1", "TravelAgent.Admin.Api")).Should().BeTrue();
         File.Exists(adapter.GetSwaggerCachePath("0.1", "TravelAgent.Licensing.PublicApi")).Should().BeTrue();

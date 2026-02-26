@@ -5,6 +5,7 @@ namespace SphereIntegrationHub.cli;
 
 internal sealed class CliServiceFactory : ICliServiceFactory
 {
+    private static readonly TimeSpan HttpRequestTimeout = TimeSpan.FromMinutes(5);
     private readonly IExecutionLogger _logger;
 
     public CliServiceFactory(ICliOutputProvider? outputProvider = null)
@@ -13,7 +14,19 @@ internal sealed class CliServiceFactory : ICliServiceFactory
         _logger = new ConsoleExecutionLogger(output.Out, output.Error);
     }
 
-    public HttpClient CreateHttpClient() => new();
+    public HttpClient CreateHttpClient()
+    {
+        var handler = new SocketsHttpHandler
+        {
+            // Avoid CookieContainer initialization issues in restricted runtimes.
+            UseCookies = false
+        };
+
+        return new HttpClient(handler, disposeHandler: true)
+        {
+            Timeout = HttpRequestTimeout
+        };
+    }
 
     public ISystemTimeProvider CreateSystemTimeProvider() => new SystemTimeProvider();
 

@@ -224,10 +224,11 @@ public sealed class GenerateCrudWorkflowTool : IMcpTool
 
         // Get all endpoints for this API
         var endpoints = await _swaggerReader.GetEndpointsAsync(version, apiName);
+        var apiBasePath = await ResolveApiBasePathAsync(version, apiName);
 
         // Build workflow
         var workflowName = $"{resource}_crud_workflow";
-        var yaml = GenerateCrudWorkflowYaml(version, workflowName, resource, crudPattern, operations, endpoints);
+        var yaml = GenerateCrudWorkflowYaml(version, workflowName, resource, crudPattern, operations, endpoints, apiBasePath);
         var wfvars = WorkflowArtifactHelper.GenerateWfvars(yaml);
 
         return new
@@ -254,7 +255,8 @@ public sealed class GenerateCrudWorkflowTool : IMcpTool
         string resource,
         CrudPattern pattern,
         List<string> operations,
-        List<EndpointInfo> allEndpoints)
+        List<EndpointInfo> allEndpoints,
+        string? apiBasePath)
     {
         var apiRef = allEndpoints.First().ApiName;
         var normalizedOperations = operations
@@ -282,11 +284,12 @@ public sealed class GenerateCrudWorkflowTool : IMcpTool
             pattern.Endpoints.TryGetValue("list", out var listEndpoint) &&
             TryParsePatternEndpoint(listEndpoint, out var listVerb, out var listPath))
         {
+            var normalizedListPath = NormalizeEndpointForWorkflow(listPath, apiBasePath);
             AppendStage(
                 builder,
                 stageName: $"list_{resource}",
                 apiRef,
-                endpoint: listPath,
+                endpoint: normalizedListPath,
                 httpVerb: listVerb,
                 expectedStatus: 200,
                 headers: operationEndpoints.GetValueOrDefault("list")?.HeaderParameters ?? [],
@@ -298,11 +301,12 @@ public sealed class GenerateCrudWorkflowTool : IMcpTool
             pattern.Endpoints.TryGetValue("create", out var createEndpoint) &&
             TryParsePatternEndpoint(createEndpoint, out var createVerb, out var createPath))
         {
+            var normalizedCreatePath = NormalizeEndpointForWorkflow(createPath, apiBasePath);
             AppendStage(
                 builder,
                 stageName: $"create_{resource}",
                 apiRef,
-                endpoint: createPath,
+                endpoint: normalizedCreatePath,
                 httpVerb: createVerb,
                 expectedStatus: 201,
                 headers: operationEndpoints.GetValueOrDefault("create")?.HeaderParameters ?? [],
@@ -314,7 +318,8 @@ public sealed class GenerateCrudWorkflowTool : IMcpTool
             pattern.Endpoints.TryGetValue("read", out var readEndpoint) &&
             TryParsePatternEndpoint(readEndpoint, out var readVerb, out var readPath))
         {
-            var resolvedPath = ApplyPathInputTemplate(readPath, pattern.IdParameter);
+            var normalizedReadPath = NormalizeEndpointForWorkflow(readPath, apiBasePath);
+            var resolvedPath = ApplyPathInputTemplate(normalizedReadPath, pattern.IdParameter);
             AppendStage(
                 builder,
                 stageName: $"read_{resource}",
@@ -331,7 +336,8 @@ public sealed class GenerateCrudWorkflowTool : IMcpTool
             pattern.Endpoints.TryGetValue("update", out var updateEndpoint) &&
             TryParsePatternEndpoint(updateEndpoint, out var updateVerb, out var updatePath))
         {
-            var resolvedPath = ApplyPathInputTemplate(updatePath, pattern.IdParameter);
+            var normalizedUpdatePath = NormalizeEndpointForWorkflow(updatePath, apiBasePath);
+            var resolvedPath = ApplyPathInputTemplate(normalizedUpdatePath, pattern.IdParameter);
             AppendStage(
                 builder,
                 stageName: $"update_{resource}",
@@ -348,7 +354,8 @@ public sealed class GenerateCrudWorkflowTool : IMcpTool
             pattern.Endpoints.TryGetValue("delete", out var deleteEndpoint) &&
             TryParsePatternEndpoint(deleteEndpoint, out var deleteVerb, out var deletePath))
         {
-            var resolvedPath = ApplyPathInputTemplate(deletePath, pattern.IdParameter);
+            var normalizedDeletePath = NormalizeEndpointForWorkflow(deletePath, apiBasePath);
+            var resolvedPath = ApplyPathInputTemplate(normalizedDeletePath, pattern.IdParameter);
             AppendStage(
                 builder,
                 stageName: $"delete_{resource}",
@@ -390,6 +397,12 @@ public sealed class GenerateCrudWorkflowTool : IMcpTool
 
         warningMessages.Add($"version was not provided; using first catalog version '{fallbackVersion}'.");
         return fallbackVersion;
+    }
+
+    private async Task<string?> ResolveApiBasePathAsync(string version, string apiName)
+    {
+        var apiDefinition = await _catalogReader.GetApiDefinitionAsync(version, apiName);
+        return apiDefinition?.BasePath;
     }
 
     private static Dictionary<string, EndpointInfo> ResolveOperationEndpoints(
@@ -542,6 +555,33 @@ public sealed class GenerateCrudWorkflowTool : IMcpTool
             $"{{{idParameter}}}",
             $"{{{{input.{idParameter}}}}}",
             StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeEndpointForWorkflow(string endpoint, string? apiBasePath)
+    {
+        var normalizedEndpoint = "/" + endpoint.Trim().TrimStart('/');
+        if (string.IsNullOrWhiteSpace(apiBasePath))
+        {
+            return normalizedEndpoint;
+        }
+
+        var normalizedBasePath = "/" + apiBasePath.Trim().Trim('/');
+        if (normalizedBasePath == "/" || string.IsNullOrWhiteSpace(normalizedBasePath.Trim('/')))
+        {
+            return normalizedEndpoint;
+        }
+
+        if (normalizedEndpoint.Equals(normalizedBasePath, StringComparison.OrdinalIgnoreCase))
+        {
+            return "/";
+        }
+
+        if (normalizedEndpoint.StartsWith($"{normalizedBasePath}/", StringComparison.OrdinalIgnoreCase))
+        {
+            return normalizedEndpoint[normalizedBasePath.Length..];
+        }
+
+        return normalizedEndpoint;
     }
 
     private static string ToTokenName(string input)

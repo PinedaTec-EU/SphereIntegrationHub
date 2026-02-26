@@ -62,12 +62,13 @@ public sealed class HttpEndpointInvoker : IEndpointInvoker
             throw new InvalidOperationException($"Stage '{stage.Name}' httpVerb is required.");
         }
 
-        var url = $"{baseUrl.TrimEnd('/')}/{stage.Endpoint.TrimStart('/')}";
+        var url = BuildRequestUrl(baseUrl, stage.Endpoint);
         if (stage.Query is not null && stage.Query.Count > 0)
         {
             var queryParts = stage.Query.Select(pair =>
                 $"{Uri.EscapeDataString(pair.Key)}={Uri.EscapeDataString(_templateResolver.ResolveTemplate(pair.Value, context))}");
-            url = $"{url}?{string.Join("&", queryParts)}";
+            var separator = url.Contains('?', StringComparison.Ordinal) ? '&' : '?';
+            url = $"{url}{separator}{string.Join("&", queryParts)}";
         }
 
         var request = new HttpRequestMessage(new HttpMethod(stage.HttpVerb), url);
@@ -107,6 +108,51 @@ public sealed class HttpEndpointInvoker : IEndpointInvoker
         }
 
         return request;
+    }
+
+    private static string BuildRequestUrl(string baseUrl, string endpoint)
+    {
+        var fallback = $"{baseUrl.TrimEnd('/')}/{endpoint.TrimStart('/')}";
+        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var baseUri))
+        {
+            return fallback;
+        }
+
+        var normalizedEndpointPath = NormalizePath(endpoint);
+        var normalizedBasePath = NormalizePath(baseUri.AbsolutePath);
+
+        string finalPath;
+        if (!string.IsNullOrEmpty(normalizedBasePath) &&
+            (normalizedEndpointPath.Equals(normalizedBasePath, StringComparison.OrdinalIgnoreCase) ||
+             normalizedEndpointPath.StartsWith($"{normalizedBasePath}/", StringComparison.OrdinalIgnoreCase)))
+        {
+            finalPath = normalizedEndpointPath;
+        }
+        else if (string.IsNullOrEmpty(normalizedBasePath))
+        {
+            finalPath = normalizedEndpointPath;
+        }
+        else
+        {
+            finalPath = $"{normalizedBasePath}{normalizedEndpointPath}";
+        }
+
+        var builder = new UriBuilder(baseUri)
+        {
+            Path = finalPath
+        };
+
+        return builder.Uri.ToString().TrimEnd('/');
+    }
+
+    private static string NormalizePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || path == "/")
+        {
+            return string.Empty;
+        }
+
+        return "/" + path.Trim('/');
     }
 
     private static ResponseContext BuildResponseContext(HttpResponseMessage response, string body)
