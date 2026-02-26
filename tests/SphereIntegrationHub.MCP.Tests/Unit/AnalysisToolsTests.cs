@@ -355,6 +355,25 @@ public class AnalysisToolsTests : IDisposable
         await Assert.ThrowsAsync<FileNotFoundException>(() => tool.ExecuteAsync(args));
     }
 
+    [Fact]
+    public async Task GetAvailableVariables_WithWorkflowYamlSuffix_ResolvesToWorkflowFile()
+    {
+        var workflow = TestDataBuilder.CreateSampleWorkflow();
+        _mockFs.AddWorkflow("create-tier.workflow", workflow);
+
+        var tool = new GetAvailableVariablesTool(_adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["workflowPath"] = "create-tier.workflow.yaml"
+        };
+
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        json.TryGetProperty("inputs", out var inputs).Should().BeTrue();
+        inputs.ValueKind.Should().NotBe(JsonValueKind.Null);
+    }
+
     public void Dispose()
     {
         _mockFs.Dispose();

@@ -66,4 +66,43 @@ public sealed class HttpEndpointInvokerTests
             value.StartsWith("application/json-patch+json", StringComparison.OrdinalIgnoreCase));
         Assert.Equal("{\"name\":\"test\"}", request.Body?.ToString());
     }
+
+    [Fact]
+    public async Task InvokeAsync_DoesNotDuplicateBasePath_WhenEndpointAlreadyContainsIt()
+    {
+        using var server = WireMockServer.Start();
+        server
+            .Given(Request.Create().WithPath("/api/licensing/tiers").UsingPost())
+            .RespondWith(Response.Create()
+                .WithStatusCode(201)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody("{\"ok\":true}"));
+
+        var stage = new WorkflowStageDefinition
+        {
+            Name = "create-tier",
+            Kind = WorkflowStageKind.Endpoint,
+            Endpoint = "/api/licensing/tiers",
+            HttpVerb = "POST",
+            Body = "{\"name\":\"tier-1\"}"
+        };
+
+        var context = new TemplateContext(
+            new Dictionary<string, string>(),
+            new Dictionary<string, string>(),
+            new Dictionary<string, string>(),
+            new Dictionary<string, IReadOnlyDictionary<string, string>>(),
+            new Dictionary<string, IReadOnlyDictionary<string, string>>(),
+            new Dictionary<string, IReadOnlyDictionary<string, string>>(),
+            new Dictionary<string, string>());
+
+        using var httpClient = new HttpClient();
+        var invoker = new HttpEndpointInvoker(httpClient, new TemplateResolver());
+
+        var result = await invoker.InvokeAsync(stage, $"{server.Url}/api", context, CancellationToken.None);
+
+        Assert.Equal(201, result.Response.StatusCode);
+        Assert.Contains("/api/licensing/tiers", result.RequestUri);
+        Assert.DoesNotContain("/api/api/licensing/tiers", result.RequestUri, StringComparison.OrdinalIgnoreCase);
+    }
 }

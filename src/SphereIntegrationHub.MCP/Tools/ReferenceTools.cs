@@ -122,19 +122,9 @@ public sealed class GetWorkflowInputsOutputsTool : IMcpTool
 
     public async Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
     {
-        var workflowPath = arguments?.GetValueOrDefault("workflowPath")?.ToString()
+        var workflowPathArg = arguments?.GetValueOrDefault("workflowPath")?.ToString()
             ?? throw new ArgumentException("workflowPath is required");
-
-        // If path is not absolute, resolve relative to workflows directory
-        if (!Path.IsPathRooted(workflowPath))
-        {
-            workflowPath = Path.Combine(_adapter.WorkflowsPath, workflowPath);
-        }
-
-        if (!File.Exists(workflowPath))
-        {
-            throw new FileNotFoundException($"Workflow file not found: {workflowPath}");
-        }
+        var workflowPath = WorkflowPathResolver.ResolveExistingWorkflowPath(_adapter, workflowPathArg);
 
         var content = await File.ReadAllTextAsync(workflowPath);
         var deserializer = new DeserializerBuilder()

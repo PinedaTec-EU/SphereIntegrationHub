@@ -10,7 +10,7 @@ public sealed class CliWorkflowEnvironmentValidatorTests
     {
         ICliWorkflowEnvironmentValidator validator = new CliWorkflowEnvironmentValidator();
         var workflow = new WorkflowDefinition();
-        var catalog = new ApiCatalogVersion("v1", new Dictionary<string, string>(), new List<ApiDefinition>());
+        var catalog = new ApiCatalogVersion { Version = "v1", BaseUrl = new Dictionary<string, string>(), Definitions = new List<ApiDefinition>() };
 
         var errors = validator.Validate(workflow, catalog, "dev");
 
@@ -31,7 +31,7 @@ public sealed class CliWorkflowEnvironmentValidatorTests
                 }
             }
         };
-        var catalog = new ApiCatalogVersion("v1", new Dictionary<string, string>(), new List<ApiDefinition>());
+        var catalog = new ApiCatalogVersion { Version = "v1", BaseUrl = new Dictionary<string, string>(), Definitions = new List<ApiDefinition>() };
 
         var errors = validator.Validate(workflow, catalog, "dev");
 
@@ -52,16 +52,18 @@ public sealed class CliWorkflowEnvironmentValidatorTests
                 }
             }
         };
-        var catalog = new ApiCatalogVersion(
-            "v1",
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        var catalog = new ApiCatalogVersion
+        {
+            Version = "v1",
+            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 ["prod"] = "https://example.test"
             },
-            new List<ApiDefinition>
+            Definitions = new List<ApiDefinition>
             {
-                new("accounts", "swagger.json", null, null)
-            });
+                new ApiDefinition { Name = "accounts", SwaggerUrl = "swagger.json" }
+            }
+        };
 
         var errors = validator.Validate(workflow, catalog, "dev");
 

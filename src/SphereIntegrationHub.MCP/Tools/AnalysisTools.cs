@@ -43,15 +43,11 @@ public sealed class GetAvailableVariablesTool : IMcpTool
 
     public async Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
     {
-        var workflowPath = arguments?.GetValueOrDefault("workflowPath")?.ToString()
+        var workflowPathArg = arguments?.GetValueOrDefault("workflowPath")?.ToString()
             ?? throw new ArgumentException("workflowPath is required");
         var atStage = arguments?.GetValueOrDefault("atStage")?.ToString();
 
-        // If path is not absolute, resolve relative to workflows directory
-        if (!Path.IsPathRooted(workflowPath))
-        {
-            workflowPath = Path.Combine(_adapter.WorkflowsPath, workflowPath);
-        }
+        var workflowPath = WorkflowPathResolver.ResolveExistingWorkflowPath(_adapter, workflowPathArg);
 
         var scope = await _analyzer.GetAvailableVariablesAsync(workflowPath, atStage);
 
@@ -110,16 +106,12 @@ public sealed class ResolveTemplateTokenTool : IMcpTool
 
     public async Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
     {
-        var workflowPath = arguments?.GetValueOrDefault("workflowPath")?.ToString()
+        var workflowPathArg = arguments?.GetValueOrDefault("workflowPath")?.ToString()
             ?? throw new ArgumentException("workflowPath is required");
         var token = arguments?.GetValueOrDefault("token")?.ToString()
             ?? throw new ArgumentException("token is required");
 
-        // If path is not absolute, resolve relative to workflows directory
-        if (!Path.IsPathRooted(workflowPath))
-        {
-            workflowPath = Path.Combine(_adapter.WorkflowsPath, workflowPath);
-        }
+        var workflowPath = WorkflowPathResolver.ResolveExistingWorkflowPath(_adapter, workflowPathArg);
 
         var resolution = await _analyzer.ResolveTemplateTokenAsync(workflowPath, token);
 
@@ -179,14 +171,10 @@ public sealed class AnalyzeContextFlowTool : IMcpTool
 
     public async Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
     {
-        var workflowPath = arguments?.GetValueOrDefault("workflowPath")?.ToString()
+        var workflowPathArg = arguments?.GetValueOrDefault("workflowPath")?.ToString()
             ?? throw new ArgumentException("workflowPath is required");
 
-        // If path is not absolute, resolve relative to workflows directory
-        if (!Path.IsPathRooted(workflowPath))
-        {
-            workflowPath = Path.Combine(_adapter.WorkflowsPath, workflowPath);
-        }
+        var workflowPath = WorkflowPathResolver.ResolveExistingWorkflowPath(_adapter, workflowPathArg);
 
         var flow = await _analyzer.AnalyzeContextFlowAsync(workflowPath);
 

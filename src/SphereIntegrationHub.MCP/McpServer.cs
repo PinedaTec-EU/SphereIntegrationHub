@@ -307,6 +307,14 @@ public sealed class McpServer
         {
             Console.Error.WriteLine($"[McpServer] Error processing request: {ex.Message}");
             Console.Error.WriteLine($"[McpServer] Stack trace: {ex.StackTrace}");
+            if (ex is ArgumentException ||
+                ex is FileNotFoundException ||
+                ex is DirectoryNotFoundException ||
+                ex is InvalidOperationException)
+            {
+                return CreateErrorResponse(request.Id, McpErrorCodes.InvalidParams, ex.Message, null);
+            }
+
             return CreateErrorResponse(request.Id, McpErrorCodes.InternalError, "Internal error", ex.Message);
         }
     }

@@ -307,6 +307,50 @@ public class PatternToolsTests : IDisposable
     }
 
     [Fact]
+    public async Task GenerateCrudWorkflow_StripsDefinitionBasePathFromGeneratedEndpoints()
+    {
+        var catalog = """
+[
+  {
+    "version": "3.10",
+    "baseUrl": {
+      "local": "https://localhost"
+    },
+    "definitions": [
+      {
+        "name": "AccountsAPI",
+        "basePath": "/api",
+        "swaggerUrl": "https://localhost:5009/swagger/v1/swagger.json",
+        "baseUrl": {
+          "local": "https://localhost:5009"
+        }
+      }
+    ]
+  }
+]
+""";
+        _mockFs.AddApiCatalog(catalog);
+        _mockFs.AddSwaggerFile("3.10", "AccountsAPI", TestDataBuilder.CreateSampleSwagger("AccountsAPI"));
+
+        var tool = new GenerateCrudWorkflowTool(_adapter);
+        var operations = new[] { "create", "read" };
+        var args = new Dictionary<string, object>
+        {
+            ["version"] = "3.10",
+            ["apiName"] = "AccountsAPI",
+            ["resource"] = "accounts",
+            ["operations"] = JsonSerializer.SerializeToElement(operations)
+        };
+
+        var result = await tool.ExecuteAsync(args);
+        var yaml = ToJson(result).GetProperty("yaml").GetString();
+
+        yaml.Should().Contain("endpoint: /accounts");
+        yaml.Should().Contain("endpoint: /accounts/{{input.id}}");
+        yaml.Should().NotContain("endpoint: /api/accounts");
+    }
+
+    [Fact]
     public async Task GenerateCrudWorkflow_WithMissingOperations_ThrowsException()
     {
         // Arrange

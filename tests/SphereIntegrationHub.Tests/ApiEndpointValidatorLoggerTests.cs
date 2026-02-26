@@ -33,16 +33,18 @@ public sealed class ApiEndpointValidatorLoggerTests
             }
         };
 
-        var catalog = new ApiCatalogVersion(
-            "v1",
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        var catalog = new ApiCatalogVersion
+        {
+            Version = "v1",
+            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 ["test"] = "https://example.test"
             },
-            new List<ApiDefinition>
+            Definitions = new List<ApiDefinition>
             {
-                new("accounts", "swagger.json", null, null)
-            });
+                new ApiDefinition { Name = "accounts", SwaggerUrl = "swagger.json" }
+            }
+        };
 
         var cacheRoot = Path.Combine(Path.GetTempPath(), $"aos-cache-{Guid.NewGuid():N}");
         Directory.CreateDirectory(cacheRoot);

@@ -12,6 +12,108 @@ using YamlDotNet.Serialization.NamingConventions;
 
 namespace SphereIntegrationHub.MCP.Tools;
 
+internal static class CatalogSwaggerUrlNormalizer
+{
+    public static string NormalizeForCatalog(string swaggerUrl)
+    {
+        if (string.IsNullOrWhiteSpace(swaggerUrl) || !TryGetPath(swaggerUrl, out var path))
+        {
+            return swaggerUrl;
+        }
+
+        if (!CanNormalizeToSwaggerJson(path))
+        {
+            return swaggerUrl;
+        }
+
+        if (Uri.TryCreate(swaggerUrl, UriKind.Absolute, out var absolute))
+        {
+            var jsonPath = BuildPreferredJsonPath(absolute.AbsolutePath);
+            if (string.IsNullOrWhiteSpace(jsonPath))
+            {
+                return swaggerUrl;
+            }
+
+            var builder = new UriBuilder(absolute)
+            {
+                Path = jsonPath,
+                Query = string.Empty,
+                Fragment = string.Empty
+            };
+            return builder.Uri.AbsoluteUri;
+        }
+
+        var localPart = swaggerUrl.Split('?', '#')[0];
+        var preferred = BuildPreferredJsonPath(localPart);
+        return string.IsNullOrWhiteSpace(preferred) ? swaggerUrl : preferred;
+    }
+
+    private static bool TryGetPath(string swaggerUrl, out string path)
+    {
+        if (Uri.TryCreate(swaggerUrl, UriKind.Absolute, out var absolute))
+        {
+            path = absolute.AbsolutePath;
+            return true;
+        }
+
+        path = swaggerUrl.Split('?', '#')[0];
+        return !string.IsNullOrWhiteSpace(path);
+    }
+
+    private static bool CanNormalizeToSwaggerJson(string path)
+    {
+        var normalized = path.TrimEnd('/');
+        if (normalized.EndsWith("/swagger", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (normalized.EndsWith("/swagger/index.html", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (normalized.EndsWith("/swagger/ui/index.html", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string BuildPreferredJsonPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return path;
+        }
+
+        var prefix = path;
+        if (prefix.EndsWith("/index.html", StringComparison.OrdinalIgnoreCase))
+        {
+            prefix = prefix[..^"/index.html".Length];
+        }
+        else if (prefix.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
+        {
+            var slashIndex = prefix.LastIndexOf('/');
+            prefix = slashIndex > 0 ? prefix[..slashIndex] : prefix;
+        }
+
+        prefix = prefix.TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(prefix))
+        {
+            return path;
+        }
+
+        if (prefix.EndsWith("/swagger", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{prefix}/v1/swagger.json";
+        }
+
+        return $"{prefix}/swagger.json";
+    }
+}
+
 /// <summary>
 /// Generates a workflow stage from an API endpoint
 /// </summary>
@@ -708,18 +810,20 @@ public sealed class WriteWorkflowArtifactsTool : IMcpTool
         var wfvarsYaml = arguments?.GetValueOrDefault("wfvarsYaml")?.ToString();
 
         var writtenFiles = new List<string>();
+        var warnings = new List<string>();
+        string? wfvarsPathResolved = null;
 
-        var resolvedWorkflowPath = ResolveTargetPath(workflowPath);
+        var resolvedWorkflowPath = ResolveWorkflowTargetPath(workflowPath, warnings);
         EnsureDirectory(resolvedWorkflowPath);
         File.WriteAllText(resolvedWorkflowPath, workflowYaml);
         writtenFiles.Add(resolvedWorkflowPath);
 
-        if (!string.IsNullOrWhiteSpace(wfvarsPath) && !string.IsNullOrWhiteSpace(wfvarsYaml))
+        if (!string.IsNullOrWhiteSpace(wfvarsYaml))
         {
-            var resolvedWfvarsPath = ResolveTargetPath(wfvarsPath);
-            EnsureDirectory(resolvedWfvarsPath);
-            File.WriteAllText(resolvedWfvarsPath, wfvarsYaml);
-            writtenFiles.Add(resolvedWfvarsPath);
+            wfvarsPathResolved = ResolveWfvarsTargetPath(wfvarsPath, resolvedWorkflowPath, warnings);
+            EnsureDirectory(wfvarsPathResolved);
+            File.WriteAllText(wfvarsPathResolved, wfvarsYaml);
+            writtenFiles.Add(wfvarsPathResolved);
         }
 
         if (arguments?.TryGetValue("payloadFiles", out var payloadFilesObj) == true &&
@@ -745,9 +849,38 @@ public sealed class WriteWorkflowArtifactsTool : IMcpTool
         return Task.FromResult<object>(new
         {
             workflowsRoot = _adapter.WorkflowsPath,
+            workflowPathResolved = resolvedWorkflowPath,
+            wfvarsPathResolved,
             writtenFiles,
-            count = writtenFiles.Count
+            count = writtenFiles.Count,
+            warnings
         });
+    }
+
+    private string ResolveWorkflowTargetPath(string path, List<string> warnings)
+    {
+        var resolved = ResolveTargetPath(path);
+        var normalized = NormalizeWorkflowFileExtension(resolved);
+        if (!resolved.Equals(normalized, StringComparison.OrdinalIgnoreCase))
+        {
+            warnings.Add($"workflowPath '{path}' was normalized to '{normalized}'. Use '.workflow' extension for workflow files.");
+        }
+
+        return normalized;
+    }
+
+    private string ResolveWfvarsTargetPath(string? wfvarsPath, string resolvedWorkflowPath, List<string> warnings)
+    {
+        var resolved = string.IsNullOrWhiteSpace(wfvarsPath)
+            ? Path.ChangeExtension(resolvedWorkflowPath, ".wfvars")
+            : ResolveTargetPath(wfvarsPath);
+        var normalized = NormalizeWfvarsFileExtension(resolved);
+        if (!resolved.Equals(normalized, StringComparison.OrdinalIgnoreCase))
+        {
+            warnings.Add($"wfvarsPath '{wfvarsPath}' was normalized to '{normalized}'. Use '.wfvars' extension for vars files.");
+        }
+
+        return normalized;
     }
 
     private string ResolveTargetPath(string path)
@@ -758,6 +891,30 @@ public sealed class WriteWorkflowArtifactsTool : IMcpTool
         }
 
         return Path.GetFullPath(Path.Combine(_adapter.WorkflowsPath, path));
+    }
+
+    private static string NormalizeWorkflowFileExtension(string path)
+    {
+        var extension = Path.GetExtension(path);
+        if (string.IsNullOrWhiteSpace(extension) ||
+            extension.Equals(".yaml", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".yml", StringComparison.OrdinalIgnoreCase))
+        {
+            return Path.ChangeExtension(path, ".workflow");
+        }
+
+        return path;
+    }
+
+    private static string NormalizeWfvarsFileExtension(string path)
+    {
+        var extension = Path.GetExtension(path);
+        if (!extension.Equals(".wfvars", StringComparison.OrdinalIgnoreCase))
+        {
+            return Path.ChangeExtension(path, ".wfvars");
+        }
+
+        return path;
     }
 
     private static void EnsureDirectory(string filePath)
@@ -842,12 +999,7 @@ public sealed class GenerateWfvarsFromWorkflowTool : IMcpTool
 
     private string ResolvePath(string path)
     {
-        if (Path.IsPathRooted(path))
-        {
-            return Path.GetFullPath(path);
-        }
-
-        return Path.GetFullPath(Path.Combine(_adapter.WorkflowsPath, path));
+        return WorkflowPathResolver.ResolveExistingWorkflowPath(_adapter, path);
     }
 
     private static string ResolveWfvarsPath(string workflowPath, string? wfvarsPathArg)
@@ -1130,12 +1282,7 @@ public sealed class RepairWorkflowArtifactsTool : IMcpTool
 
     private string ResolvePath(string path)
     {
-        if (Path.IsPathRooted(path))
-        {
-            return Path.GetFullPath(path);
-        }
-
-        return Path.GetFullPath(Path.Combine(_adapter.WorkflowsPath, path));
+        return WorkflowPathResolver.ResolveExistingWorkflowPath(_adapter, path);
     }
 
     private static string ResolveWfvarsPath(string workflowPath, string? wfvarsPathArg)
@@ -1433,7 +1580,13 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
                                 {
                                     name = new { type = "string" },
                                     basePath = new { type = "string" },
-                                    swaggerUrl = new { type = "string" }
+                                    swaggerUrl = new { type = "string" },
+                                    baseUrl = new
+                                    {
+                                        type = "object",
+                                        additionalProperties = new { type = "string" },
+                                        description = "Optional per-definition baseUrl map. Overrides version baseUrl for runtime execution."
+                                    }
                                 },
                                 required = new[] { "name", "basePath", "swaggerUrl" }
                             }
@@ -1457,7 +1610,7 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
             throw new ArgumentException("versions is required and must be an array");
         }
 
-        var versions = new List<object>();
+        var versions = new List<ApiCatalogVersion>();
         foreach (var versionItem in versionsEl.EnumerateArray())
         {
             var version = versionItem.TryGetProperty("version", out var versionEl)
@@ -1490,7 +1643,7 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
                 throw new ArgumentException("Each versions item must include 'definitions' array");
             }
 
-            var definitions = new List<object>();
+            var definitions = new List<ApiDefinition>();
             foreach (var definitionItem in defsEl.EnumerateArray())
             {
                 var name = definitionItem.TryGetProperty("name", out var nameEl) ? nameEl.GetString() : null;
@@ -1503,23 +1656,31 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
                     throw new ArgumentException("Definition requires name, basePath, swaggerUrl");
                 }
 
-                definitions.Add(new
+                var normalizedSwaggerUrl = CatalogSwaggerUrlNormalizer.NormalizeForCatalog(swaggerUrl!);
+                var definitionBaseUrl = ParseDefinitionBaseUrl(definitionItem);
+                if (definitionBaseUrl.Count == 0)
                 {
-                    name,
-                    basePath,
-                    swaggerUrl
+                    definitionBaseUrl = InferDefinitionBaseUrl(normalizedSwaggerUrl, "local");
+                }
+
+                definitions.Add(new ApiDefinition
+                {
+                    Name = name!,
+                    BasePath = basePath!,
+                    SwaggerUrl = normalizedSwaggerUrl,
+                    BaseUrl = definitionBaseUrl.Count > 0 ? definitionBaseUrl : null
                 });
             }
 
-            versions.Add(new
+            versions.Add(new ApiCatalogVersion
             {
-                version,
-                baseUrl,
-                definitions
+                Version = version!,
+                BaseUrl = baseUrl,
+                Definitions = definitions
             });
         }
 
-        var json = JsonSerializer.Serialize(versions, new JsonSerializerOptions { WriteIndented = true });
+        var json = JsonSerializer.Serialize(versions, CreateCatalogJsonOptions());
         var writeToDisk = TryReadBool(arguments, "writeToDisk", true);
         var outputPath = arguments?.GetValueOrDefault("outputPath")?.ToString();
         outputPath = ResolveOutputPath(outputPath);
@@ -1573,6 +1734,53 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
 
         return obj.ToString()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
     }
+
+    private static Dictionary<string, string> ParseDefinitionBaseUrl(JsonElement definitionItem)
+    {
+        var baseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (definitionItem.TryGetProperty("baseUrl", out var baseUrlEl) &&
+            baseUrlEl.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in baseUrlEl.EnumerateObject())
+            {
+                var value = property.Value.GetString();
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    baseUrl[property.Name] = value;
+                }
+            }
+        }
+
+        return baseUrl;
+    }
+
+    private static Dictionary<string, string> InferDefinitionBaseUrl(string swaggerUrl, string environment)
+    {
+        if (string.IsNullOrWhiteSpace(swaggerUrl) ||
+            !Uri.TryCreate(swaggerUrl, UriKind.Absolute, out var swaggerUri))
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var authority = swaggerUri.IsDefaultPort
+            ? $"{swaggerUri.Scheme}://{swaggerUri.Host}"
+            : $"{swaggerUri.Scheme}://{swaggerUri.Host}:{swaggerUri.Port}";
+
+        return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [environment] = authority
+        };
+    }
+
+    private static JsonSerializerOptions CreateCatalogJsonOptions()
+    {
+        return new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+        };
+    }
 }
 
 /// <summary>
@@ -1621,6 +1829,7 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
             ?? throw new ArgumentException("apiName is required");
         var swaggerUrl = arguments?.GetValueOrDefault("swaggerUrl")?.ToString()
             ?? throw new ArgumentException("swaggerUrl is required");
+        swaggerUrl = CatalogSwaggerUrlNormalizer.NormalizeForCatalog(swaggerUrl);
         var basePath = arguments?.GetValueOrDefault("basePath")?.ToString();
         var environment = arguments?.GetValueOrDefault("environment")?.ToString() ?? DefaultEnvironment;
         var downloadCache = TryReadBool(arguments, "downloadCache", true);
@@ -1665,7 +1874,8 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
                 {
                     Name = apiName,
                     BasePath = basePathValue,
-                    SwaggerUrl = swaggerUrl
+                    SwaggerUrl = swaggerUrl,
+                    BaseUrl = InferDefinitionBaseUrl(swaggerUrl, environment)
                 };
 
                 var swaggerUri = ResolveSwaggerUri(versionEntry, tempDefinition, environment);
@@ -1697,7 +1907,8 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
             {
                 Name = apiName,
                 BasePath = basePathValue,
-                SwaggerUrl = swaggerUrl
+                SwaggerUrl = swaggerUrl,
+                BaseUrl = InferDefinitionBaseUrl(swaggerUrl, environment)
             };
             versionEntry.Definitions.Add(definition);
             definitionAction = "created";
@@ -1706,6 +1917,15 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
         {
             definition.BasePath = basePathValue;
             definition.SwaggerUrl = swaggerUrl;
+            var inferredBaseUrl = InferDefinitionBaseUrl(swaggerUrl, environment);
+            if (inferredBaseUrl.Count > 0)
+            {
+                definition.BaseUrl ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var pair in inferredBaseUrl)
+                {
+                    definition.BaseUrl[pair.Key] = pair.Value;
+                }
+            }
         }
         else
         {
@@ -1780,8 +2000,18 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
             Directory.CreateDirectory(directory);
         }
 
-        var json = JsonSerializer.Serialize(catalog, new JsonSerializerOptions { WriteIndented = true });
+        var json = JsonSerializer.Serialize(catalog, CreateCatalogJsonOptions());
         await File.WriteAllTextAsync(catalogPath, json);
+    }
+
+    private static JsonSerializerOptions CreateCatalogJsonOptions()
+    {
+        return new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+        };
     }
 
     private async Task<string> DownloadSwaggerToCacheAsync(
@@ -1883,15 +2113,10 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
             return absolute;
         }
 
-        if (!versionEntry.BaseUrl.TryGetValue(environment, out var baseUrl) || string.IsNullOrWhiteSpace(baseUrl))
-        {
-            baseUrl = versionEntry.BaseUrl.Values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
-        }
-
-        if (string.IsNullOrWhiteSpace(baseUrl))
+        if (!TryResolveBaseUrl(versionEntry, definition, environment, out var baseUrl))
         {
             throw new InvalidOperationException(
-                $"Cannot resolve relative swaggerUrl '{definition.SwaggerUrl}' because baseUrl is missing for version '{versionEntry.Version}'.");
+                $"Cannot resolve relative swaggerUrl '{definition.SwaggerUrl}' because baseUrl is missing for version '{versionEntry.Version}' and definition '{definition.Name}'.");
         }
 
         if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var baseUri))
@@ -1900,6 +2125,46 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
         }
 
         return new Uri(baseUri, definition.SwaggerUrl.TrimStart('/'));
+    }
+
+    private static Dictionary<string, string> InferDefinitionBaseUrl(string swaggerUrl, string environment)
+    {
+        if (string.IsNullOrWhiteSpace(swaggerUrl) ||
+            !Uri.TryCreate(swaggerUrl, UriKind.Absolute, out var swaggerUri))
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var authority = swaggerUri.IsDefaultPort
+            ? $"{swaggerUri.Scheme}://{swaggerUri.Host}"
+            : $"{swaggerUri.Scheme}://{swaggerUri.Host}:{swaggerUri.Port}";
+
+        return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [environment] = authority
+        };
+    }
+
+    private static bool TryResolveBaseUrl(ApiCatalogVersion versionEntry, ApiDefinition definition, string environment, out string? baseUrl)
+    {
+        if (definition.BaseUrl is { Count: > 0 } &&
+            TryResolveFromMap(definition.BaseUrl, environment, out baseUrl))
+        {
+            return true;
+        }
+
+        return TryResolveFromMap(versionEntry.BaseUrl, environment, out baseUrl);
+    }
+
+    private static bool TryResolveFromMap(IReadOnlyDictionary<string, string> map, string environment, out string? baseUrl)
+    {
+        if (map.TryGetValue(environment, out baseUrl) && !string.IsNullOrWhiteSpace(baseUrl))
+        {
+            return true;
+        }
+
+        baseUrl = map.Values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+        return !string.IsNullOrWhiteSpace(baseUrl);
     }
 
     private static async Task<string> DownloadSwaggerPayloadAsync(Uri swaggerUri)
@@ -2281,7 +2546,7 @@ public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
 
         if (renamedDefinitions.Count > 0)
         {
-            var updatedCatalogJson = JsonSerializer.Serialize(catalog, new JsonSerializerOptions { WriteIndented = true });
+            var updatedCatalogJson = JsonSerializer.Serialize(catalog, CreateCatalogJsonOptions());
             await File.WriteAllTextAsync(_adapter.ApiCatalogPath, updatedCatalogJson);
         }
 
@@ -2333,15 +2598,10 @@ public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
             return absolute;
         }
 
-        if (!versionEntry.BaseUrl.TryGetValue(environment, out var baseUrl) || string.IsNullOrWhiteSpace(baseUrl))
-        {
-            baseUrl = versionEntry.BaseUrl.Values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
-        }
-
-        if (string.IsNullOrWhiteSpace(baseUrl))
+        if (!TryResolveBaseUrl(versionEntry, definition, environment, out var baseUrl))
         {
             throw new InvalidOperationException(
-                $"Cannot resolve relative swaggerUrl '{definition.SwaggerUrl}' because baseUrl is missing for version '{versionEntry.Version}'.");
+                $"Cannot resolve relative swaggerUrl '{definition.SwaggerUrl}' because baseUrl is missing for version '{versionEntry.Version}' and definition '{definition.Name}'.");
         }
 
         if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var baseUri))
@@ -2350,6 +2610,28 @@ public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
         }
 
         return new Uri(baseUri, definition.SwaggerUrl.TrimStart('/'));
+    }
+
+    private static bool TryResolveBaseUrl(ApiCatalogVersion versionEntry, ApiDefinition definition, string environment, out string? baseUrl)
+    {
+        if (definition.BaseUrl is { Count: > 0 } &&
+            TryResolveFromMap(definition.BaseUrl, environment, out baseUrl))
+        {
+            return true;
+        }
+
+        return TryResolveFromMap(versionEntry.BaseUrl, environment, out baseUrl);
+    }
+
+    private static bool TryResolveFromMap(IReadOnlyDictionary<string, string> map, string environment, out string? baseUrl)
+    {
+        if (map.TryGetValue(environment, out baseUrl) && !string.IsNullOrWhiteSpace(baseUrl))
+        {
+            return true;
+        }
+
+        baseUrl = map.Values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+        return !string.IsNullOrWhiteSpace(baseUrl);
     }
 
     private static async Task<string> DownloadSwaggerPayloadAsync(Uri swaggerUri)
@@ -2644,6 +2926,16 @@ public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
         }
 
         return obj.ToString()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private static JsonSerializerOptions CreateCatalogJsonOptions()
+    {
+        return new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+        };
     }
 
     private static HttpClient CreateHttpClientForSwaggerDownload()

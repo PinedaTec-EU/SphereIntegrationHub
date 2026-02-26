@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using SphereIntegrationHub.MCP.Models;
 using SphereIntegrationHub.MCP.Services.Integration;
+using System.Net.Http;
 
 namespace SphereIntegrationHub.MCP.Services.Catalog;
 
@@ -11,10 +12,12 @@ namespace SphereIntegrationHub.MCP.Services.Catalog;
 public sealed class SwaggerReader
 {
     private readonly SihServicesAdapter _adapter;
+    private readonly ApiCatalogReader _catalogReader;
 
     public SwaggerReader(SihServicesAdapter adapter)
     {
         _adapter = adapter ?? throw new ArgumentNullException(nameof(adapter));
+        _catalogReader = new ApiCatalogReader(adapter);
     }
 
     /// <summary>
@@ -23,12 +26,20 @@ public sealed class SwaggerReader
     public async Task<List<EndpointInfo>> GetEndpointsAsync(string version, string apiName)
     {
         var swaggerPath = _adapter.GetSwaggerCachePath(version, apiName);
-        if (!File.Exists(swaggerPath))
+        if (!File.Exists(swaggerPath) &&
+            !await TryPopulateSwaggerCacheAsync(version, apiName))
         {
-            throw new FileNotFoundException($"Swagger cache not found: {swaggerPath}");
+            throw new FileNotFoundException(
+                $"Swagger cache not found: {swaggerPath}. Run refresh_swagger_cache_from_catalog or quick_refresh_swagger_cache.");
         }
 
         var json = await File.ReadAllTextAsync(swaggerPath);
+        if (IsLikelyHtml(json) &&
+            await TryPopulateSwaggerCacheAsync(version, apiName, forceRefresh: true))
+        {
+            json = await File.ReadAllTextAsync(swaggerPath);
+        }
+
         var swagger = JsonSerializer.Deserialize<SwaggerDocument>(json, new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
@@ -68,6 +79,304 @@ public sealed class SwaggerReader
         }
 
         return endpoints;
+    }
+
+    private async Task<bool> TryPopulateSwaggerCacheAsync(string version, string apiName, bool forceRefresh = false)
+    {
+        var cachePath = _adapter.GetSwaggerCachePath(version, apiName);
+        if (!forceRefresh && File.Exists(cachePath))
+        {
+            return true;
+        }
+
+        var versionEntry = await _catalogReader.GetVersionAsync(version);
+        if (versionEntry == null)
+        {
+            return false;
+        }
+
+        var definition = versionEntry.Definitions.FirstOrDefault(d =>
+            d.Name.Equals(apiName, StringComparison.OrdinalIgnoreCase));
+        if (definition == null)
+        {
+            return false;
+        }
+
+        var swaggerUri = ResolveSwaggerUri(versionEntry, definition);
+        var payload = await DownloadSwaggerPayloadAsync(swaggerUri);
+
+        var directory = Path.GetDirectoryName(cachePath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        await File.WriteAllTextAsync(cachePath, payload);
+        return true;
+    }
+
+    private static Uri ResolveSwaggerUri(ApiCatalogVersion versionEntry, ApiDefinition definition)
+    {
+        var swaggerUrl = definition.SwaggerUrl;
+        if (Uri.TryCreate(swaggerUrl, UriKind.Absolute, out var absolute))
+        {
+            return absolute;
+        }
+
+        if (!TryResolveBaseUrl(versionEntry, definition, out var baseUrl) ||
+            !Uri.TryCreate(baseUrl, UriKind.Absolute, out var baseUri))
+        {
+            throw new InvalidOperationException(
+                $"Cannot resolve relative swaggerUrl '{swaggerUrl}' for API '{definition.Name}' in version '{versionEntry.Version}'.");
+        }
+
+        return new Uri(baseUri, swaggerUrl);
+    }
+
+    private static bool TryResolveBaseUrl(ApiCatalogVersion versionEntry, ApiDefinition definition, out string? baseUrl)
+    {
+        if (definition.BaseUrl != null && TryResolvePreferredEnvironmentBaseUrl(definition.BaseUrl, out baseUrl))
+        {
+            return true;
+        }
+
+        return TryResolvePreferredEnvironmentBaseUrl(versionEntry.BaseUrl, out baseUrl);
+    }
+
+    private static bool TryResolvePreferredEnvironmentBaseUrl(IReadOnlyDictionary<string, string> map, out string? baseUrl)
+    {
+        if (TryGetIgnoreCase(map, "local", out baseUrl) ||
+            TryGetIgnoreCase(map, "pre", out baseUrl) ||
+            TryGetIgnoreCase(map, "prod", out baseUrl))
+        {
+            return true;
+        }
+
+        var first = map.FirstOrDefault(kvp => !string.IsNullOrWhiteSpace(kvp.Value));
+        if (!string.IsNullOrWhiteSpace(first.Value))
+        {
+            baseUrl = first.Value;
+            return true;
+        }
+
+        baseUrl = null;
+        return false;
+    }
+
+    private static bool TryGetIgnoreCase(IReadOnlyDictionary<string, string> map, string key, out string? value)
+    {
+        if (map.TryGetValue(key, out var direct) && !string.IsNullOrWhiteSpace(direct))
+        {
+            value = direct;
+            return true;
+        }
+
+        foreach (var pair in map)
+        {
+            if (pair.Key.Equals(key, StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(pair.Value))
+            {
+                value = pair.Value;
+                return true;
+            }
+        }
+
+        value = null;
+        return false;
+    }
+
+    private static async Task<string> DownloadSwaggerPayloadAsync(Uri swaggerUri)
+    {
+        if (swaggerUri.IsFile)
+        {
+            var payload = await File.ReadAllTextAsync(swaggerUri.LocalPath);
+            if (!IsLikelyHtml(payload))
+            {
+                ValidateSwaggerPayload(payload, swaggerUri);
+                return payload;
+            }
+
+            var fallback = await TryResolveOpenApiFromHtmlFallbackAsync(swaggerUri);
+            if (fallback == null)
+            {
+                throw new InvalidOperationException(
+                    $"swaggerUrl '{swaggerUri}' returned HTML content and no JSON fallback could be resolved.");
+            }
+
+            return fallback;
+        }
+
+        using var httpClient = CreateHttpClientForSwaggerDownload();
+        var remotePayload = await httpClient.GetStringAsync(swaggerUri);
+        if (!IsLikelyHtml(remotePayload))
+        {
+            ValidateSwaggerPayload(remotePayload, swaggerUri);
+            return remotePayload;
+        }
+
+        var resolvedPayload = await TryResolveOpenApiFromHtmlFallbackAsync(swaggerUri, httpClient);
+        if (resolvedPayload == null)
+        {
+            throw new InvalidOperationException(
+                $"swaggerUrl '{swaggerUri}' returned HTML content and no JSON fallback could be resolved.");
+        }
+
+        return resolvedPayload;
+    }
+
+    private static bool IsLikelyHtml(string payload)
+    {
+        var trimmed = payload.TrimStart();
+        return trimmed.StartsWith("<", StringComparison.Ordinal);
+    }
+
+    private static void ValidateSwaggerPayload(string payload, Uri sourceUri)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(payload);
+            var root = document.RootElement;
+            var hasOpenApi = root.TryGetProperty("openapi", out _) || root.TryGetProperty("swagger", out _);
+            var hasPaths = root.TryGetProperty("paths", out var paths) && paths.ValueKind == JsonValueKind.Object;
+            if (!hasOpenApi || !hasPaths)
+            {
+                throw new InvalidOperationException(
+                    $"Swagger payload from '{sourceUri}' is missing required 'openapi/swagger' or 'paths' sections.");
+            }
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidOperationException(
+                $"Swagger payload from '{sourceUri}' is not valid JSON: {ex.Message}",
+                ex);
+        }
+    }
+
+    private static async Task<string?> TryResolveOpenApiFromHtmlFallbackAsync(Uri sourceUri, HttpClient? sharedClient = null)
+    {
+        var candidates = BuildSwaggerJsonFallbackCandidates(sourceUri);
+        if (candidates.Count == 0)
+        {
+            return null;
+        }
+
+        foreach (var candidate in candidates)
+        {
+            try
+            {
+                string candidatePayload;
+                if (candidate.IsFile)
+                {
+                    if (!File.Exists(candidate.LocalPath))
+                    {
+                        continue;
+                    }
+
+                    candidatePayload = await File.ReadAllTextAsync(candidate.LocalPath);
+                }
+                else
+                {
+                    if (sharedClient != null)
+                    {
+                        candidatePayload = await sharedClient.GetStringAsync(candidate);
+                    }
+                    else
+                    {
+                        using var client = CreateHttpClientForSwaggerDownload();
+                        candidatePayload = await client.GetStringAsync(candidate);
+                    }
+                }
+
+                if (IsLikelyHtml(candidatePayload))
+                {
+                    continue;
+                }
+
+                ValidateSwaggerPayload(candidatePayload, candidate);
+                return candidatePayload;
+            }
+            catch
+            {
+                // continue trying candidates
+            }
+        }
+
+        return null;
+    }
+
+    private static List<Uri> BuildSwaggerJsonFallbackCandidates(Uri sourceUri)
+    {
+        var path = sourceUri.AbsolutePath;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return [];
+        }
+
+        var prefix = path;
+        if (prefix.EndsWith("/index.html", StringComparison.OrdinalIgnoreCase))
+        {
+            prefix = prefix[..^"/index.html".Length];
+        }
+        else if (prefix.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
+        {
+            var slashIndex = prefix.LastIndexOf('/');
+            prefix = slashIndex > 0 ? prefix[..slashIndex] : prefix;
+        }
+
+        prefix = prefix.TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(prefix))
+        {
+            return [];
+        }
+
+        var candidatePaths = new List<string>
+        {
+            $"{prefix}/v1/swagger.json",
+            $"{prefix}/swagger.json",
+            $"{prefix}/openapi.json"
+        };
+
+        if (prefix.EndsWith("/swagger", StringComparison.OrdinalIgnoreCase))
+        {
+            var parent = prefix[..^"/swagger".Length];
+            if (!string.IsNullOrWhiteSpace(parent))
+            {
+                candidatePaths.Add($"{parent}/swagger/v1/swagger.json");
+                candidatePaths.Add($"{parent}/swagger.json");
+                candidatePaths.Add($"{parent}/openapi.json");
+            }
+        }
+
+        var unique = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var candidates = new List<Uri>();
+        foreach (var candidatePath in candidatePaths)
+        {
+            var builder = new UriBuilder(sourceUri)
+            {
+                Path = candidatePath,
+                Query = string.Empty,
+                Fragment = string.Empty
+            };
+
+            var candidate = builder.Uri;
+            if (!candidate.AbsoluteUri.Equals(sourceUri.AbsoluteUri, StringComparison.OrdinalIgnoreCase) &&
+                unique.Add(candidate.AbsoluteUri))
+            {
+                candidates.Add(candidate);
+            }
+        }
+
+        return candidates;
+    }
+
+    private static HttpClient CreateHttpClientForSwaggerDownload()
+    {
+        var handler = new SocketsHttpHandler
+        {
+            UseCookies = false
+        };
+
+        return new HttpClient(handler, disposeHandler: true);
     }
 
     /// <summary>

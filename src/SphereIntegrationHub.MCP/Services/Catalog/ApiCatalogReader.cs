@@ -56,17 +56,3 @@ public sealed class ApiCatalogReader
         return definitions.FirstOrDefault(d => d.Name.Equals(apiName, StringComparison.OrdinalIgnoreCase));
     }
 }
-
-public sealed class ApiCatalogVersion
-{
-    public required string Version { get; set; }
-    public required Dictionary<string, string> BaseUrl { get; set; }
-    public required List<ApiDefinition> Definitions { get; set; }
-}
-
-public sealed class ApiDefinition
-{
-    public required string Name { get; set; }
-    public required string BasePath { get; set; }
-    public required string SwaggerUrl { get; set; }
-}

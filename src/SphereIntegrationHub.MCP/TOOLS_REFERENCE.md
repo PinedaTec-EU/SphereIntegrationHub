@@ -52,6 +52,8 @@ Persists generated artifacts in configured workflows path:
 - `.wfvars`
 - optional payload files
 
+Note: if `workflowPath` is provided with `.yaml`/`.yml` (or without extension), MCP normalizes it to `.workflow`.
+
 ### `generate_wfvars_from_workflow`
 
 Generates `.wfvars` from an existing workflow:

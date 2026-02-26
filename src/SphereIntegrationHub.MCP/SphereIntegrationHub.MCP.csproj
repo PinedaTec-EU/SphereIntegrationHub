@@ -18,6 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../SphereIntegrationHub.Shared/SphereIntegrationHub.Shared.csproj" />
     <!-- Reference to main CLI project to reuse services -->
     <ProjectReference Include="../SphereIntegrationHub.cli/SphereIntegrationHub.cli.csproj" />
   </ItemGroup>
