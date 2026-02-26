@@ -14,12 +14,7 @@ public static class ApiBaseUrlResolver
         activity?.SetTag(TelemetryConstants.TagApiDefinition, definition.Name);
         activity?.SetTag(TelemetryConstants.TagEnvironment, environment);
 
-        if (definition.BaseUrl is not null && TryResolveBaseUrlInternal(definition.BaseUrl, environment, out baseUrl))
-        {
-            return true;
-        }
-
-        return TryResolveBaseUrlInternal(catalogVersion.BaseUrl, environment, out baseUrl);
+        return CatalogUrlResolver.TryResolveBaseUrl(catalogVersion, definition, environment, out baseUrl);
     }
 
     public static bool TryResolveBaseUrl(

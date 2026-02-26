@@ -891,7 +891,7 @@ endStage:
     }
 
     [Fact]
-    public async Task GenerateApiCatalogFile_WithAbsoluteSwaggerUrl_InfersDefinitionBaseUrl()
+    public async Task GenerateApiCatalogFile_WithAbsoluteSwaggerUrl_BuildsTemplateAndPort()
     {
         // Arrange
         var tool = new GenerateApiCatalogFileTool(_adapter);
@@ -927,12 +927,14 @@ endStage:
         var catalogDoc = JsonDocument.Parse(catalogJson);
 
         // Assert
-        var baseUrl = catalogDoc.RootElement[0]
+        var definition = catalogDoc.RootElement[0]
             .GetProperty("definitions")[0]
-            .GetProperty("baseUrl")
-            .GetProperty("local")
-            .GetString();
-        baseUrl.Should().Be("https://localhost:5005");
+            ;
+
+        var port = definition.GetProperty("port").GetInt32();
+        var templatedSwaggerUrl = definition.GetProperty("swaggerUrl").GetString();
+        port.Should().Be(5005);
+        templatedSwaggerUrl.Should().Be("{{baseUrl.local}}:{{port}}/swagger/v1/swagger.json");
     }
 
     [Fact]
@@ -969,11 +971,12 @@ endStage:
         var catalogJson = await File.ReadAllTextAsync(outputPath);
         var catalogDoc = JsonDocument.Parse(catalogJson);
 
-        var storedSwaggerUrl = catalogDoc.RootElement[0]
-            .GetProperty("definitions")[0]
-            .GetProperty("swaggerUrl")
-            .GetString();
-        storedSwaggerUrl.Should().Be("https://localhost:5005/swagger/v1/swagger.json");
+        var definition = catalogDoc.RootElement[0]
+            .GetProperty("definitions")[0];
+        var storedSwaggerUrl = definition.GetProperty("swaggerUrl").GetString();
+        var storedPort = definition.GetProperty("port").GetInt32();
+        storedSwaggerUrl.Should().Be("{{baseUrl.local}}:{{port}}/swagger/v1/swagger.json");
+        storedPort.Should().Be(5005);
     }
 
     [Fact]
@@ -1013,7 +1016,7 @@ endStage:
     }
 
     [Fact]
-    public async Task UpsertApiCatalogAndCache_WithAbsoluteSwaggerUrl_StoresDefinitionBaseUrlForEnvironment()
+    public async Task UpsertApiCatalogAndCache_WithAbsoluteSwaggerUrl_StoresTemplateAndPort()
     {
         // Arrange
         var adapter = new SihServicesAdapter(new SihPathOptions
@@ -1030,6 +1033,7 @@ endStage:
             ["swaggerUrl"] = "https://localhost:5005/swagger/v1/swagger.json",
             ["basePath"] = "/api",
             ["environment"] = "local",
+            ["baseUrl"] = JsonSerializer.SerializeToElement(new { local = "https://localhost" }),
             ["downloadCache"] = false
         };
 
@@ -1039,12 +1043,14 @@ endStage:
         var catalogDoc = JsonDocument.Parse(catalogJson);
 
         // Assert
-        var definitionBaseUrl = catalogDoc.RootElement[0]
+        var definition = catalogDoc.RootElement[0]
             .GetProperty("definitions")[0]
-            .GetProperty("baseUrl")
-            .GetProperty("local")
-            .GetString();
-        definitionBaseUrl.Should().Be("https://localhost:5005");
+            ;
+
+        var definitionPort = definition.GetProperty("port").GetInt32();
+        var templatedSwaggerUrl = definition.GetProperty("swaggerUrl").GetString();
+        definitionPort.Should().Be(5005);
+        templatedSwaggerUrl.Should().Be("{{baseUrl.local}}:{{port}}/swagger/v1/swagger.json");
     }
 
     [Fact]

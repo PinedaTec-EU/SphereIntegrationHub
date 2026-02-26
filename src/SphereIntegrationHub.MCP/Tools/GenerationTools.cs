@@ -115,6 +115,98 @@ internal static class CatalogSwaggerUrlNormalizer
     }
 }
 
+internal static class CatalogSwaggerTemplateBuilder
+{
+    public static bool TryBuildTemplate(
+        string swaggerUrl,
+        IReadOnlyDictionary<string, string> versionBaseUrls,
+        string preferredEnvironment,
+        out string templatedSwaggerUrl,
+        out int? port)
+    {
+        templatedSwaggerUrl = swaggerUrl;
+        port = null;
+
+        if (!Uri.TryCreate(swaggerUrl, UriKind.Absolute, out var swaggerUri))
+        {
+            return false;
+        }
+
+        if (!TryResolveTemplateEnvironment(versionBaseUrls, preferredEnvironment, swaggerUri, out var environmentKey))
+        {
+            return false;
+        }
+
+        var pathAndQuery = swaggerUri.PathAndQuery;
+        var shouldIncludePort = !swaggerUri.IsDefaultPort;
+        port = shouldIncludePort ? swaggerUri.Port : null;
+        templatedSwaggerUrl = shouldIncludePort
+            ? $"{{{{baseUrl.{environmentKey}}}}}:{{{{port}}}}{pathAndQuery}"
+            : $"{{{{baseUrl.{environmentKey}}}}}{pathAndQuery}";
+
+        return true;
+    }
+
+    private static bool TryResolveTemplateEnvironment(
+        IReadOnlyDictionary<string, string> versionBaseUrls,
+        string preferredEnvironment,
+        Uri swaggerUri,
+        out string environmentKey)
+    {
+        if (TryMatchEnvironment(versionBaseUrls, preferredEnvironment, swaggerUri, out environmentKey))
+        {
+            return true;
+        }
+
+        foreach (var pair in versionBaseUrls)
+        {
+            if (TryMatchEnvironment(versionBaseUrls, pair.Key, swaggerUri, out environmentKey))
+            {
+                return true;
+            }
+        }
+
+        environmentKey = string.Empty;
+        return false;
+    }
+
+    private static bool TryMatchEnvironment(
+        IReadOnlyDictionary<string, string> versionBaseUrls,
+        string environment,
+        Uri swaggerUri,
+        out string environmentKey)
+    {
+        environmentKey = string.Empty;
+        if (!versionBaseUrls.TryGetValue(environment, out var baseUrl) || string.IsNullOrWhiteSpace(baseUrl))
+        {
+            foreach (var pair in versionBaseUrls)
+            {
+                if (pair.Key.Equals(environment, StringComparison.OrdinalIgnoreCase))
+                {
+                    baseUrl = pair.Value;
+                    break;
+                }
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(baseUrl) ||
+            !Uri.TryCreate(baseUrl, UriKind.Absolute, out var baseUri))
+        {
+            return false;
+        }
+
+        var schemeMatches = string.Equals(swaggerUri.Scheme, baseUri.Scheme, StringComparison.OrdinalIgnoreCase);
+        var hostMatches = string.Equals(swaggerUri.Host, baseUri.Host, StringComparison.OrdinalIgnoreCase);
+        if (!schemeMatches || !hostMatches)
+        {
+            return false;
+        }
+
+        environmentKey = environment;
+        return true;
+    }
+}
+
 /// <summary>
 /// Generates a workflow stage from an API endpoint
 /// </summary>
@@ -1342,6 +1434,7 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
                                 properties = new
                                 {
                                     name = new { type = "string" },
+                                    port = new { type = "integer" },
                                     basePath = new { type = "string" },
                                     swaggerUrl = new { type = "string" },
                                     baseUrl = new
@@ -1410,6 +1503,9 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
             foreach (var definitionItem in defsEl.EnumerateArray())
             {
                 var name = definitionItem.TryGetProperty("name", out var nameEl) ? nameEl.GetString() : null;
+                var port = definitionItem.TryGetProperty("port", out var portEl) && portEl.TryGetInt32(out var parsedPort)
+                    ? parsedPort
+                    : (int?)null;
                 var basePath = definitionItem.TryGetProperty("basePath", out var basePathEl) ? basePathEl.GetString() : null;
                 var swaggerUrl = definitionItem.TryGetProperty("swaggerUrl", out var swaggerEl) ? swaggerEl.GetString() : null;
                 if (string.IsNullOrWhiteSpace(name) ||
@@ -1421,7 +1517,19 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
 
                 var normalizedSwaggerUrl = CatalogSwaggerUrlNormalizer.NormalizeForCatalog(swaggerUrl!);
                 var definitionBaseUrl = ParseDefinitionBaseUrl(definitionItem);
-                if (definitionBaseUrl.Count == 0)
+                if (definitionBaseUrl.Count == 0 &&
+                    CatalogSwaggerTemplateBuilder.TryBuildTemplate(
+                        normalizedSwaggerUrl,
+                        baseUrl,
+                        "local",
+                        out var templatedSwaggerUrl,
+                        out var inferredPort))
+                {
+                    normalizedSwaggerUrl = templatedSwaggerUrl;
+                    port ??= inferredPort;
+                }
+
+                if (definitionBaseUrl.Count == 0 && !normalizedSwaggerUrl.Contains("{{baseUrl.", StringComparison.OrdinalIgnoreCase))
                 {
                     definitionBaseUrl = InferDefinitionBaseUrl(normalizedSwaggerUrl, "local");
                 }
@@ -1429,6 +1537,7 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
                 definitions.Add(new ApiDefinition
                 {
                     Name = name!,
+                    Port = port,
                     BasePath = basePath!,
                     SwaggerUrl = normalizedSwaggerUrl,
                     BaseUrl = definitionBaseUrl.Count > 0 ? definitionBaseUrl : null
@@ -1556,6 +1665,7 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
             version = new { type = "string", description = "Catalog version (e.g. 3.11)" },
             apiName = new { type = "string", description = "Definition name" },
             swaggerUrl = new { type = "string", description = "Swagger URL (absolute or relative)" },
+            port = new { type = "integer", description = "Optional API port to apply on resolved baseUrl for runtime and swagger resolution" },
             basePath = new { type = "string", description = "API base path (e.g. /api/accounts)" },
             environment = new { type = "string", description = "Environment key to resolve relative swaggerUrl (default: pre)" },
             baseUrl = new
@@ -1578,6 +1688,10 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
         var swaggerUrl = arguments?.GetValueOrDefault("swaggerUrl")?.ToString()
             ?? throw new ArgumentException("swaggerUrl is required");
         swaggerUrl = CatalogSwaggerUrlNormalizer.NormalizeForCatalog(swaggerUrl);
+        var port = arguments?.TryGetValue("port", out var portObj) == true &&
+                   int.TryParse(portObj?.ToString(), out var parsedPort)
+            ? parsedPort
+            : (int?)null;
         var basePath = arguments?.GetValueOrDefault("basePath")?.ToString();
         var environment = arguments?.GetValueOrDefault("environment")?.ToString() ?? DefaultEnvironment;
         var downloadCache = ToolArgumentParser.TryReadBool(arguments, "downloadCache", true);
@@ -1611,6 +1725,19 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
         }
 
         var basePathValue = string.IsNullOrWhiteSpace(basePath) ? "/" : basePath;
+        var storedSwaggerUrl = swaggerUrl;
+        var storedPort = port;
+        if (CatalogSwaggerTemplateBuilder.TryBuildTemplate(
+                swaggerUrl,
+                versionEntry.BaseUrl,
+                environment,
+                out var templatedSwaggerUrl,
+                out var inferredPort))
+        {
+            storedSwaggerUrl = templatedSwaggerUrl;
+            storedPort ??= inferredPort;
+        }
+
         string? prefetchedPayload = null;
         string? inferredApiName = null;
 
@@ -1621,8 +1748,9 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
                 var tempDefinition = new ApiDefinition
                 {
                     Name = apiName,
+                    Port = storedPort,
                     BasePath = basePathValue,
-                    SwaggerUrl = swaggerUrl,
+                    SwaggerUrl = storedSwaggerUrl,
                     BaseUrl = InferDefinitionBaseUrl(swaggerUrl, environment)
                 };
 
@@ -1654,8 +1782,9 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
             definition = new ApiDefinition
             {
                 Name = apiName,
+                Port = storedPort,
                 BasePath = basePathValue,
-                SwaggerUrl = swaggerUrl,
+                SwaggerUrl = storedSwaggerUrl,
                 BaseUrl = InferDefinitionBaseUrl(swaggerUrl, environment)
             };
             versionEntry.Definitions.Add(definition);
@@ -1664,7 +1793,8 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
         else if (overwriteDefinition)
         {
             definition.BasePath = basePathValue;
-            definition.SwaggerUrl = swaggerUrl;
+            definition.SwaggerUrl = storedSwaggerUrl;
+            definition.Port = storedPort;
             var inferredBaseUrl = InferDefinitionBaseUrl(swaggerUrl, environment);
             if (inferredBaseUrl.Count > 0)
             {

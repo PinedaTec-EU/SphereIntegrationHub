@@ -51,7 +51,7 @@ public sealed class ApiSwaggerCacheService
                     $"Environment '{environment}' was not found for API definition '{definition.Name}' in catalog version '{catalogVersion.Version}'.");
             }
 
-            var swaggerUri = ResolveSwaggerUri(baseUrl, definition.SwaggerUrl);
+            var swaggerUri = CatalogUrlResolver.ResolveSwaggerUri(catalogVersion, definition, environment);
             var cachePath = Path.Combine(cacheRoot, $"{definition.Name}.json");
             if (!refresh && File.Exists(cachePath))
             {
@@ -113,22 +113,6 @@ public sealed class ApiSwaggerCacheService
                 }
             }
         }
-    }
-
-    private static Uri ResolveSwaggerUri(string baseUrl, string swaggerUrl)
-    {
-        if (Uri.TryCreate(swaggerUrl, UriKind.Absolute, out var absolute))
-        {
-            return absolute;
-        }
-
-        if (Uri.TryCreate(baseUrl, UriKind.Absolute, out var baseUri))
-        {
-            return new Uri(baseUri, swaggerUrl.TrimStart('/'));
-        }
-
-        var combined = $"{baseUrl.TrimEnd('/')}/{swaggerUrl.TrimStart('/')}";
-        return new Uri(combined, UriKind.Absolute);
     }
 
     private static string ToRelativePath(string path)
