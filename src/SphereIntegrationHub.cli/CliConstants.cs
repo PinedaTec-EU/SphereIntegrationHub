@@ -7,4 +7,5 @@ internal static class CliConstants
     internal const string DefaultServiceName = "SphereIntegrationHub.cli";
     internal const string ActivitySourceName = "SphereIntegrationHub";
     internal const string MeterName = "SphereIntegrationHub";
+    internal const string CliVersionPrefix = " API Orchestrator Sphere CLI v.";
 }
