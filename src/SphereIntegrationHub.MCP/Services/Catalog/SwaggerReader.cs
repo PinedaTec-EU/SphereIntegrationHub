@@ -295,9 +295,9 @@ public sealed class SwaggerReader
                 ValidateSwaggerPayload(candidatePayload, candidate);
                 return candidatePayload;
             }
-            catch
+            catch (Exception ex)
             {
-                // continue trying candidates
+                Console.Error.WriteLine($"[SphereIntegrationHub.MCP] Warning: fallback candidate '{candidate}' failed — {ex.Message}");
             }
         }
 

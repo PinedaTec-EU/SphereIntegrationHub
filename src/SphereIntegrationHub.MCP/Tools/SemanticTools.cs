@@ -404,9 +404,9 @@ public sealed class SuggestWorkflowFromGoalTool : IMcpTool
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Skip APIs that can't be loaded
+                Console.Error.WriteLine($"[SphereIntegrationHub.MCP] Warning: skipping API '{api.Name}' — {ex.Message}");
             }
         }
 
