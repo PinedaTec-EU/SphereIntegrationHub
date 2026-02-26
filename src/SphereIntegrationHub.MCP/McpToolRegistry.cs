@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using SphereIntegrationHub.MCP.Core;
 
 namespace SphereIntegrationHub.MCP;
@@ -16,7 +17,7 @@ internal sealed class McpToolRegistry
         _tools[tool.Name] = tool;
     }
 
-    public bool TryGet(string name, out IMcpTool? tool) => _tools.TryGetValue(name, out tool);
+    public bool TryGet(string name, [NotNullWhen(true)] out IMcpTool? tool) => _tools.TryGetValue(name, out tool);
 
     public IReadOnlyCollection<IMcpTool> GetAll() => _tools.Values;
 }
