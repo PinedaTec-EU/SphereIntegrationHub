@@ -6,9 +6,10 @@ namespace SphereIntegrationHub.MCP.Services.Catalog;
 /// <summary>
 /// Reads and parses the API catalog configuration
 /// </summary>
-public sealed class ApiCatalogReader
+public sealed class ApiCatalogReader : IDisposable
 {
     private readonly SihServicesAdapter _adapter;
+    private readonly SemaphoreSlim _lock = new(1, 1);
     private List<ApiCatalogVersion>? _cachedCatalog;
 
     public ApiCatalogReader(SihServicesAdapter adapter)
@@ -19,18 +20,29 @@ public sealed class ApiCatalogReader
     public async Task<List<ApiCatalogVersion>> GetCatalogAsync()
     {
         if (_cachedCatalog != null)
-        {
             return _cachedCatalog;
-        }
 
-        var json = await File.ReadAllTextAsync(_adapter.ApiCatalogPath);
-        _cachedCatalog = JsonSerializer.Deserialize<List<ApiCatalogVersion>>(json, new JsonSerializerOptions
+        await _lock.WaitAsync();
+        try
         {
-            PropertyNameCaseInsensitive = true
-        }) ?? [];
+            if (_cachedCatalog != null)
+                return _cachedCatalog;
+
+            var json = await File.ReadAllTextAsync(_adapter.ApiCatalogPath);
+            _cachedCatalog = JsonSerializer.Deserialize<List<ApiCatalogVersion>>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            }) ?? [];
+        }
+        finally
+        {
+            _lock.Release();
+        }
 
         return _cachedCatalog;
     }
+
+    public void Dispose() => _lock.Dispose();
 
     public async Task<List<string>> GetVersionsAsync()
     {
