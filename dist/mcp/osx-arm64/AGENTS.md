@@ -54,6 +54,16 @@ When MCP has created/updated artifacts (catalog, cache, workflow, wfvars), guide
 4. If `.wfvars` exists, include it explicitly when needed:
    - `--varsfile <path>`
 5. Mention `dotnet run --project src/SphereIntegrationHub.cli` only as fallback when packaged `sih` is unavailable.
+6. Persist workflows using `.workflow` extension (never default to `.yaml`/`.yml` for runtime workflow files).
+
+Payload construction rules for `write_workflow_artifacts`:
+
+- Build JSON so `workflowPath` always ends with `.workflow`.
+- Build JSON so `wfvarsPath` always ends with `.wfvars` (when provided).
+- If the user/model has a `.yaml`/`.yml` workflow name, convert it before tool call.
+- Keep matching base names:
+  - `abc123.workflow`
+  - `abc123.wfvars`
 
 When user asks “how do I run this workflow?”, provide concrete command lines with the actual workflow path produced by MCP.
 

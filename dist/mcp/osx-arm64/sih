@@ -3,15 +3,41 @@ set -euo pipefail
 
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+print_help() {
+  cat <<'HELP'
+API Orchestrator Sphere Launcher
+--------------------------------
+Usage:
+  sih <command> [args]
+
+Commands:
+  run       Execute a workflow using SphereIntegrationHub CLI runtime.
+  mcp       Start SphereIntegrationHub MCP server.
+
+Examples:
+  sih run --workflow ./.sphere/workflows/create_tier.workflow --env local --refresh-cache
+  sih run --workflow ./.sphere/workflows/create_tier.workflow --env local --dry-run
+  sih mcp
+
+Help:
+  sih --help
+  sih run --help
+  sih mcp --help
+HELP
+}
+
 if [[ $# -lt 1 ]]; then
-  echo "Usage: sih <run|mcp> [args]" >&2
-  exit 1
+  print_help
+  exit 0
 fi
 
 command="$1"
 shift || true
 
 case "${command}" in
+  -h|--help|help)
+    print_help
+    ;;
   run)
     exec "${BASE_DIR}/SphereIntegrationHub.cli" "$@"
     ;;
@@ -20,7 +46,8 @@ case "${command}" in
     ;;
   *)
     echo "Unknown command: ${command}" >&2
-    echo "Usage: sih <run|mcp> [args]" >&2
+    echo "" >&2
+    print_help >&2
     exit 1
     ;;
 esac
