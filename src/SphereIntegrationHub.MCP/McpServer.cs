@@ -16,7 +16,7 @@ public sealed class McpServer
     private const string JsonRpcVersion = "2.0";
     private readonly SihServicesAdapter _servicesAdapter;
     private readonly JsonSerializerOptions _jsonOptions;
-    private readonly Dictionary<string, IMcpTool> _tools;
+    private readonly McpToolRegistry _registry;
     private readonly string _serverVersion;
     private readonly string _toolProfile;
     private readonly bool _verboseLogs;
@@ -25,7 +25,7 @@ public sealed class McpServer
     {
         _servicesAdapter = servicesAdapter ?? throw new ArgumentNullException(nameof(servicesAdapter));
         _jsonOptions = jsonOptions ?? throw new ArgumentNullException(nameof(jsonOptions));
-        _tools = new Dictionary<string, IMcpTool>(StringComparer.OrdinalIgnoreCase);
+        _registry = new McpToolRegistry();
         _serverVersion = ResolveServerVersion();
         _toolProfile = ResolveToolProfile();
         _verboseLogs = ResolveVerboseLogsFlag();
@@ -41,7 +41,7 @@ public sealed class McpServer
         if (_toolProfile.Equals("cache", StringComparison.OrdinalIgnoreCase))
         {
             RegisterCacheProfileTools();
-            Console.Error.WriteLine($"[McpServer] Registered {_tools.Count} tools (profile: {_toolProfile})");
+            Console.Error.WriteLine($"[McpServer] Registered {_registry.Count} tools (profile: {_toolProfile})");
             return;
         }
 
@@ -108,7 +108,7 @@ public sealed class McpServer
         RegisterTool(new SuggestOptimizationsTool(_servicesAdapter));
         RegisterTool(new AnalyzeSwaggerCoverageTool(_servicesAdapter));
 
-        Console.Error.WriteLine($"[McpServer] Registered {_tools.Count} tools (profile: {_toolProfile})");
+        Console.Error.WriteLine($"[McpServer] Registered {_registry.Count} tools (profile: {_toolProfile})");
     }
 
     private void RegisterCacheProfileTools()
@@ -123,7 +123,7 @@ public sealed class McpServer
 
     private void RegisterTool(IMcpTool tool)
     {
-        _tools[tool.Name] = tool;
+        _registry.Register(tool);
         if (_verboseLogs)
         {
             Console.Error.WriteLine($"[McpServer] Registered tool: {tool.Name}");
@@ -250,7 +250,7 @@ public sealed class McpServer
                     Id = request.Id,
                     Result = new
                     {
-                        tools = _tools.Values.Select(t => new
+                        tools = _registry.GetAll().Select(t => new
                         {
                             name = t.Name,
                             description = t.Description,
@@ -268,7 +268,7 @@ public sealed class McpServer
                     return CreateErrorResponse(request.Id, McpErrorCodes.InvalidParams, "Tool name is required", null);
                 }
 
-                if (!_tools.TryGetValue(toolName, out var tool))
+                if (!_registry.TryGet(toolName, out var tool))
                 {
                     return CreateErrorResponse(request.Id, McpErrorCodes.MethodNotFound, $"Tool not found: {toolName}", null);
                 }
