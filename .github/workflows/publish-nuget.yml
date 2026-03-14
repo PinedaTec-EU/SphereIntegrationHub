@@ -87,36 +87,34 @@ jobs:
           echo "Publishing version: $VERSION"
 
       - name: Restore
-        run: dotnet restore SphereRabbitMQ.slnx
+        run: dotnet restore SphereIntegrationHub.slnx
 
       - name: Build
         run: |
-          dotnet build SphereRabbitMQ.slnx \
+          dotnet build SphereIntegrationHub.slnx \
             -c Release \
             --no-restore \
             -p:Version=${{ steps.version.outputs.VERSION }}
 
-      # Unit tests only — integration tests require a live RabbitMQ broker.
       - name: Unit tests
         run: |
-          dotnet test tests/SphereRabbitMQ.Tests.Unit/SphereRabbitMQ.Tests.Unit.csproj \
+          dotnet test tests/SphereIntegrationHub.Tests/SphereIntegrationHub.Tests.csproj \
             -c Release --no-build \
             --logger "console;verbosity=normal"
-          dotnet test tests/SphereRabbitMQ.IaC.Tests.Unit/SphereRabbitMQ.IaC.Tests.Unit.csproj \
+          dotnet test tests/SphereIntegrationHub.MCP.Tests/SphereIntegrationHub.MCP.Tests.csproj \
             -c Release --no-build \
             --logger "console;verbosity=normal"
 
-      # Pack the all-in-one runtime package and the CLI dotnet tool package.
-      # Internal runtime projects are included in the package output through the main project.
+      # Pack the CLI dotnet tool and the MCP dotnet tool.
       - name: Pack
         run: |
           VERSION=${{ steps.version.outputs.VERSION }}
-          dotnet pack src/SphereRabbitMQ.DependencyInjection/SphereRabbitMQ.DependencyInjection.csproj \
+          dotnet pack src/SphereIntegrationHub.cli/SphereIntegrationHub.cli.csproj \
             -c Release \
             --no-restore \
             -p:Version=$VERSION \
             --output nupkgs
-          dotnet pack src/SphereRabbitMQ.IaC.Cli/SphereRabbitMQ.IaC.Cli.csproj \
+          dotnet pack src/SphereIntegrationHub.MCP/SphereIntegrationHub.MCP.csproj \
             -c Release \
             --no-restore \
             -p:Version=$VERSION \
