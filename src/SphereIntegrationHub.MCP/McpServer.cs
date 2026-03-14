@@ -119,11 +119,16 @@ public sealed class McpServer
         using var reader = new StreamReader(inputStream, utf8NoBom, detectEncodingFromByteOrderMarks: true, bufferSize: 1024, leaveOpen: true);
         using var writer = new StreamWriter(outputStream, utf8NoBom, bufferSize: 1024, leaveOpen: true) { AutoFlush = true };
 
-        while (!reader.EndOfStream)
+        while (true)
         {
             try
             {
                 var line = await reader.ReadLineAsync();
+                if (line == null)
+                {
+                    break;
+                }
+
                 if (string.IsNullOrWhiteSpace(line))
                 {
                     continue;
