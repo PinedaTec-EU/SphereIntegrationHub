@@ -1,0 +1,11 @@
+# Exclude non-essential paths from auto-generated GitHub source archives
+# (the .zip / .tar.gz GitHub attaches to every tag/release).
+# These directories add weight but are not useful for consumers of the package.
+
+dist/       export-ignore
+tests/      export-ignore
+tools/      export-ignore
+samples/    export-ignore
+.doc/       export-ignore
+.codex/     export-ignore
+scripts/    export-ignore
