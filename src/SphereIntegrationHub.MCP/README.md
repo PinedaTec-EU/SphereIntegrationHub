@@ -5,6 +5,7 @@ Model Context Protocol (MCP) server for SphereIntegrationHub providing AI-assist
 ## Overview
 
 This MCP server exposes 32 tools organized in 4 levels (L1-L4) that enable LLMs to:
+
 - Explore API catalogs and generate workflow stages
 - Validate and analyze workflows
 - Optimize execution strategies
@@ -43,17 +44,20 @@ McpServer (stdio JSON-RPC)
 ## Level 1 Tools (24 implemented)
 
 ### Catalog Tools (4)
+
 - `list_api_catalog_versions` - Lists available API versions
 - `get_api_definitions` - Gets APIs for a version
 - `get_api_endpoints` - Lists endpoints in an API
 - `get_endpoint_schema` - Gets detailed endpoint schema
 
 ### Validation Tools (3)
+
 - `validate_workflow` - Validates workflow YAML
 - `validate_stage` - Validates single stage
 - `plan_workflow_execution` - Analyzes execution plan
 
 ### Generation Tools (12)
+
 - `generate_endpoint_stage` - Generates stage from endpoint
 - `generate_workflow_skeleton` - Creates workflow template
 - `generate_mock_payload` - Generates test payload
@@ -68,15 +72,18 @@ McpServer (stdio JSON-RPC)
 - `quick_refresh_swagger_cache` - Fast-path cache refresh with defaults (`version=0.1`, `environment=local`, `refresh=true`)
 
 ### Analysis Tools (3)
+
 - `get_available_variables` - Shows available variables at a point
 - `resolve_template_token` - Resolves template tokens
 - `analyze_context_flow` - Analyzes context flow
 
 ### Reference Tools (2)
+
 - `list_available_workflows` - Lists all workflows
 - `get_workflow_inputs_outputs` - Shows workflow I/O
 
 ### Diagnostic Tools (3)
+
 - `explain_validation_error` - Explains errors with suggestions
 - `get_plugin_capabilities` - Lists stage types & features
 - `suggest_resilience_config` - Suggests retry/timeout config
@@ -96,7 +103,7 @@ If SphereIntegrationHub is helping your team integrate APIs faster, let us know!
 
 ### Prerequisites
 
-- [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0) or higher
+- [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) or higher
 
 ### Step 1: Clone and build
 
@@ -264,10 +271,12 @@ MCP can run against any repository layout by setting environment variables:
 - `SIH_MCP_PROFILE`: optional MCP tool profile (`full` default, `cache` for cache-only toolset).
 
 Default resolution when env vars are not provided:
+
 - Preferred default: `<project>/.sphere`
 - Backward-compatible fallback: `<project>/src/resources` (if legacy structure exists and `.sphere` is not present)
 
 Inside the selected resources root:
+
 - catalog: `<resources>/api-catalog.json`
 - cache: `<resources>/cache`
 - workflows: `<resources>/workflows`
@@ -279,6 +288,7 @@ If your agent mainly regenerates Swagger cache, set:
 `SIH_MCP_PROFILE=cache`
 
 This exposes only a minimal subset of tools:
+
 - `list_api_catalog_versions`
 - `generate_api_catalog_file`
 - `upsert_api_catalog_and_cache`
@@ -314,6 +324,7 @@ Example (`.vscode/mcp.json`) for a different repository:
 ## Required Bootstrap for MCP Workflow Generation
 
 For MCP to generate workflows autonomously (discover APIs/endpoints and build drafts), you must have:
+
 - `api-catalog.json` available.
 - Swagger cache files available in the configured cache path.
 
@@ -335,6 +346,7 @@ SphereIntegrationHub.cli \
 ```
 
 Why this works:
+
 - `--dry-run` validates only (no endpoint execution).
 - `--refresh-cache` forces swagger download/update for the API definitions referenced by the workflow.
 
@@ -359,6 +371,7 @@ endStage: {}
 ## Manual Fallback (Advanced)
 
 If cache is still unavailable, generation tools can run only with explicit `endpointSchema` supplied by the model/user:
+
 - `generate_endpoint_stage`
 - `generate_mock_payload`
 - `generate_workflow_bundle`
@@ -378,6 +391,7 @@ When generating or updating catalog definitions, `swaggerUrl` must point to the 
 MCP now validates downloaded content before writing cache.
 
 If the source returns HTML, MCP first tries common JSON fallback patterns automatically:
+
 - same path + `/v1/swagger.json`
 - same path + `/swagger.json`
 - same path + `/openapi.json`
@@ -385,6 +399,7 @@ If the source returns HTML, MCP first tries common JSON fallback patterns automa
 If none of those return a valid OpenAPI document, the tool fails with a clear error.
 
 MCP also emits warnings to stderr when HTML is detected:
+
 - On startup: if `api-catalog.json` already contains `swaggerUrl` entries that look like HTML/UI URLs.
 - During cache download: when an HTML response is received and fallback resolution starts.
 
@@ -393,6 +408,7 @@ When using `upsert_api_catalog_and_cache`, if `apiName` looks generic (for examp
 ## No Catalog Bootstrap
 
 If `api-catalog.json` does not exist, server startup no longer fails. Use:
+
 - `generate_api_catalog_file`
 
 to create the catalog first, then continue with endpoint/workflow generation.
@@ -467,6 +483,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | \
 ## Error Handling
 
 All tools follow consistent error handling:
+
 - Missing required arguments → `ArgumentException`
 - File not found → `FileNotFoundException`
 - Invalid data → `InvalidOperationException`
@@ -475,6 +492,7 @@ All tools follow consistent error handling:
 ## Logging
 
 Diagnostic logs written to stderr:
+
 - Tool registration
 - Request processing
 - Error details
