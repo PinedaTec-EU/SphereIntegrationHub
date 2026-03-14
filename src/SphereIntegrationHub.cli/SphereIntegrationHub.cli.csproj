@@ -2,22 +2,35 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net9.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <ReleaseVersion>0.3.1.24</ReleaseVersion>
+    <ReleaseVersion>0.3.1.65</ReleaseVersion>
     <AssemblyVersion>$(ReleaseVersion)</AssemblyVersion>
     <FileVersion>$(ReleaseVersion)</FileVersion>
     <Version>$(ReleaseVersion)</Version>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>sih</ToolCommandName>
+    <PackageId>SphereIntegrationHub.Tool</PackageId>
+    <PackageTitle>SphereIntegrationHub CLI Tool</PackageTitle>
+    <Description>CLI tool to orchestrate API calls using versioned Swagger catalogs and YAML workflows.</Description>
+    <Authors>PinedaTec</Authors>
+    <PackageTags>cli;dotnet-tool;workflows;openapi;swagger;integration</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.CommandLine" version="2.0.2" />
-    <PackageReference Include="Ulid" version="1.4.1" />
-    <PackageReference Include="YamlDotNet" Version="16.3.0" />
-    <PackageReference Include="OpenTelemetry" Version="1.10.0" />
-    <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.10.0" />
-    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.10.0" />
+    <ProjectReference Include="../SphereIntegrationHub.Shared/SphereIntegrationHub.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" />
+    <PackageReference Include="Ulid" />
+    <PackageReference Include="YamlDotNet" />
+    <PackageReference Include="OpenTelemetry" />
+    <PackageReference Include="OpenTelemetry.Exporter.Console" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="\" Link="README.md" />
   </ItemGroup>
 
 </Project>

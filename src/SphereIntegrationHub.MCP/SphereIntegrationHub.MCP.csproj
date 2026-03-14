@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <ReleaseVersion>0.3.1.65</ReleaseVersion>
+    <AssemblyVersion>$(ReleaseVersion)</AssemblyVersion>
+    <FileVersion>$(ReleaseVersion)</FileVersion>
+    <Version>$(ReleaseVersion)</Version>
+    <LangVersion>12</LangVersion>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>sih-mcp</ToolCommandName>
+    <PackageId>SphereIntegrationHub.Mcp.Tool</PackageId>
+    <PackageTitle>SphereIntegrationHub MCP Tool</PackageTitle>
+    <Description>Model Context Protocol server for SphereIntegrationHub providing AI-assisted workflow development.</Description>
+    <Authors>PinedaTec</Authors>
+    <PackageTags>mcp;dotnet-tool;ai;workflows;openapi;swagger;integration</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- JSON -->
+    <PackageReference Include="System.Text.Json" />
+
+    <!-- YAML -->
+    <PackageReference Include="YamlDotNet" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../SphereIntegrationHub.Shared/SphereIntegrationHub.Shared.csproj" />
+    <!-- Reference to main CLI project to reuse services -->
+    <ProjectReference Include="../SphereIntegrationHub.cli/SphereIntegrationHub.cli.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

@@ -37,10 +37,12 @@ public sealed class WorkflowExecutorDelayTests
             "/tmp/test-delay.workflow",
             new Dictionary<string, string>());
 
-        var catalogVersion = new ApiCatalogVersion(
-            "test",
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-            new List<ApiDefinition>());
+        var catalogVersion = new ApiCatalogVersion
+        {
+            Version = "test",
+            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            Definitions = new List<ApiDefinition>()
+        };
 
         using var httpClient = new HttpClient();
         var executor = new WorkflowExecutor(httpClient, new DynamicValueService());

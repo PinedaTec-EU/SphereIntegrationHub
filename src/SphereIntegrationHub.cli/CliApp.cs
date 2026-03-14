@@ -1,3 +1,5 @@
+using SphereIntegrationHub.Services;
+
 namespace SphereIntegrationHub.cli;
 
 internal sealed class CliApp
@@ -39,10 +41,13 @@ internal sealed class CliApp
     {
         // Resolve assembly version
         var assemblyVersion = typeof(global::Program).Assembly.GetName().Version;
-        var message = $" API Orchestrator Sphere CLI v.{assemblyVersion}";
+        var message = $"{CliConstants.CliVersionPrefix}{assemblyVersion}";
 
         _output.Out.WriteLine(message);
         _output.Out.WriteLine(new string('-', message.Length + 1));
+
+        // Fire anonymous usage ping (at most once every 7 days). Non-blocking.
+        var pingTask = UsagePingService.RecordAndMaybePing(assemblyVersion?.ToString() ?? "unknown");
 
         var parseResult = _argumentParser.ParseArgs(args);
         if (parseResult.Error is not null)
@@ -73,6 +78,10 @@ internal sealed class CliApp
             var writer = resultMessage.Kind == CliRunMessageKind.Error ? _output.Error : _output.Out;
             writer.WriteLine(resultMessage.Text);
         }
+
+        // Allow the background ping up to 4 seconds to complete before process exits.
+        if (pingTask is not null)
+            await Task.WhenAny(pingTask, Task.Delay(TimeSpan.FromSeconds(4)));
 
         return runResult.ExitCode;
     }

@@ -206,15 +206,17 @@ public sealed class WorkflowExecutorRunIfTests
 
     private static ApiCatalogVersion BuildCatalogVersion(WireMockServer server)
     {
-        return new ApiCatalogVersion(
-            "test",
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        return new ApiCatalogVersion
+        {
+            Version = "test",
+            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 ["test"] = server.Url!
             },
-            new List<ApiDefinition>
+            Definitions = new List<ApiDefinition>
             {
-                new("accounts", "http://unused", null, null)
-            });
+                new ApiDefinition { Name = "accounts", SwaggerUrl = "http://unused" }
+            }
+        };
     }
 }
