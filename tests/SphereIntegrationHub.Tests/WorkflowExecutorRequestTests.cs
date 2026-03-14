@@ -62,16 +62,18 @@ public sealed class WorkflowExecutorRequestTests
             "/tmp/test.workflow",
             new Dictionary<string, string>());
 
-        var catalogVersion = new ApiCatalogVersion(
-            "test",
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        var catalogVersion = new ApiCatalogVersion
+        {
+            Version = "test",
+            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 ["test"] = server.Url!
             },
-            new List<ApiDefinition>
+            Definitions = new List<ApiDefinition>
             {
-                new("accounts", "http://unused", null, null)
-            });
+                new ApiDefinition { Name = "accounts", SwaggerUrl = "http://unused" }
+            }
+        };
 
         using var httpClient = new HttpClient();
         var executor = new WorkflowExecutor(httpClient, new DynamicValueService());
