@@ -3,6 +3,7 @@
 > Update (2026-02-14): MCP now supports configurable paths (`SIH_API_CATALOG_PATH`, `SIH_CACHE_PATH`, `SIH_WORKFLOWS_PATH`), inline YAML validation/planning, and no-cache generation fallback using `endpointSchema`. For exact current tool contracts, see `src/SphereIntegrationHub.MCP/TOOLS_REFERENCE.md`.
 
 ## Table of Contents
+
 - [Vision and Goals](#vision-and-goals)
 - [What is MCP?](#what-is-mcp)
 - [Use Cases](#use-cases)
@@ -36,12 +37,14 @@ The **SphereIntegrationHub MCP Server** exposes the intelligence and capabilitie
 ### Why This Matters
 
 Currently, creating a complex workflow in SphereIntegrationHub requires:
+
 - Deep understanding of the workflow YAML schema
 - Manual inspection of Swagger specs to find endpoints
 - Manual mapping of data flows between stages
 - Trial-and-error validation cycles
 
 **With the MCP Server**, AI assistants can:
+
 - ✅ Read all available APIs and endpoints from cached Swagger specs
 - ✅ Understand schema requirements (required fields, types, auth)
 - ✅ Infer dependencies between endpoints (e.g., "create account needs org ID first")
@@ -74,9 +77,11 @@ Currently, creating a complex workflow in SphereIntegrationHub requires:
 ## Use Cases
 
 ### 1. Rapid Prototyping
+
 **User:** "I need a workflow to create a customer account with payment method"
 
 **AI with MCP:**
+
 - Inspects API catalog → finds "customers" and "payments" APIs
 - Reads Swagger specs → discovers `POST /api/customers` and `POST /api/payment-methods`
 - Analyzes schemas → detects `customerId` dependency
@@ -87,9 +92,11 @@ Currently, creating a complex workflow in SphereIntegrationHub requires:
 ---
 
 ### 2. Complex System Construction
+
 **User:** "Build a hotel booking system: search availability, create reservation, process payment, send confirmation email"
 
 **AI with MCP:**
+
 - Analyzes 4 APIs from catalog (rooms, bookings, payments, notifications)
 - Detects OAuth 2.0 authentication requirement
 - Infers data dependencies: availability → room ID → booking → payment
@@ -102,9 +109,11 @@ Currently, creating a complex workflow in SphereIntegrationHub requires:
 ---
 
 ### 3. Workflow Optimization
+
 **User:** "This workflow is slow, can you optimize it?"
 
 **AI with MCP:**
+
 - Analyzes workflow structure
 - Detects 2 GET requests that can run in parallel (no dependencies)
 - Identifies redundant call (same endpoint called twice)
@@ -116,9 +125,11 @@ Currently, creating a complex workflow in SphereIntegrationHub requires:
 ---
 
 ### 4. Documentation and Learning
+
 **User:** "What APIs do we have for managing users?"
 
 **AI with MCP:**
+
 - Lists all APIs from catalog
 - Filters Swagger specs for user-related endpoints
 - Explains available operations with examples
@@ -211,6 +222,7 @@ Currently, creating a complex workflow in SphereIntegrationHub requires:
 | `get_endpoint_schema` | `version: string`<br>`apiName: string`<br>`endpoint: string`<br>`httpVerb: string` | `EndpointSchema` | Returns detailed schema (query, headers, body, responses) |
 
 **Example Usage:**
+
 ```
 AI: Let me check what APIs are available...
 → list_api_catalog_versions()
@@ -228,6 +240,7 @@ AI: Let me check what APIs are available...
 | `plan_workflow_execution` | `workflowYaml: string`<br>`inputsYaml?: string`<br>`environment?: string` | `ExecutionPlan` | Executes --dry-run, returns step-by-step plan |
 
 **ValidationResult Schema:**
+
 ```json
 {
   "valid": false,
@@ -259,6 +272,7 @@ AI: Let me check what APIs are available...
 | `generate_mock_payload` | `version: string`<br>`apiName: string`<br>`endpoint: string`<br>`httpVerb: string`<br>`statusCode: number` | `string` (JSON) | Generates mock based on Swagger response schema |
 
 **Example Output (generate_endpoint_stage):**
+
 ```yaml
 - name: "create-account"
   kind: "Endpoint"
@@ -294,6 +308,7 @@ AI: Let me check what APIs are available...
 | `analyze_context_flow` | `workflowYaml: string` | `ContextFlowGraph` | Traces context propagation through stages |
 
 **VariableScope Schema:**
+
 ```json
 {
   "inputs": [
@@ -358,6 +373,7 @@ AI: Let me check what APIs are available...
 | `suggest_workflow_from_goal` | `version: string`<br>`goal: string`<br>`includeAuth: boolean` | `WorkflowSuggestion` | Generates workflow from natural language |
 
 **EndpointDependencies Schema:**
+
 ```json
 {
   "endpoint": "POST /api/accounts",
@@ -437,6 +453,7 @@ AI: Let me check what APIs are available...
      - Common authentication patterns (OAuth, JWT)
 
 3. **Confidence Calculation**
+
    ```
    confidence = (name_match * 0.5) + (type_match * 0.3) + (pattern_match * 0.2)
    ```
@@ -453,6 +470,7 @@ AI: Let me check what APIs are available...
 | `generate_crud_workflow` | `version: string`<br>`apiName: string`<br>`resource: string`<br>`operations: Array<string>` | `string` (YAML) | Generates full CRUD workflow |
 
 **ApiPattern Schema:**
+
 ```json
 {
   "patterns": [
@@ -525,6 +543,7 @@ This is the **"killer feature"** - full autonomous construction.
 | `synthesize_system_from_description` | `version: string`<br>`description: string`<br>`requirements: SystemRequirements` | `SystemDesign` | Generates complete system |
 
 **SystemRequirements Schema:**
+
 ```json
 {
   "description": "Hotel booking system with search, reservation, payment",
@@ -547,6 +566,7 @@ This is the **"killer feature"** - full autonomous construction.
 ```
 
 **SystemDesign Output:**
+
 ```json
 {
   "workflows": [
@@ -681,6 +701,7 @@ This is the **"killer feature"** - full autonomous construction.
 | `analyze_swagger_coverage` | `version: string` | `CoverageReport` | Shows unused endpoints, common patterns |
 
 **OptimizationReport Schema:**
+
 ```json
 {
   "workflow": "create-booking-flow",
@@ -773,9 +794,11 @@ This is the **"killer feature"** - full autonomous construction.
 ## Implementation Roadmap
 
 ### Phase 1: Foundation (2-3 weeks)
+
 **Goal:** MCP server infrastructure + Level 1 tools
 
 **Deliverables:**
+
 - ✅ MCP server with stdio transport
 - ✅ Tool registration and JSON schema definitions
 - ✅ Integration with existing SphereIntegrationHub services
@@ -784,6 +807,7 @@ This is the **"killer feature"** - full autonomous construction.
 - ✅ Documentation for tool usage
 
 **Validation:**
+
 - AI can explore API catalog
 - AI can validate workflows
 - AI can generate individual stages
@@ -794,9 +818,11 @@ This is the **"killer feature"** - full autonomous construction.
 ---
 
 ### Phase 2: Semantic Analysis (3-4 weeks)
+
 **Goal:** Level 2 semi-autonomous capabilities
 
 **Deliverables:**
+
 - ✅ SwaggerSemanticAnalyzer service
 - ✅ PatternDetector service
 - ✅ All 5 Level 2 tools implemented
@@ -805,6 +831,7 @@ This is the **"killer feature"** - full autonomous construction.
 - ✅ Documentation for semantic analysis
 
 **New Services:**
+
 ```csharp
 // Services/Semantic/SwaggerSemanticAnalyzer.cs
 public class SwaggerSemanticAnalyzer
@@ -830,6 +857,7 @@ public class PatternDetector
 ```
 
 **Validation:**
+
 - AI can detect that "POST /accounts needs organizationId from GET /orgs"
 - AI can identify OAuth 2.0 flow automatically
 - AI can suggest complete workflow for "create account with payment"
@@ -839,9 +867,11 @@ public class PatternDetector
 ---
 
 ### Phase 3: Autonomous Construction (4-6 weeks)
+
 **Goal:** Level 3 full system synthesis
 
 **Deliverables:**
+
 - ✅ WorkflowGraphBuilder service (dependency graphs, topological sort)
 - ✅ WorkflowSynthesizer service (natural language → workflow)
 - ✅ Test scenario generator
@@ -850,6 +880,7 @@ public class PatternDetector
 - ✅ Performance benchmarks (goal: <5s for typical system)
 
 **New Services:**
+
 ```csharp
 // Services/Synthesis/WorkflowGraphBuilder.cs
 public class WorkflowGraphBuilder
@@ -881,6 +912,7 @@ public class IntentAnalyzer
 ```
 
 **Validation:**
+
 - AI can build complete hotel booking system from 2-sentence description
 - Generated workflows pass validation
 - Test scenarios cover happy path + error cases
@@ -891,9 +923,11 @@ public class IntentAnalyzer
 ---
 
 ### Phase 4: Optimization (2-3 weeks)
+
 **Goal:** Level 4 continuous improvement
 
 **Deliverables:**
+
 - ✅ WorkflowOptimizer service
 - ✅ All 2 Level 4 tools implemented
 - ✅ Performance analysis engine
@@ -901,6 +935,7 @@ public class IntentAnalyzer
 - ✅ Optimization validation (ensure suggested changes don't break workflows)
 
 **New Services:**
+
 ```csharp
 // Services/Optimization/WorkflowOptimizer.cs
 public class WorkflowOptimizer
@@ -927,6 +962,7 @@ public class SwaggerCoverageAnalyzer
 ```
 
 **Validation:**
+
 - AI correctly identifies parallelization opportunities
 - Resilience suggestions are appropriate (no retry on idempotent POSTs)
 - Coverage reports are accurate
@@ -936,9 +972,11 @@ public class SwaggerCoverageAnalyzer
 ---
 
 ### Phase 5: Polish & Release (2 weeks)
+
 **Goal:** Production-ready MCP server
 
 **Deliverables:**
+
 - ✅ Complete documentation (this file + API reference)
 - ✅ Installation guide for Claude Desktop, VSCode, etc.
 - ✅ Example workflows showcasing each tool
@@ -1012,41 +1050,51 @@ SphereIntegrationHub.MCP/
 ### Key Design Decisions
 
 #### 1. Reuse Existing Services
+
 The MCP server wraps existing SphereIntegrationHub services:
+
 - `WorkflowValidator` → used by `validate_workflow` tool
 - `WorkflowLoader` → used to parse workflows
 - `ApiSwaggerCacheService` → reads cached Swagger specs
 - `ApiEndpointValidator` → validates endpoints against specs
 
 **Benefits:**
+
 - No code duplication
 - MCP server stays in sync with CLI behavior
 - Bugs fixed in CLI automatically fix MCP
 
 #### 2. Confidence Scoring
+
 All semantic analysis returns confidence scores (0.0 to 1.0):
+
 - **1.0** = Exact match (e.g., OAuth token endpoint)
 - **0.9-0.95** = High confidence (e.g., field name + type match)
 - **0.7-0.85** = Medium confidence (e.g., partial name match)
 - **<0.7** = Low confidence (returned but flagged)
 
 AI assistants can use confidence to:
+
 - Auto-apply high-confidence suggestions
 - Ask user to confirm medium-confidence suggestions
 - Discard low-confidence suggestions
 
 #### 3. Graceful Degradation
+
 If advanced services fail (e.g., semantic analyzer), MCP falls back to basic tools:
+
 - If `synthesize_system_from_description` fails → AI uses `generate_workflow_skeleton`
 - If `analyze_endpoint_dependencies` fails → AI manually inspects schemas
 
 #### 4. Performance Optimization
+
 - **Lazy Loading**: Swagger specs loaded on demand, cached in memory
 - **Async Operations**: All I/O operations are async
 - **Parallel Analysis**: When analyzing multiple endpoints, use `Task.WhenAll`
 - **Result Caching**: Cache dependency analysis results (TTL: 5 minutes)
 
 #### 5. Security
+
 - **Read-Only**: MCP server never modifies workflows or catalog (read-only access)
 - **No Execution**: MCP cannot execute workflows (only validate/generate)
 - **Sandboxing**: No file system access outside project directory
@@ -1363,7 +1411,7 @@ This section walks you through the steps to build the MCP server and connect it 
 
 | Requirement | Why |
 |-------------|-----|
-| [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0) | The MCP server is a .NET console application |
+| [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) | The MCP server is a .NET console application |
 | An MCP-compatible AI agent | Claude Code, GitHub Copilot, ChatGPT Desktop, Cursor, etc. |
 
 ### Step 1 - Clone and build
@@ -1582,7 +1630,7 @@ You should see a JSON response with the server capabilities and version.
 |---------|-------|----------|
 | Agent doesn't show MCP tools | Config file not found or wrong path | Double-check the config file location and command path |
 | `SIH_PROJECT_ROOT` error | Environment variable not set or wrong | Ensure it points to the repository root (where `src/resources/` lives) |
-| `dotnet` command not found | .NET SDK not installed or not in PATH | Install [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0) and restart your terminal |
+| `dotnet` command not found | .NET SDK not installed or not in PATH | Install [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) and restart your terminal |
 | Build errors | Missing dependencies | Run `dotnet restore src/SphereIntegrationHub.MCP` first |
 | Server starts but no tools | Project root missing `src/resources/` | Verify the path contains `src/resources/api-catalog.json` |
 
