@@ -74,6 +74,21 @@
 				"${workspaceFolder}/releases/${input:publishDir}/windows"
 			],
 			"problemMatcher": "$msCompile"
+		},
+		{
+			"label": "Crear nuevo tag",
+			"type": "shell",
+			"command": "${workspaceFolder}/scripts/create_newtag.sh",
+			"args": [
+				"global"
+			],
+			"problemMatcher": [],
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			}
 		}
 	]
 }
