@@ -99,7 +99,6 @@ jobs:
 
           dotnet test \
             -c Release \
-            --no-build \
             --logger "console;verbosity=normal"
           done <<'EOF'
           EOF
