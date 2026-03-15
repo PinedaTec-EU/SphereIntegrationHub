@@ -100,7 +100,7 @@ jobs:
           dotnet test \
             -c Release \
             --logger "console;verbosity=normal"
-          done <<'EOF'
+          <<'EOF'
           EOF
 
       - name: Pack
