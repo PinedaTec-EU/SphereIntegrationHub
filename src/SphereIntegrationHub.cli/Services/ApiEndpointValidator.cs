@@ -372,8 +372,9 @@ public sealed class ApiEndpointValidator
         out Dictionary<string, SwaggerOperation> methods,
         out string? matchedPath)
     {
-        if (paths.TryGetValue(endpoint, out methods))
+        if (paths.TryGetValue(endpoint, out var directMethods) && directMethods is not null)
         {
+            methods = directMethods;
             matchedPath = endpoint;
             return true;
         }
@@ -391,8 +392,9 @@ public sealed class ApiEndpointValidator
             return false;
         }
 
-        if (paths.TryGetValue(endpointWithBasePath, out methods))
+        if (paths.TryGetValue(endpointWithBasePath, out var basePathMethods) && basePathMethods is not null)
         {
+            methods = basePathMethods;
             matchedPath = endpointWithBasePath;
             return true;
         }

@@ -18,9 +18,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- JSON -->
-    <PackageReference Include="System.Text.Json" />
-
     <!-- YAML -->
     <PackageReference Include="YamlDotNet" />
   </ItemGroup>

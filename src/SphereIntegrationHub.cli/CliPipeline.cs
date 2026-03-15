@@ -34,7 +34,9 @@ internal sealed class CliPipeline : ICliPipeline
     {
         var stopwatch = Stopwatch.StartNew();
         var messages = new List<CliRunMessage>();
-        var config = _configLoader.Load(parseResult.WorkflowPath);
+        var workflowPath = parseResult.WorkflowPath
+            ?? throw new InvalidOperationException("Workflow path is required.");
+        var config = _configLoader.Load(workflowPath);
         if (parseResult.Debug)
         {
             config.OpenTelemetry.DebugConsole = true;
@@ -45,7 +47,7 @@ internal sealed class CliPipeline : ICliPipeline
 
         EmitPreamble(parseResult, messages);
 
-        var catalogPath = parseResult.CatalogPath ?? _pathResolver.ResolveDefaultCatalogPath(parseResult.WorkflowPath);
+        var catalogPath = parseResult.CatalogPath ?? _pathResolver.ResolveDefaultCatalogPath(workflowPath);
         EmitCatalogInfo(parseResult, catalogPath, messages);
 
         var workflowLoader = _serviceFactory.CreateWorkflowLoader();

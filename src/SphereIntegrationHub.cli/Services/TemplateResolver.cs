@@ -22,7 +22,7 @@ public sealed class TemplateResolver
 
         if (string.IsNullOrEmpty(template))
         {
-            return template;
+            return template ?? string.Empty;
         }
 
         return TokenRegex.Replace(template, match =>
@@ -270,7 +270,13 @@ public sealed class TemplateResolver
             return false;
         }
 
-        return stageOutputs.TryGetValue(outputKey, out value);
+        if (!stageOutputs.TryGetValue(outputKey, out var resolved) || resolved is null)
+        {
+            return false;
+        }
+
+        value = resolved;
+        return true;
     }
 
     private static bool TryResolveStageWorkflowOutput(
@@ -293,7 +299,13 @@ public sealed class TemplateResolver
             return false;
         }
 
-        return stageOutputs.TryGetValue(outputKey, out value);
+        if (!stageOutputs.TryGetValue(outputKey, out var resolved) || resolved is null)
+        {
+            return false;
+        }
+
+        value = resolved;
+        return true;
     }
 
     private static bool TryResolveStageWorkflowResult(
@@ -316,7 +328,13 @@ public sealed class TemplateResolver
             return false;
         }
 
-        return stageResults.TryGetValue(resultKey, out value);
+        if (!stageResults.TryGetValue(resultKey, out var resolved) || resolved is null)
+        {
+            return false;
+        }
+
+        value = resolved;
+        return true;
     }
 
     private static string ResolveResponse(string[] segments, ResponseContext? responseContext, string token)
