@@ -14,7 +14,7 @@ internal static class ToolArgumentParser
         if (obj is bool boolValue)
             return boolValue;
 
-        return obj.ToString()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
+        return string.Equals(obj?.ToString(), "true", StringComparison.OrdinalIgnoreCase);
     }
 
     internal static EndpointInfo? TryParseEndpointSchema(

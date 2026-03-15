@@ -98,7 +98,7 @@ public sealed class PatternDetector
             Confidence = confidence,
             Endpoints = oauthEndpoints,
             GrantTypes = grantTypes,
-            TokenLocation = tokenEndpoint.Endpoint
+            TokenLocation = tokenEndpoint?.Endpoint ?? string.Empty
         };
     }
 
