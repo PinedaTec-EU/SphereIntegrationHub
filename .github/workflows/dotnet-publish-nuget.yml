@@ -97,16 +97,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          while IFS= read -r project; do
-            project="$(echo "$project" | xargs)"
-            [ -n "$project" ] || continue
-
-            dotnet test "$project" \
-              -c Release \
-              --no-build \
-              --logger "console;verbosity=normal"
+          dotnet test \
+            -c Release \
+            --no-build \
+            --logger "console;verbosity=normal"
           done <<'EOF'
-          ${{ inputs.test_projects }}
           EOF
 
       - name: Pack
