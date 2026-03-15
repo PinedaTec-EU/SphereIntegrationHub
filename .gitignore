@@ -11,3 +11,7 @@ dist/mcp/**/SphereIntegrationHub.MCP
 dist/mcp/**/SphereIntegrationHub.MCP.exe
 dist/mcp/**/SphereIntegrationHub.cli
 dist/mcp/**/SphereIntegrationHub.cli.exe
+
+# Local-only publish helper and output
+scripts/local/publish-nuget-local.sh
+.local/nuget-packages/
