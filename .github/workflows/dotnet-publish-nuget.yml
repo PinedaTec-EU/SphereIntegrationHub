@@ -39,59 +39,21 @@ on:
 permissions:
   contents: read
 
-env:
-  DOTNET_INSTALL_DIR: /dockers/SDKs/dotnet
-
 jobs:
   publish:
     name: Pack and Publish
-    runs-on: [self-hosted, primary]
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure .NET path
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "DOTNET_ROOT=${DOTNET_INSTALL_DIR}" >> "$GITHUB_ENV"
-          echo "${DOTNET_INSTALL_DIR}" >> "$GITHUB_PATH"
-
-      - name: Check local .NET SDK 10 presence
-        id: dotnet_sdk
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -x "${DOTNET_INSTALL_DIR}/dotnet" ] && DOTNET_ROOT="${DOTNET_INSTALL_DIR}" "${DOTNET_INSTALL_DIR}/dotnet" --list-sdks | awk '{print $1}' | grep -Eq '^10\.0\.'; then
-            echo "installed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "installed=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Setup .NET SDK 10 (if missing)
-        if: ${{ steps.dotnet_sdk.outputs.installed != 'true' }}
+      - name: Setup .NET SDK 10
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
           cache: false
           cache-dependency-path: "**/*.csproj"
-
-      - name: Report installed .NET SDKs
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "DOTNET_INSTALL_DIR=${DOTNET_INSTALL_DIR}"
-          if [ -x "${DOTNET_INSTALL_DIR}/dotnet" ]; then
-            DOTNET_ROOT="${DOTNET_INSTALL_DIR}" "${DOTNET_INSTALL_DIR}/dotnet" --list-sdks || true
-            echo "--- Size summary ---"
-            du -sh "${DOTNET_INSTALL_DIR}" || true
-            if [ -d "${DOTNET_INSTALL_DIR}/sdk" ]; then
-              du -sh "${DOTNET_INSTALL_DIR}/sdk"/* || true
-            fi
-          else
-            echo "dotnet executable not found at ${DOTNET_INSTALL_DIR}/dotnet"
-          fi
 
       - name: Extract version from tag
         id: version
