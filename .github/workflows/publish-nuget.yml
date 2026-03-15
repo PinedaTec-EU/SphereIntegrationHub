@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   publish:
-    uses: PinedaTec-EU/pinedatec-ci/.github/workflows/dotnet-publish-nuget.yml@main
+    uses: ./.github/workflows/dotnet-publish-nuget.yml
     with:
       solution_file: SphereIntegrationHub.slnx
       tag_prefix: deploy/global/
