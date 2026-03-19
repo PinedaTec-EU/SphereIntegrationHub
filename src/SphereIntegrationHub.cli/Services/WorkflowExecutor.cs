@@ -136,168 +136,168 @@ public sealed class WorkflowExecutor
             InitializeGlobals(definition, context);
             _logger.Info($"{indent}{FormatWorkflowTag(definition.Name)}#initStage processed.");
 
-        if (definition.Stages is not null)
-        {
-            var stageIndex = definition.Stages
-                .Select((stage, index) => new { stage.Name, Index = index })
-                .ToDictionary(item => item.Name, item => item.Index, StringComparer.OrdinalIgnoreCase);
-
-            var index = 0;
-            while (index < definition.Stages.Count)
+            if (definition.Stages is not null)
             {
-                var stage = definition.Stages[index];
-                if (!ShouldRunStage(stage, context))
+                var stageIndex = definition.Stages
+                    .Select((stage, index) => new { stage.Name, Index = index })
+                    .ToDictionary(item => item.Name, item => item.Index, StringComparer.OrdinalIgnoreCase);
+
+                var index = 0;
+                while (index < definition.Stages.Count)
                 {
-                    index++;
-                    continue;
-                }
-
-                await ApplyStageDelayAsync(definition.Name, stage, context, verbose, cancellationToken);
-
-                if (debug)
-                {
-                    PrintStageDebug(definition, stage, context);
-                }
-
-                if (stage.Kind == WorkflowStageKind.Workflow)
-                {
-                    using var stageActivity = Telemetry.ActivitySource.StartActivity(TelemetryConstants.ActivityWorkflowStage);
-                    stageActivity?.SetTag(TelemetryConstants.TagStageName, stage.Name);
-                    stageActivity?.SetTag(TelemetryConstants.TagStageKind, stage.Kind.ToString());
-                    if (verbose)
+                    var stage = definition.Stages[index];
+                    if (!ShouldRunStage(stage, context))
                     {
-                        _logger.Info($"{indent}{FormatStageTag(definition.Name, stage.Name)} started [Workflow].");
+                        index++;
+                        continue;
                     }
 
-                    var stageTimer = Stopwatch.StartNew();
-                    try
+                    await ApplyStageDelayAsync(definition.Name, stage, context, verbose, cancellationToken);
+
+                    if (debug)
                     {
-                        if (mocked && stage.Mock is not null)
-                        {
-                            ApplyWorkflowMock(stage, context);
-                            ApplyWorkflowStageResult(context, stage.Name, WorkflowResultStatus.Ok, string.Empty);
-                        }
-                        else
-                        {
-                            await ExecuteWorkflowStageAsync(
-                                document,
-                                stage,
-                                catalogVersion,
-                                environment,
-                                context,
-                                varsOverrideActive,
-                                mocked,
-                                verbose,
-                                debug,
-                                cancellationToken);
-                        }
-                        PrintStageMessage(definition, stage, context, null);
-                    }
-                    catch (Exception ex)
-                    {
-                        stageActivity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-                        _logger.Error($"{indent}{FormatStageTag(definition.Name, stage.Name)} failed after {stageTimer.Elapsed.TotalMilliseconds:F0} ms: {ex.Message}");
-                        ApplyWorkflowStageResult(context, stage.Name, WorkflowResultStatus.Error, ex.Message);
-                    }
-                    finally
-                    {
-                        stageTimer.Stop();
+                        PrintStageDebug(definition, stage, context);
                     }
 
-                    _logger.Info($"{indent}{FormatStageTag(definition.Name, stage.Name)} completed in {stageTimer.Elapsed.TotalMilliseconds:F0} ms.");
-                    ApplyStageSetters(stage, context);
-                    index++;
-                }
-                else
-                {
-                    using var stageActivity = Telemetry.ActivitySource.StartActivity(TelemetryConstants.ActivityWorkflowStage);
-                    stageActivity?.SetTag(TelemetryConstants.TagStageName, stage.Name);
-                    stageActivity?.SetTag(TelemetryConstants.TagStageKind, stage.Kind.ToString());
-                    if (verbose)
+                    if (stage.Kind == WorkflowStageKind.Workflow)
                     {
-                        _logger.Info($"{indent}{FormatStageTag(definition.Name, stage.Name)} started [Endpoint].");
-                    }
-
-                    var stageTimer = Stopwatch.StartNew();
-                    string? jumpTarget;
-                    try
-                    {
-                        jumpTarget = await ExecuteEndpointStageAsync(definition, stage, apiBaseUrls, context, verbose, document.FilePath, mocked, cancellationToken);
-                    }
-                    catch (Exception ex)
-                    {
-                        stageActivity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-                        _logger.Error($"{indent}{FormatStageTag(definition.Name, stage.Name)} failed after {stageTimer.Elapsed.TotalMilliseconds:F0} ms: {ex.Message}");
-                        if (captureErrors)
-                        {
-                            return BuildWorkflowErrorResult(definition, context, ex);
-                        }
-
-                        throw;
-                    }
-                    finally
-                    {
-                        stageTimer.Stop();
-                    }
-
-                    _logger.Info($"{indent}{FormatStageTag(definition.Name, stage.Name)} completed in {stageTimer.Elapsed.TotalMilliseconds:F0} ms.");
-                    ApplyStageSetters(stage, context);
-                    if (!string.IsNullOrWhiteSpace(jumpTarget))
-                    {
+                        using var stageActivity = Telemetry.ActivitySource.StartActivity(TelemetryConstants.ActivityWorkflowStage);
+                        stageActivity?.SetTag(TelemetryConstants.TagStageName, stage.Name);
+                        stageActivity?.SetTag(TelemetryConstants.TagStageKind, stage.Kind.ToString());
                         if (verbose)
                         {
-                            _logger.Info($"{indent}{FormatStageTag(definition.Name, stage.Name)} jump target: {jumpTarget}.");
+                            _logger.Info($"{indent}{FormatStageTag(definition.Name, stage.Name)} started [Workflow].");
                         }
 
-                        if (string.Equals(jumpTarget, "endStage", StringComparison.OrdinalIgnoreCase))
+                        var stageTimer = Stopwatch.StartNew();
+                        try
                         {
-                            break;
-                        }
-
-                        if (string.Equals(jumpTarget, stage.Name, StringComparison.OrdinalIgnoreCase))
-                        {
-                            if (mocked)
+                            if (mocked && stage.Mock is not null)
                             {
-                                throw new MockedSelfJumpException(definition.Name, stage.Name, jumpTarget);
+                                ApplyWorkflowMock(stage, context);
+                                ApplyWorkflowStageResult(context, stage.Name, WorkflowResultStatus.Ok, string.Empty);
                             }
-
-                            if (!ConfirmSelfJump(definition.Name, stage.Name))
+                            else
                             {
-                                throw new InvalidOperationException(
-                                    $"Stage '{stage.Name}' jumpOnStatus targets itself. Confirmation was not granted.");
+                                await ExecuteWorkflowStageAsync(
+                                    document,
+                                    stage,
+                                    catalogVersion,
+                                    environment,
+                                    context,
+                                    varsOverrideActive,
+                                    mocked,
+                                    verbose,
+                                    debug,
+                                    cancellationToken);
                             }
+                            PrintStageMessage(definition, stage, context, null);
+                        }
+                        catch (Exception ex)
+                        {
+                            stageActivity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                            _logger.Error($"{indent}{FormatStageTag(definition.Name, stage.Name)} failed after {stageTimer.Elapsed.TotalMilliseconds:F0} ms: {ex.Message}");
+                            ApplyWorkflowStageResult(context, stage.Name, WorkflowResultStatus.Error, ex.Message);
+                        }
+                        finally
+                        {
+                            stageTimer.Stop();
                         }
 
-                        if (stageIndex.TryGetValue(jumpTarget, out var nextIndex))
-                        {
-                            index = nextIndex;
-                            continue;
-                        }
+                        _logger.Info($"{indent}{FormatStageTag(definition.Name, stage.Name)} completed in {stageTimer.Elapsed.TotalMilliseconds:F0} ms.");
+                        ApplyStageSetters(stage, context);
+                        index++;
                     }
+                    else
+                    {
+                        using var stageActivity = Telemetry.ActivitySource.StartActivity(TelemetryConstants.ActivityWorkflowStage);
+                        stageActivity?.SetTag(TelemetryConstants.TagStageName, stage.Name);
+                        stageActivity?.SetTag(TelemetryConstants.TagStageKind, stage.Kind.ToString());
+                        if (verbose)
+                        {
+                            _logger.Info($"{indent}{FormatStageTag(definition.Name, stage.Name)} started [Endpoint].");
+                        }
 
-                    index++;
+                        var stageTimer = Stopwatch.StartNew();
+                        string? jumpTarget;
+                        try
+                        {
+                            jumpTarget = await ExecuteEndpointStageAsync(definition, stage, apiBaseUrls, context, verbose, document.FilePath, mocked, cancellationToken);
+                        }
+                        catch (Exception ex)
+                        {
+                            stageActivity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                            _logger.Error($"{indent}{FormatStageTag(definition.Name, stage.Name)} failed after {stageTimer.Elapsed.TotalMilliseconds:F0} ms: {ex.Message}");
+                            if (captureErrors)
+                            {
+                                return BuildWorkflowErrorResult(definition, context, ex);
+                            }
+
+                            throw;
+                        }
+                        finally
+                        {
+                            stageTimer.Stop();
+                        }
+
+                        _logger.Info($"{indent}{FormatStageTag(definition.Name, stage.Name)} completed in {stageTimer.Elapsed.TotalMilliseconds:F0} ms.");
+                        ApplyStageSetters(stage, context);
+                        if (!string.IsNullOrWhiteSpace(jumpTarget))
+                        {
+                            if (verbose)
+                            {
+                                _logger.Info($"{indent}{FormatStageTag(definition.Name, stage.Name)} jump target: {jumpTarget}.");
+                            }
+
+                            if (string.Equals(jumpTarget, "endStage", StringComparison.OrdinalIgnoreCase))
+                            {
+                                break;
+                            }
+
+                            if (string.Equals(jumpTarget, stage.Name, StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (mocked)
+                                {
+                                    throw new MockedSelfJumpException(definition.Name, stage.Name, jumpTarget);
+                                }
+
+                                if (!ConfirmSelfJump(definition.Name, stage.Name))
+                                {
+                                    throw new InvalidOperationException(
+                                        $"Stage '{stage.Name}' jumpOnStatus targets itself. Confirmation was not granted.");
+                                }
+                            }
+
+                            if (stageIndex.TryGetValue(jumpTarget, out var nextIndex))
+                            {
+                                index = nextIndex;
+                                continue;
+                            }
+                        }
+
+                        index++;
+                    }
                 }
             }
-        }
 
-        var workflowOutput = ResolveWorkflowOutput(definition, context);
-        context.WorkflowOutputs[definition.Name] = workflowOutput;
+            var workflowOutput = ResolveWorkflowOutput(definition, context);
+            context.WorkflowOutputs[definition.Name] = workflowOutput;
 
-        ApplyEndStageContext(definition, context);
-        _logger.Info($"{indent}{FormatWorkflowTag(definition.Name)}#endStage processed.");
+            ApplyEndStageContext(definition, context);
+            _logger.Info($"{indent}{FormatWorkflowTag(definition.Name)}#endStage processed.");
 
-        if (definition.Output)
-        {
-            context.OutputFilePath = await _outputWriter.WriteOutputAsync(
-                definition,
-                document,
-                workflowOutput,
-                cancellationToken);
-        }
+            if (definition.Output)
+            {
+                context.OutputFilePath = await _outputWriter.WriteOutputAsync(
+                    definition,
+                    document,
+                    workflowOutput,
+                    cancellationToken);
+            }
 
-        workflowTimer.Stop();
-        _logger.Info($"{indent}Workflow {FormatWorkflowTag(definition.Name)} completed in {workflowTimer.Elapsed.TotalMilliseconds:F0} ms.");
-        return BuildWorkflowSuccessResult(definition, context);
+            workflowTimer.Stop();
+            _logger.Info($"{indent}Workflow {FormatWorkflowTag(definition.Name)} completed in {workflowTimer.Elapsed.TotalMilliseconds:F0} ms.");
+            return BuildWorkflowSuccessResult(definition, context);
         }
         catch (Exception ex)
         {
@@ -415,10 +415,11 @@ public sealed class WorkflowExecutor
         }
 
         var nestedInputs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var hasStageInputs = stage.Inputs is not null && stage.Inputs.Count > 0;
-        if (hasStageInputs)
+        var stageInputs = stage.Inputs;
+        var hasStageInputs = stageInputs is { Count: > 0 };
+        if (stageInputs is { Count: > 0 })
         {
-            foreach (var pair in stage.Inputs)
+            foreach (var pair in stageInputs)
             {
                 var resolved = _templateResolver.ResolveTemplate(pair.Value, context.BuildTemplateContext());
                 nestedInputs[pair.Key] = resolved;

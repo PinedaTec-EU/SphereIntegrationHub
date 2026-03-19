@@ -40,7 +40,7 @@
             "preLaunchTask": "build",
             "type": "coreclr",
             "request": "launch",
-            "program": "${workspaceFolder}/src/SphereIntegrationHub.cli/bin/Debug/net9.0/SphereIntegrationHub.cli.dll",
+            "program": "${workspaceFolder}/src/SphereIntegrationHub.cli/bin/Debug/net10.0/SphereIntegrationHub.cli.dll",
             "args": [
                 "--dry-run",
                 "--verbose",
@@ -55,7 +55,7 @@
             "preLaunchTask": "build",
             "type": "coreclr",
             "request": "launch",
-            "program": "${workspaceFolder}/src/SphereIntegrationHub.cli/bin/Debug/net9.0/SphereIntegrationHub.cli.dll",
+            "program": "${workspaceFolder}/src/SphereIntegrationHub.cli/bin/Debug/net10.0/SphereIntegrationHub.cli.dll",
             "args": [
                 "--verbose",
                 "--mocked",
@@ -70,7 +70,7 @@
             "preLaunchTask": "build",
             "type": "coreclr",
             "request": "launch",
-            "program": "${workspaceFolder}/src/SphereIntegrationHub.cli/bin/Debug/net9.0/SphereIntegrationHub.cli.dll",
+            "program": "${workspaceFolder}/src/SphereIntegrationHub.cli/bin/Debug/net10.0/SphereIntegrationHub.cli.dll",
             "args": [
                 "--verbose",
                 "--env",

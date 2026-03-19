@@ -1,0 +1,16 @@
+{
+  "servers": {
+    "sphere-integration-hub": {
+      "type": "stdio",
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "${workspaceFolder}/src/SphereIntegrationHub.MCP"
+      ],
+      "env": {
+        "SIH_PROJECT_ROOT": "${workspaceFolder}"
+      }
+    }
+  }
+}

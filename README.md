@@ -12,6 +12,39 @@ Documentation:
 - [`variables and context`](.doc/variables.md)
 - [`dry-run validation`](.doc/dry-run.md)
 - [`open telemetry`](.doc/telemetry.md)
+- [`MCP Server`](.doc/mcp-server.md) - 🚧 AI-assisted workflow creation (in development)
+- [`plugins`](.doc/plugins.md)
+
+## Community
+
+If you use SphereIntegrationHub in your company or project, we'd love to hear about it!
+
+- Give us a ⭐ on GitHub — it helps the project grow
+- Share your experience on [LinkedIn](https://www.linkedin.com/in/jmrpineda) mentioning **#SphereIntegrationHub** — we repost and feature use cases
+- Drop us a line at [sih@pinedatec.eu](mailto:sih@pinedatec.eu) — tell us what you're automating, we'd love to feature it
+
+### Anonymous usage telemetry
+
+SphereIntegrationHub collects **anonymous** usage statistics to understand adoption (no personal data, no workflow content, no hostnames).
+
+The CLI sends a lightweight ping **at most once every 7 days**, containing only:
+
+| Field | Example |
+|-------|---------|
+| `installId` | random GUID generated on first run |
+| `version` | `0.3.1.49` |
+| `os` | `osx-arm64` |
+| `runs` | executions since last ping |
+| `daysSinceFirst` | days since first execution |
+
+**To opt out**, set the environment variable before running:
+
+```bash
+export SIH_USAGE_PING=0
+```
+
+Or in CI/CD pipeline variables: `SIH_USAGE_PING=0`
+
 
 ## Catalog
 
@@ -271,4 +304,4 @@ The following features are planned for future releases (not in order):
 5. **Secret Manager Integration** - AWS Secrets Manager, Azure Key Vault, HashiCorp Vault support
 6. **Transformers/Plugins** - Load .NET assemblies with custom workflow stages for mapping and transformation
 8. **Snapshot Testing** - Compare workflow outputs against expected snapshots
-9. MCP integration exposing SphereIntegrationHub’s API catalog and workflows as real‑time context for AI coding assistants.
+9. **MCP Integration** - Model Context Protocol server exposing SphereIntegrationHub's API catalog and workflows as real‑time context for AI coding assistants (Claude, GitHub Copilot, etc.). See [MCP Server documentation](.doc/mcp-server.md) for details. 🚧 **In Development**
