@@ -27,16 +27,18 @@ public sealed class ApiSwaggerCacheServiceLoggerTests
             }
         };
 
-        var catalog = new ApiCatalogVersion(
-            "v1",
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        var catalog = new ApiCatalogVersion
+        {
+            Version = "v1",
+            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 ["test"] = "https://example.test"
             },
-            new List<ApiDefinition>
+            Definitions = new List<ApiDefinition>
             {
-                new("accounts", new Uri(sourcePath).AbsoluteUri, null, null)
-            });
+                new ApiDefinition { Name = "accounts", SwaggerUrl = new Uri(sourcePath).AbsoluteUri }
+            }
+        };
 
         var cacheRoot = Path.Combine(tempRoot, "cache");
 

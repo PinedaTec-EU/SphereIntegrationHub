@@ -51,6 +51,14 @@ public sealed class ApiEndpointValidator
                 continue;
             }
 
+            var definition = catalogVersion.Definitions.FirstOrDefault(def =>
+                string.Equals(def.Name, definitionName, StringComparison.OrdinalIgnoreCase));
+            if (definition is null)
+            {
+                errors.Add($"API definition '{definitionName}' was not found in catalog version '{catalogVersion.Version}'.");
+                continue;
+            }
+
             if (!swaggerCache.TryGetValue(definitionName, out var paths))
             {
                 errors.Add($"Swagger cache for API definition '{definitionName}' was not found.");
@@ -58,22 +66,10 @@ public sealed class ApiEndpointValidator
             }
 
             string? matchedPath = null;
-            if (!paths.TryGetValue(stage.Endpoint, out var methods))
+            if (!TryFindEndpointMatch(paths, stage.Endpoint, definition.BasePath, out var methods, out matchedPath))
             {
-                if (!TryFindByNormalizedPath(paths, stage.Endpoint, out methods, out matchedPath))
-                {
-                    errors.Add($"Stage '{stage.Name}' endpoint '{stage.Endpoint}' was not found in swagger '{definitionName}'.");
-                    continue;
-                }
-
-                if (verbose)
-                {
-                    _logger.Info($"Endpoint '{stage.Endpoint}' matched swagger path by normalization for '{definitionName}'.");
-                }
-            }
-            else
-            {
-                matchedPath = stage.Endpoint;
+                errors.Add($"Stage '{stage.Name}' endpoint '{stage.Endpoint}' was not found in swagger '{definitionName}'.");
+                continue;
             }
 
             var verb = stage.HttpVerb.Trim().ToLowerInvariant();
@@ -367,6 +363,61 @@ public sealed class ApiEndpointValidator
         }
 
         return "/" + string.Join('/', segments);
+    }
+
+    private static bool TryFindEndpointMatch(
+        Dictionary<string, Dictionary<string, SwaggerOperation>> paths,
+        string endpoint,
+        string? basePath,
+        out Dictionary<string, SwaggerOperation> methods,
+        out string? matchedPath)
+    {
+        if (paths.TryGetValue(endpoint, out var directMethods) && directMethods is not null)
+        {
+            methods = directMethods;
+            matchedPath = endpoint;
+            return true;
+        }
+
+        if (TryFindByNormalizedPath(paths, endpoint, out methods, out matchedPath))
+        {
+            return true;
+        }
+
+        var endpointWithBasePath = CombinePath(basePath, endpoint);
+        if (string.Equals(endpointWithBasePath, endpoint, StringComparison.OrdinalIgnoreCase))
+        {
+            methods = new Dictionary<string, SwaggerOperation>(StringComparer.OrdinalIgnoreCase);
+            matchedPath = null;
+            return false;
+        }
+
+        if (paths.TryGetValue(endpointWithBasePath, out var basePathMethods) && basePathMethods is not null)
+        {
+            methods = basePathMethods;
+            matchedPath = endpointWithBasePath;
+            return true;
+        }
+
+        return TryFindByNormalizedPath(paths, endpointWithBasePath, out methods, out matchedPath);
+    }
+
+    private static string CombinePath(string? basePath, string endpoint)
+    {
+        if (string.IsNullOrWhiteSpace(basePath))
+        {
+            return endpoint;
+        }
+
+        var normalizedBasePath = NormalizePath(basePath);
+        var normalizedEndpoint = NormalizePath(endpoint);
+        if (normalizedEndpoint.Equals(normalizedBasePath, StringComparison.OrdinalIgnoreCase) ||
+            normalizedEndpoint.StartsWith($"{normalizedBasePath}/", StringComparison.OrdinalIgnoreCase))
+        {
+            return endpoint;
+        }
+
+        return $"{normalizedBasePath}{normalizedEndpoint}";
     }
 
     private static int CountPathPlaceholders(string? path)
