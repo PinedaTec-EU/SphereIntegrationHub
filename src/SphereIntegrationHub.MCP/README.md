@@ -157,6 +157,20 @@ No special syntax needed. Just ask naturally:
 
 The agent decides which MCP tools to call on your behalf.
 
+## Runtime Authoring Hints Exposed via MCP
+
+The MCP surface is aligned with the current SIH runtime schema. Agents should prefer:
+
+- `kind: Endpoint` and `kind: Workflow`
+- `expectedStatuses` plus `onStatus` or `jumpOnStatus` for idempotent branching
+- `ensure` as the preferred semantic sugar for create-if-missing flows
+- `bodyFile` for large request payloads
+- `dataFile` plus `forEach` for collection-driven bootstraps
+- `type: Object` and `type: Array` for structured workflow inputs
+- JSON-aware expressions such as `jsonLength(...)`, `exists(...)`, `first(...)`, and `isEmptyJson(...)`
+
+Use `get_plugin_capabilities` to retrieve these authoring capabilities in structured form at runtime.
+
 ## First Workflow via LLM -> MCP (Recommended Script)
 
 Use this short conversation flow with your LLM to get the first workflow generated and written to disk.

@@ -71,6 +71,7 @@ Templates support `{{env:NAME}}` to read environment variables anywhere values a
 Use `references.environmentFile` (or CLI `--envfile`) to load a `.env` file for those variables.
 Inputs from `.wfvars` can be scoped by environment and version (see `variables and context`).
 Stages can declare `delaySeconds` (0-60) to delay execution. Retry and circuit breaker settings apply only to `Endpoint` stages.
+Structured JSON is now first-class: workflows can consume `Object` and `Array` inputs, address JSON paths in tokens, load request bodies from `bodyFile`, load collections from `dataFile`, iterate with `forEach`, and declare idempotent intent with `ensure`.
 
 ### Example workflow (login)
 
@@ -110,6 +111,57 @@ stages:
 endStage:
   context:
     tokenId: "{{stage:login.output.jwt}}"
+```
+
+### Example workflow (idempotent bootstrap with files and foreach)
+
+```yaml
+version: "3.11"
+id: "01JBOOTSTRAPEXAMPLE0000000001"
+name: "bootstrap-accounts"
+description: "Creates accounts idempotently from a seed file."
+output: true
+references:
+  apis:
+    - name: "accounts"
+      definition: "accounts"
+input:
+  - name: "seed"
+    type: "Array"
+    required: true
+stages:
+  - name: "create-account"
+    kind: "Endpoint"
+    apiRef: "accounts"
+    endpoint: "/api/accounts"
+    httpVerb: "POST"
+    expectedStatus: 201
+    forEach: "{{input.seed}}"
+    itemName: "item"
+    bodyFile: "./payloads/create-account.json"
+    ensure:
+      mode: "CreateIfMissing"
+      jumpTo: "load-existing"
+      output:
+        exists: "true"
+  - name: "load-existing"
+    kind: "Endpoint"
+    apiRef: "accounts"
+    endpoint: "/api/accounts/{{context:item.id}}"
+    httpVerb: "GET"
+    expectedStatus: 200
+endStage:
+  output:
+    created: "{{stage:create-account.output.foreach_items}}"
+```
+
+Example `./payloads/create-account.json`:
+
+```json
+{
+  "id": "{{context:item.id}}",
+  "name": "{{context:item.name}}"
+}
 ```
 
 ## Usage
@@ -294,14 +346,42 @@ Unlike Postman (cloud sync required) or Apidog (account-based), SphereIntegratio
 - Production smoke tests and health checks
 - Scenarios requiring workflow composition and reuse
 
-### Future Enhancements
+### Roadmap
 
-The following features are planned for future releases (not in order):
+### Current Position
 
-1. **Visual Workflow Editor** - Web-based drag-and-drop workflow builder (n8n-style) for designing complex orchestrations visually
-2. **GUI/Dashboard** - Optional web interface for visualizing workflow executions and results
-3. **HTML/JSON Reports** - Structured output with metrics, timings, and navigable logs
-5. **Secret Manager Integration** - AWS Secrets Manager, Azure Key Vault, HashiCorp Vault support
-6. **Transformers/Plugins** - Load .NET assemblies with custom workflow stages for mapping and transformation
-8. **Snapshot Testing** - Compare workflow outputs against expected snapshots
-9. **MCP Integration** - Model Context Protocol server exposing SphereIntegrationHub's API catalog and workflows as real‑time context for AI coding assistants (Claude, GitHub Copilot, etc.). See [MCP Server documentation](.doc/mcp-server.md) for details. 🚧 **In Development**
+SphereIntegrationHub is now strong as a local-first API orchestration runtime and AI-assisted workflow authoring tool.
+
+- ✅ Contract-aware endpoint execution with versioned Swagger validation
+- ✅ Workflow composition and reusable child workflows
+- ✅ Idempotent HTTP branching with `expectedStatuses`, `onStatus`, `jumpOnStatus`, and `ensure`
+- ✅ JSON-aware expressions and structured `Object` / `Array` inputs
+- ✅ `bodyFile`, `dataFile`, and `forEach` for large payloads and collection bootstraps
+- ✅ MCP server that exposes these runtime authoring capabilities to AI agents
+
+### Near-Term Priorities
+
+1. **Execution UX and Observability**
+   HTML/JSON reports, richer output artifacts, timings, and easier post-run inspection.
+2. **Snapshot and Regression Testing**
+   First-class assertions against workflow outputs and golden snapshots.
+3. **Secret Manager Integration**
+   AWS Secrets Manager, Azure Key Vault, HashiCorp Vault, and similar providers.
+4. **Plugin/Transformer Extensibility**
+   Load custom .NET transformations and stage extensions safely.
+
+### Mid-Term Roadmap
+
+1. **GUI/Dashboard**
+   Optional web interface for execution history, outputs, logs, and diagnostics.
+2. **Visual Workflow Editor**
+   Web-based workflow builder for teams that want graphical authoring on top of the YAML runtime.
+3. **Higher-Level Runtime Primitives**
+   More semantic stage sugar beyond `ensure`, plus better assertions and reusable payload/template blocks.
+
+### Ongoing Investment
+
+1. **MCP Integration**
+   Keep the MCP aligned with runtime capabilities so AI agents can generate valid workflows without inventing unsupported schema.
+2. **Authoring Ergonomics**
+   Improve generated examples, repair tools, diagnostics, and workflow scaffolding quality.

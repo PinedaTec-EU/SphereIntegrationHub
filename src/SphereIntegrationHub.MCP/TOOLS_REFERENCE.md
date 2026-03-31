@@ -16,6 +16,13 @@ This document summarizes the current MCP surface implemented in `src/SphereInteg
 
 Generates a SphereIntegrationHub `Endpoint` stage aligned with runtime schema (`kind`, `apiRef`, `httpVerb`, `expectedStatus`, `output`).
 
+Authoring notes for agents:
+- extend generated stages with `expectedStatuses` for idempotent flows
+- use `onStatus` for non-success branches that still need outputs
+- prefer `ensure` when the intent is "create if missing"
+- use `bodyFile` when payloads are large
+- use `forEach` / `dataFile` when seeding collections
+
 Input options:
 - Swagger mode: `version`, `apiName`, `endpoint`, `httpVerb`
 - No-cache mode: `endpointSchema` (fallback from model knowledge)
@@ -27,6 +34,19 @@ Generates a valid workflow skeleton with:
 - `input`
 - `stages`
 - `endStage`
+
+The tool also accepts:
+- `objectInputParameters`
+- `arrayInputParameters`
+
+And returns authoring hints for:
+- `ensure`
+- `expectedStatuses`
+- `onStatus`
+- `bodyFile`
+- `dataFile`
+- `forEach`
+- structured JSON inputs
 
 ### `generate_mock_payload`
 
