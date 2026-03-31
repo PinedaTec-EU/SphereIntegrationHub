@@ -1,22 +1,20 @@
 using SphereIntegrationHub.MCP.Services.Integration;
+using SphereIntegrationHub.MCP.Tests.TestHelpers;
 using SphereIntegrationHub.MCP.Tools;
 using Xunit;
 
 namespace SphereIntegrationHub.MCP.Tests;
 
-public class ToolTests
+public class ToolTests : IDisposable
 {
-    private readonly string _projectRoot;
+    private readonly MockFileSystem _mockFs;
     private readonly SihServicesAdapter _adapter;
 
     public ToolTests()
     {
-        _projectRoot = Path.GetFullPath(Path.Combine(
-            Directory.GetCurrentDirectory(),
-            "..", "..", "..", "..", ".."
-        ));
-
-        _adapter = new SihServicesAdapter(_projectRoot);
+        _mockFs = new MockFileSystem();
+        _mockFs.AddApiCatalog(TestDataBuilder.CreateSampleApiCatalog());
+        _adapter = new SihServicesAdapter(_mockFs.RootPath);
     }
 
     [Fact]
@@ -101,5 +99,10 @@ public class ToolTests
         Assert.NotNull(result);
         var dict = result as dynamic;
         Assert.NotNull(dict);
+    }
+
+    public void Dispose()
+    {
+        _mockFs.Dispose();
     }
 }

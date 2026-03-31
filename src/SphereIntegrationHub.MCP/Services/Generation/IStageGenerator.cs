@@ -19,6 +19,8 @@ public interface IStageGenerator
         string name,
         string description,
         List<string> inputParameters,
+        List<string> objectInputParameters,
+        List<string> arrayInputParameters,
         string version);
 
     string GenerateWorkflowBundle(
