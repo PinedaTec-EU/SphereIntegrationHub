@@ -12,6 +12,12 @@ openTelemetry:
   endpoint: "http://localhost:4317"
   consoleExporter: false
   debugConsole: false
+reporting:
+  enabled: true
+  format: "json"
+  captureHttp: "headers"
+  redactSensitiveData: true
+  summaryConsole: true
 """;
 
     public static void EnsureExists(string configPath)

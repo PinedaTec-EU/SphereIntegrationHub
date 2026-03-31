@@ -54,6 +54,13 @@ internal sealed class CliServiceFactory : ICliServiceFactory
     public WorkflowExecutor CreateWorkflowExecutor(
         HttpClient httpClient,
         DynamicValueService dynamicValueService,
-        ISystemTimeProvider systemTimeProvider)
-        => new(httpClient, dynamicValueService, systemProvider: systemTimeProvider, logger: _logger);
+        ISystemTimeProvider systemTimeProvider,
+        WorkflowExecutionReportOptions reportOptions)
+        => new(
+            httpClient,
+            dynamicValueService,
+            systemProvider: systemTimeProvider,
+            logger: _logger,
+            reportWriter: new WorkflowExecutionReportWriter(),
+            reportOptions: reportOptions);
 }

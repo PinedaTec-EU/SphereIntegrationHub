@@ -168,6 +168,7 @@ The MCP surface is aligned with the current SIH runtime schema. Agents should pr
 - `dataFile` plus `forEach` for collection-driven bootstraps
 - `type: Object` and `type: Array` for structured workflow inputs
 - JSON-aware expressions such as `jsonLength(...)`, `exists(...)`, `first(...)`, and `isEmptyJson(...)`
+- execution reporting controls such as `--report-format`, `--capture-http`, and `reporting.*` defaults in `workflows.config`
 
 Use `get_plugin_capabilities` to retrieve these authoring capabilities in structured form at runtime.
 

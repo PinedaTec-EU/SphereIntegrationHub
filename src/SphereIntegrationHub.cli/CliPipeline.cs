@@ -41,6 +41,16 @@ internal sealed class CliPipeline : ICliPipeline
         {
             config.OpenTelemetry.DebugConsole = true;
         }
+        WorkflowExecutionReportOptions reportOptions;
+        try
+        {
+            reportOptions = WorkflowExecutionReportOptionsResolver.Resolve(config.Reporting, parseResult);
+        }
+        catch (Exception ex)
+        {
+            messages.Add(new CliRunMessage(CliRunMessageKind.Error, ex.Message));
+            return new CliRunResult(1, messages);
+        }
         using var telemetryHandle = _telemetryBootstrapper.Start(config);
         using var activity = Telemetry.ActivitySource.StartActivity(TelemetryConstants.ActivityCliRun);
         activity?.SetTag(TelemetryConstants.TagWorkflowPath, parseResult.WorkflowPath);
@@ -88,7 +98,7 @@ internal sealed class CliPipeline : ICliPipeline
             return BuildDryRunResult(workflowDocument, workflowLoader, parseResult, stopwatch, messages);
         }
 
-        return await ExecuteWorkflowAsync(parseResult, workflowDocument, selectedVersion, varsOverrideActive, messages, cancellationToken);
+        return await ExecuteWorkflowAsync(parseResult, workflowDocument, selectedVersion, varsOverrideActive, reportOptions, messages, cancellationToken);
     }
 
     private void EmitPreamble(InlineArguments parseResult, List<CliRunMessage> messages)
@@ -380,6 +390,7 @@ internal sealed class CliPipeline : ICliPipeline
         WorkflowDocument workflowDocument,
         ApiCatalogVersion selectedVersion,
         bool varsOverrideActive,
+        WorkflowExecutionReportOptions reportOptions,
         List<CliRunMessage> messages,
         CancellationToken cancellationToken)
     {
@@ -388,7 +399,7 @@ internal sealed class CliPipeline : ICliPipeline
             using var httpClient = _serviceFactory.CreateHttpClient();
             var systemTimeProvider = _serviceFactory.CreateSystemTimeProvider();
             var dynamicValueService = _serviceFactory.CreateDynamicValueService(systemTimeProvider);
-            var executor = _serviceFactory.CreateWorkflowExecutor(httpClient, dynamicValueService, systemTimeProvider);
+            var executor = _serviceFactory.CreateWorkflowExecutor(httpClient, dynamicValueService, systemTimeProvider, reportOptions);
             var result = await executor.ExecuteAsync(
                 workflowDocument,
                 selectedVersion,
@@ -418,14 +429,48 @@ internal sealed class CliPipeline : ICliPipeline
                 AddInfo(messages, $"Output file: {_pathResolver.FormatPath(result.OutputFilePath)}");
             }
 
+            EmitExecutionArtifactsSummary(result, reportOptions, messages);
+
             return new CliRunResult(0, messages);
         }
         catch (Exception ex)
         {
+            if (ex.Data["workflowExecutionResult"] is WorkflowExecutionResult failedResult)
+            {
+                EmitExecutionArtifactsSummary(failedResult, reportOptions, messages);
+            }
+
             AddError(messages, $"Workflow [{workflowDocument.Definition.Name}] execution failed: {ex.Message}");
             AddError(messages, "Execution aborted.");
             return new CliRunResult(1, messages);
         }
+    }
+
+    private void EmitExecutionArtifactsSummary(
+        WorkflowExecutionResult result,
+        WorkflowExecutionReportOptions reportOptions,
+        List<CliRunMessage> messages)
+    {
+        if (!string.IsNullOrWhiteSpace(result.JsonReportPath))
+        {
+            AddInfo(messages, $"JSON report: {_pathResolver.FormatPath(result.JsonReportPath)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.HtmlReportPath))
+        {
+            AddInfo(messages, $"HTML report: {_pathResolver.FormatPath(result.HtmlReportPath)}");
+        }
+
+        if (!reportOptions.SummaryConsole)
+        {
+            return;
+        }
+
+        AddInfo(messages, "Execution summary:");
+        AddInfo(messages, $"  executionId: {result.ExecutionId ?? "n/a"}");
+        AddInfo(messages, $"  outputFile: {(string.IsNullOrWhiteSpace(result.OutputFilePath) ? "n/a" : _pathResolver.FormatPath(result.OutputFilePath))}");
+        AddInfo(messages, $"  jsonReport: {(string.IsNullOrWhiteSpace(result.JsonReportPath) ? "n/a" : _pathResolver.FormatPath(result.JsonReportPath))}");
+        AddInfo(messages, $"  htmlReport: {(string.IsNullOrWhiteSpace(result.HtmlReportPath) ? "n/a" : _pathResolver.FormatPath(result.HtmlReportPath))}");
     }
 
     private static void AddInfo(List<CliRunMessage> messages, string text)

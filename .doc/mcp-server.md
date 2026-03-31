@@ -965,7 +965,7 @@ public class IntentAnalyzer
 
 - Improved workflow repair/upgrade suggestions for new runtime primitives
 - Better generation of bootstrap/seed workflows using `ensure`, `bodyFile`, and `forEach`
-- Higher-level diagnostic tools for idempotency, snapshot strategy, and execution observability
+- Higher-level diagnostic tools that consume execution reports for idempotency, snapshot strategy, and post-run observability
 - Optional dedicated generation helpers for semantic patterns such as ensure/create-if-missing
 
 ---

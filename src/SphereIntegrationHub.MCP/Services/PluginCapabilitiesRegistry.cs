@@ -164,6 +164,18 @@ internal static class PluginCapabilitiesRegistry
                         "Prefer expectedStatuses for idempotent create/bootstrap flows",
                         "Prefer bodyFile/dataFile when payloads are large"
                     }
+                },
+                new
+                {
+                    feature = "Execution Reporting",
+                    description = "Runtime executions can emit JSON/HTML reports with stage-level diagnostics and configurable HTTP capture",
+                    examples = new[]
+                    {
+                        "--report-format both",
+                        "--capture-http headers",
+                        "--capture-http bodies",
+                        "reporting.summaryConsole = true"
+                    }
                 }
             }
         };

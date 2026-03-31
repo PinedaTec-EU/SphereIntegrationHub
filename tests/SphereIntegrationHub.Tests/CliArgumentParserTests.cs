@@ -36,11 +36,15 @@ public sealed class CliArgumentParserTests
             "--catalog", "api.json",
             "--envfile", "env.txt",
             "--varsfile", "vars.wfvars",
+            "--report-format", "both",
+            "--capture-http", "bodies",
             "--refresh-cache",
             "--dry-run",
             "--verbose",
             "--debug",
-            "--mocked"
+            "--mocked",
+            "--no-redact",
+            "--no-summary"
         });
 
         Assert.Equal("a.workflow", result.WorkflowPath);
@@ -48,11 +52,15 @@ public sealed class CliArgumentParserTests
         Assert.Equal("api.json", result.CatalogPath);
         Assert.Equal("env.txt", result.EnvFileOverride);
         Assert.Equal("vars.wfvars", result.VarsFilePath);
+        Assert.Equal("both", result.ReportFormat);
+        Assert.Equal("bodies", result.CaptureHttp);
         Assert.True(result.RefreshCache);
         Assert.True(result.DryRun);
         Assert.True(result.Verbose);
         Assert.True(result.Debug);
         Assert.False(result.Mocked);
+        Assert.False(result.RedactSensitiveData);
+        Assert.False(result.SummaryConsole);
     }
 
     [Fact]
@@ -67,6 +75,8 @@ public sealed class CliArgumentParserTests
             "--catalog", "api.json",
             "--envfile", "env.txt",
             "--varsfile", "vars.wfvars",
+            "--report-format", "json",
+            "--capture-http", "headers",
             "--refresh-cache",
             "--verbose",
             "--debug",
@@ -78,6 +88,8 @@ public sealed class CliArgumentParserTests
         Assert.Equal("api.json", result.CatalogPath);
         Assert.Equal("env.txt", result.EnvFileOverride);
         Assert.Equal("vars.wfvars", result.VarsFilePath);
+        Assert.Equal("json", result.ReportFormat);
+        Assert.Equal("headers", result.CaptureHttp);
         Assert.True(result.RefreshCache);
         Assert.False(result.DryRun);
         Assert.True(result.Verbose);
