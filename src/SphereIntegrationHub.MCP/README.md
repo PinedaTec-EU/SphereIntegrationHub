@@ -96,9 +96,6 @@ If SphereIntegrationHub is helping your team integrate APIs faster, let us know!
 - Share your experience on [LinkedIn](https://www.linkedin.com/in/jmrpineda) mentioning **#SphereIntegrationHub**
 - Send us a note at [sih@pinedatec.eu](mailto:sih@pinedatec.eu)
 
-> The CLI (`sih run`) collects anonymous usage stats (version, OS, run count) at most once every 7 days.
-> Opt out: `SIH_USAGE_PING=0`
-
 ## Quick Start
 
 ### Prerequisites
@@ -171,6 +168,15 @@ The MCP surface is aligned with the current SIH runtime schema. Agents should pr
 - execution reporting controls such as `--report-format`, `--capture-http`, and `reporting.*` defaults in `workflows.config`
 
 Use `get_plugin_capabilities` to retrieve these authoring capabilities in structured form at runtime.
+
+## Runtime Observability Exposed to Agents
+
+The MCP guidance now assumes the runtime can emit post-execution artifacts and should steer agents accordingly.
+
+- Prefer leaving reporting enabled for workflow runs that need diagnostics or CI artifacts.
+- Use `--report-format both` when the user needs machine-readable output plus a human report.
+- Use `--capture-http headers` by default and `bodies` only when deeper debugging is required.
+- Assume redaction stays enabled unless the user explicitly asks otherwise.
 
 ## First Workflow via LLM -> MCP (Recommended Script)
 
