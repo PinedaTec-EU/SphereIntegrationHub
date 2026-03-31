@@ -1,5 +1,5 @@
-using System.Text.RegularExpressions;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 using SphereIntegrationHub.Services.Interfaces;
 
@@ -28,14 +28,46 @@ public sealed class TemplateResolver
         return TokenRegex.Replace(template, match =>
         {
             var token = match.Groups[1].Value;
-            var value = ResolveToken(token, context, responseContext, allowJsonStage: true);
-            return value ?? string.Empty;
+            var value = ResolveTokenValue(token, context, responseContext, allowJsonStage: true);
+            return value.StringValue ?? string.Empty;
         });
     }
 
     public string ResolveToken(string token, TemplateContext context, ResponseContext? responseContext)
     {
+        var value = ResolveTokenValue(token, context, responseContext, allowJsonStage: false);
+        if (!value.Exists)
+        {
+            throw new InvalidOperationException($"Token '{token}' could not be resolved.");
+        }
+
+        return value.StringValue ?? string.Empty;
+    }
+
+    public string ResolveToken(string token, TemplateContext context, ResponseContext? responseContext, bool allowJsonStage)
+    {
+        var value = ResolveTokenValue(token, context, responseContext, allowJsonStage);
+        if (!value.Exists)
+        {
+            throw new InvalidOperationException($"Token '{token}' could not be resolved.");
+        }
+
+        return value.StringValue ?? string.Empty;
+    }
+
+    public ResolvedTokenValue ResolveTokenValue(
+        string token,
+        TemplateContext context,
+        ResponseContext? responseContext,
+        bool allowJsonStage)
+    {
         using var activity = Telemetry.ActivitySource.StartActivity(TelemetryConstants.ActivityTemplateTokenResolve);
+
+        if (allowJsonStage &&
+            token.StartsWith("stage:json(", StringComparison.OrdinalIgnoreCase))
+        {
+            return ResolveStageJsonTokenValue(token, context);
+        }
 
         var segments = SplitToken(token);
         if (segments.Length == 0)
@@ -47,79 +79,58 @@ public sealed class TemplateResolver
         activity?.SetTag(TelemetryConstants.TagTemplateTokenRoot, root);
         return root switch
         {
-            "input" => ResolveInput(segments, context),
-            "global" => ResolveGlobal(segments, context),
-            "endpoint" => ResolveStageOutput(segments, context.EndpointOutputs, "endpoint", token),
-            "workflow" => ResolveStageOutput(segments, context.WorkflowOutputs, "workflow", token),
-            "stage" => ResolveStageOutputAny(segments, context, token),
-            "context" => ResolveContext(segments, context),
-            "env" => ResolveEnvironment(segments, context),
-            "system" => ResolveSystem(segments, token),
-            "response" => ResolveResponse(segments, responseContext, token),
+            "input" => ResolveScopedValue(segments, context.Inputs, context.InputJson, "Input", token),
+            "global" => ResolveScopedValue(segments, context.Globals, context.GlobalJson, "Global", token),
+            "context" => ResolveScopedValue(segments, context.Context, context.ContextJson, "Context", token),
+            "endpoint" => ResolveStageOutputValue(segments, context.EndpointOutputs, context.EndpointOutputJson, "endpoint", token),
+            "workflow" => ResolveStageOutputValue(segments, context.WorkflowOutputs, context.WorkflowOutputJson, "workflow", token),
+            "stage" => ResolveStageOutputAnyValue(segments, context, token),
+            "env" => ResolveEnvironmentValue(segments, context),
+            "system" => ResolvedTokenValue.FromString(ResolveSystem(segments, token)),
+            "response" => ResolveResponseValue(segments, responseContext, token),
             _ => throw new InvalidOperationException($"Unknown token root '{segments[0]}'.")
         };
     }
 
-    public string ResolveToken(string token, TemplateContext context, ResponseContext? responseContext, bool allowJsonStage)
-    {
-        if (allowJsonStage &&
-            token.StartsWith("stage:json(", StringComparison.OrdinalIgnoreCase))
-        {
-            return ResolveStageJsonToken(token, context);
-        }
-
-        return ResolveToken(token, context, responseContext);
-    }
-
-    private static string ResolveInput(string[] segments, TemplateContext context)
+    private static ResolvedTokenValue ResolveScopedValue(
+        string[] segments,
+        IReadOnlyDictionary<string, string> values,
+        IReadOnlyDictionary<string, JsonElement>? jsonValues,
+        string label,
+        string token)
     {
         if (segments.Length < 2)
         {
-            throw new InvalidOperationException("Input token requires a name.");
+            throw new InvalidOperationException($"{label} token requires a name.");
         }
 
         var name = segments[1];
-        if (!context.Inputs.TryGetValue(name, out var value))
+        if (!values.TryGetValue(name, out var value))
         {
-            throw new InvalidOperationException($"Input '{name}' was not provided.");
+            throw new InvalidOperationException($"{label} '{name}' was not found.");
         }
 
-        return value;
+        if (segments.Length == 2)
+        {
+            if (jsonValues is not null && jsonValues.TryGetValue(name, out var rootJson))
+            {
+                return ResolvedTokenValue.FromJson(rootJson);
+            }
+
+            return ResolvedTokenValue.FromString(value);
+        }
+
+        if (jsonValues is not null &&
+            jsonValues.TryGetValue(name, out var jsonValue) &&
+            JsonValueHelper.TryResolvePath(jsonValue, segments.Skip(2).ToArray(), out var nested))
+        {
+            return ResolvedTokenValue.FromJson(nested);
+        }
+
+        throw new InvalidOperationException($"{label} path '{token}' was not found.");
     }
 
-    private static string ResolveGlobal(string[] segments, TemplateContext context)
-    {
-        if (segments.Length < 2)
-        {
-            throw new InvalidOperationException("Global token requires a name.");
-        }
-
-        var name = segments[1];
-        if (!context.Globals.TryGetValue(name, out var value))
-        {
-            throw new InvalidOperationException($"Global variable '{name}' was not found.");
-        }
-
-        return value;
-    }
-
-    private static string ResolveContext(string[] segments, TemplateContext context)
-    {
-        if (segments.Length < 2)
-        {
-            throw new InvalidOperationException("Context token requires a name.");
-        }
-
-        var name = segments[1];
-        if (!context.Context.TryGetValue(name, out var value))
-        {
-            throw new InvalidOperationException($"Context variable '{name}' was not found.");
-        }
-
-        return value;
-    }
-
-    private static string ResolveEnvironment(string[] segments, TemplateContext context)
+    private static ResolvedTokenValue ResolveEnvironmentValue(string[] segments, TemplateContext context)
     {
         if (segments.Length < 2)
         {
@@ -129,7 +140,7 @@ public sealed class TemplateResolver
         var name = segments[1];
         if (context.EnvVariables.TryGetValue(name, out var value))
         {
-            return value;
+            return ResolvedTokenValue.FromString(value);
         }
 
         value = Environment.GetEnvironmentVariable(name);
@@ -138,7 +149,7 @@ public sealed class TemplateResolver
             throw new InvalidOperationException($"Environment variable '{name}' was not found.");
         }
 
-        return value;
+        return ResolvedTokenValue.FromString(value);
     }
 
     private string ResolveSystem(string[] segments, string token)
@@ -200,9 +211,10 @@ public sealed class TemplateResolver
         throw new InvalidOperationException($"Invalid token '{token}'. Expected 'system:<datetime|date|time>.<now|utcnow>'.");
     }
 
-    private static string ResolveStageOutput(
+    private static ResolvedTokenValue ResolveStageOutputValue(
         string[] segments,
         IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> outputs,
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, JsonElement>>? jsonOutputs,
         string kind,
         string token)
     {
@@ -223,27 +235,47 @@ public sealed class TemplateResolver
             throw new InvalidOperationException($"{kind} '{stageName}' output '{outputKey}' was not found.");
         }
 
-        return value;
+        if (segments.Length == 4)
+        {
+            if (jsonOutputs is not null &&
+                jsonOutputs.TryGetValue(stageName, out var stageJsonOutputs) &&
+                stageJsonOutputs.TryGetValue(outputKey, out var jsonValue))
+            {
+                return ResolvedTokenValue.FromJson(jsonValue);
+            }
+
+            return ResolvedTokenValue.FromString(value);
+        }
+
+        if (jsonOutputs is not null &&
+            jsonOutputs.TryGetValue(stageName, out var nestedJsonOutputs) &&
+            nestedJsonOutputs.TryGetValue(outputKey, out var nestedJson) &&
+            JsonValueHelper.TryResolvePath(nestedJson, segments.Skip(4).ToArray(), out var nestedResolved))
+        {
+            return ResolvedTokenValue.FromJson(nestedResolved);
+        }
+
+        throw new InvalidOperationException($"{kind} path '{token}' was not found.");
     }
 
-    private static string ResolveStageOutputAny(string[] segments, TemplateContext context, string token)
+    private static ResolvedTokenValue ResolveStageOutputAnyValue(string[] segments, TemplateContext context, string token)
     {
         if (TryResolveStageWorkflowResult(segments, context.WorkflowResults, out var workflowResultValue))
         {
-            return workflowResultValue;
+            return ResolvedTokenValue.FromString(workflowResultValue);
         }
 
-        if (TryResolveStageWorkflowOutput(segments, context.WorkflowOutputs, out var workflowOutputValue))
+        if (TryResolveStageWorkflowOutput(segments, context.WorkflowOutputs, context.WorkflowOutputJson, out var workflowOutputValue))
         {
             return workflowOutputValue;
         }
 
-        if (TryResolveStageOutput(segments, context.EndpointOutputs, out var endpointValue, token))
+        if (TryResolveStageOutput(segments, context.EndpointOutputs, context.EndpointOutputJson, out var endpointValue, token))
         {
             return endpointValue;
         }
 
-        if (TryResolveStageOutput(segments, context.WorkflowOutputs, out var workflowValue, token))
+        if (TryResolveStageOutput(segments, context.WorkflowOutputs, context.WorkflowOutputJson, out var workflowValue, token))
         {
             return workflowValue;
         }
@@ -254,10 +286,11 @@ public sealed class TemplateResolver
     private static bool TryResolveStageOutput(
         string[] segments,
         IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> outputs,
-        out string value,
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, JsonElement>>? jsonOutputs,
+        out ResolvedTokenValue value,
         string token)
     {
-        value = string.Empty;
+        value = ResolvedTokenValue.NotFound;
         if (segments.Length < 4 || !segments[2].Equals("output", StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException($"Invalid stage token '{token}'. Expected 'stage:<name>.output.<key>'.");
@@ -275,16 +308,39 @@ public sealed class TemplateResolver
             return false;
         }
 
-        value = resolved;
-        return true;
+        if (segments.Length == 4)
+        {
+            if (jsonOutputs is not null &&
+                jsonOutputs.TryGetValue(stageName, out var stageJsonOutputs) &&
+                stageJsonOutputs.TryGetValue(outputKey, out var jsonValue))
+            {
+                value = ResolvedTokenValue.FromJson(jsonValue);
+                return true;
+            }
+
+            value = ResolvedTokenValue.FromString(resolved);
+            return true;
+        }
+
+        if (jsonOutputs is not null &&
+            jsonOutputs.TryGetValue(stageName, out var nestedOutputs) &&
+            nestedOutputs.TryGetValue(outputKey, out var nestedJson) &&
+            JsonValueHelper.TryResolvePath(nestedJson, segments.Skip(4).ToArray(), out var nestedResolved))
+        {
+            value = ResolvedTokenValue.FromJson(nestedResolved);
+            return true;
+        }
+
+        return false;
     }
 
     private static bool TryResolveStageWorkflowOutput(
         string[] segments,
         IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> outputs,
-        out string value)
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, JsonElement>>? jsonOutputs,
+        out ResolvedTokenValue value)
     {
-        value = string.Empty;
+        value = ResolvedTokenValue.NotFound;
         if (segments.Length < 5 ||
             !segments[2].Equals("workflow", StringComparison.OrdinalIgnoreCase) ||
             !segments[3].Equals("output", StringComparison.OrdinalIgnoreCase))
@@ -292,19 +348,8 @@ public sealed class TemplateResolver
             return false;
         }
 
-        var stageName = segments[1];
-        var outputKey = segments[4];
-        if (!outputs.TryGetValue(stageName, out var stageOutputs))
-        {
-            return false;
-        }
-
-        if (!stageOutputs.TryGetValue(outputKey, out var resolved) || resolved is null)
-        {
-            return false;
-        }
-
-        value = resolved;
+        var workflowSegments = new[] { "workflow", segments[1], "output", segments[4] }.Concat(segments.Skip(5)).ToArray();
+        value = ResolveStageOutputValue(workflowSegments, outputs, jsonOutputs, "workflow", string.Join(".", workflowSegments));
         return true;
     }
 
@@ -337,7 +382,7 @@ public sealed class TemplateResolver
         return true;
     }
 
-    private static string ResolveResponse(string[] segments, ResponseContext? responseContext, string token)
+    private static ResolvedTokenValue ResolveResponseValue(string[] segments, ResponseContext? responseContext, string token)
     {
         if (responseContext is null)
         {
@@ -351,12 +396,30 @@ public sealed class TemplateResolver
 
         if (segments[1].Equals("status", StringComparison.OrdinalIgnoreCase))
         {
-            return responseContext.StatusCode.ToString();
+            return ResolvedTokenValue.FromString(responseContext.StatusCode.ToString());
         }
 
         if (segments[1].Equals("body", StringComparison.OrdinalIgnoreCase))
         {
-            return responseContext.Body;
+            if (responseContext.Json is not null)
+            {
+                if (segments.Length == 2)
+                {
+                    return ResolvedTokenValue.FromJson(responseContext.Json.RootElement);
+                }
+
+                if (JsonValueHelper.TryResolvePath(responseContext.Json.RootElement, segments.Skip(2).ToArray(), out var nestedBody))
+                {
+                    return ResolvedTokenValue.FromJson(nestedBody);
+                }
+            }
+
+            if (segments.Length == 2)
+            {
+                return ResolvedTokenValue.FromString(responseContext.Body);
+            }
+
+            throw new InvalidOperationException($"Response token '{token}' requires a JSON body.");
         }
 
         if (segments[1].Equals("headers", StringComparison.OrdinalIgnoreCase))
@@ -368,7 +431,7 @@ public sealed class TemplateResolver
 
             if (responseContext.Headers.TryGetValue(segments[2], out var headerValue))
             {
-                return headerValue;
+                return ResolvedTokenValue.FromString(headerValue);
             }
 
             throw new InvalidOperationException($"Response header '{segments[2]}' was not found.");
@@ -379,37 +442,12 @@ public sealed class TemplateResolver
             throw new InvalidOperationException($"Response token '{token}' requires a JSON body.");
         }
 
-        var element = responseContext.Json.RootElement;
-        for (var i = 1; i < segments.Length; i++)
+        if (!JsonValueHelper.TryResolvePath(responseContext.Json.RootElement, segments.Skip(1).ToArray(), out var resolved))
         {
-            var segment = segments[i];
-            if (element.ValueKind == JsonValueKind.Object && element.TryGetProperty(segment, out var property))
-            {
-                element = property;
-                continue;
-            }
-
-            if (element.ValueKind == JsonValueKind.Array && int.TryParse(segment, out var index))
-            {
-                if (index >= 0 && index < element.GetArrayLength())
-                {
-                    element = element[index];
-                    continue;
-                }
-            }
-
             throw new InvalidOperationException($"Response path '{string.Join(".", segments.Skip(1))}' was not found.");
         }
 
-        return element.ValueKind switch
-        {
-            JsonValueKind.String => element.GetString() ?? string.Empty,
-            JsonValueKind.Number => element.ToString(),
-            JsonValueKind.True => "true",
-            JsonValueKind.False => "false",
-            JsonValueKind.Null => string.Empty,
-            _ => element.ToString()
-        };
+        return ResolvedTokenValue.FromJson(resolved);
     }
 
     public static string[] SplitToken(string token)
@@ -437,6 +475,12 @@ public sealed class TemplateResolver
 
     private static string ResolveStageJsonToken(string token, TemplateContext context)
     {
+        var value = ResolveStageJsonTokenValue(token, context);
+        return value.StringValue ?? string.Empty;
+    }
+
+    private static ResolvedTokenValue ResolveStageJsonTokenValue(string token, TemplateContext context)
+    {
         const string prefix = "stage:json(";
         if (!token.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
         {
@@ -462,45 +506,29 @@ public sealed class TemplateResolver
             throw new InvalidOperationException($"Invalid stage json token '{token}'. Expected 'stage:json(<stage>.output.<key>)'.");
         }
 
-        var stageSegments = new[] { "stage", innerSegments[0], "output", innerSegments[2] };
-        var jsonPayload = ResolveStageOutputAny(stageSegments, context, token);
+        var stageSegments = new[] { "stage", innerSegments[0], "output", innerSegments[2] }.Concat(innerSegments.Skip(3)).ToArray();
+        var tokenValue = ResolveStageOutputAnyValue(stageSegments, context, token);
+        if (!tokenValue.JsonValue.HasValue && tokenValue.StringValue is not null && JsonValueHelper.TryParse(tokenValue.StringValue, out var parsedJson))
+        {
+            tokenValue = ResolvedTokenValue.FromJson(parsedJson);
+        }
 
-        using var document = JsonDocument.Parse(jsonPayload);
-        var element = document.RootElement;
+        if (!tokenValue.JsonValue.HasValue)
+        {
+            throw new InvalidOperationException($"Stage json token '{token}' requires JSON content.");
+        }
 
+        var element = tokenValue.JsonValue.Value;
         if (!string.IsNullOrWhiteSpace(remainder))
         {
             var pathSegments = remainder.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            foreach (var segment in pathSegments)
+            if (!JsonValueHelper.TryResolvePath(element, pathSegments, out element))
             {
-                if (element.ValueKind == JsonValueKind.Object && element.TryGetProperty(segment, out var property))
-                {
-                    element = property;
-                    continue;
-                }
-
-                if (element.ValueKind == JsonValueKind.Array && int.TryParse(segment, out var index))
-                {
-                    if (index >= 0 && index < element.GetArrayLength())
-                    {
-                        element = element[index];
-                        continue;
-                    }
-                }
-
                 throw new InvalidOperationException($"Stage json token path '{remainder}' was not found.");
             }
         }
 
-        return element.ValueKind switch
-        {
-            JsonValueKind.String => element.GetString() ?? string.Empty,
-            JsonValueKind.Number => element.ToString(),
-            JsonValueKind.True => "true",
-            JsonValueKind.False => "false",
-            JsonValueKind.Null => string.Empty,
-            _ => element.ToString()
-        };
+        return ResolvedTokenValue.FromJson(element);
     }
 }
 
@@ -511,10 +539,27 @@ public sealed record TemplateContext(
     IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> EndpointOutputs,
     IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> WorkflowOutputs,
     IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> WorkflowResults,
-    IReadOnlyDictionary<string, string> EnvVariables);
+    IReadOnlyDictionary<string, string> EnvVariables,
+    IReadOnlyDictionary<string, JsonElement>? InputJson = null,
+    IReadOnlyDictionary<string, JsonElement>? GlobalJson = null,
+    IReadOnlyDictionary<string, JsonElement>? ContextJson = null,
+    IReadOnlyDictionary<string, IReadOnlyDictionary<string, JsonElement>>? EndpointOutputJson = null,
+    IReadOnlyDictionary<string, IReadOnlyDictionary<string, JsonElement>>? WorkflowOutputJson = null,
+    string? WorkflowPath = null);
 
 public sealed record ResponseContext(
     int StatusCode,
     string Body,
     IReadOnlyDictionary<string, string> Headers,
     JsonDocument? Json);
+
+public readonly record struct ResolvedTokenValue(bool Exists, string? StringValue, JsonElement? JsonValue)
+{
+    public static ResolvedTokenValue NotFound { get; } = new(false, null, null);
+
+    public static ResolvedTokenValue FromString(string? value)
+        => value is null ? NotFound : new(true, value, null);
+
+    public static ResolvedTokenValue FromJson(JsonElement value)
+        => new(true, JsonValueHelper.ToDisplayString(value), value.Clone());
+}
