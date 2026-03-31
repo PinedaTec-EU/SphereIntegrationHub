@@ -310,7 +310,19 @@ public sealed class GenerateWorkflowSkeletonTool : IMcpTool
             inputParameters = new
             {
                 type = "array",
-                description = "Input parameter names",
+                description = "Input parameter names. Use objectInputParameters/arrayInputParameters for complex JSON inputs.",
+                items = new { type = "string" }
+            },
+            objectInputParameters = new
+            {
+                type = "array",
+                description = "Input parameter names that should be emitted with type Object",
+                items = new { type = "string" }
+            },
+            arrayInputParameters = new
+            {
+                type = "array",
+                description = "Input parameter names that should be emitted with type Array",
                 items = new { type = "string" }
             }
         },
@@ -327,22 +339,24 @@ public sealed class GenerateWorkflowSkeletonTool : IMcpTool
         var version = await VersionResolver.ResolveAsync(arguments?.GetValueOrDefault("version")?.ToString(), _catalogReader, warningMessages);
 
         List<string> inputParameters = [];
+        List<string> objectInputParameters = [];
+        List<string> arrayInputParameters = [];
         if (arguments?.TryGetValue("inputParameters", out var inputParamsObj) == true)
         {
-            if (inputParamsObj is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Array)
-            {
-                inputParameters = JsonSerializer.Deserialize<List<string>>(jsonElement.GetRawText()) ?? [];
-            }
-            else if (inputParamsObj is List<object> list)
-            {
-                inputParameters = list
-                    .Select(item => item.ToString() ?? string.Empty)
-                    .Where(item => !string.IsNullOrWhiteSpace(item))
-                    .ToList();
-            }
+            inputParameters = ReadStringList(inputParamsObj);
         }
 
-        var yaml = _generator.GenerateWorkflowSkeleton(name, description, inputParameters, version);
+        if (arguments?.TryGetValue("objectInputParameters", out var objectParamsObj) == true)
+        {
+            objectInputParameters = ReadStringList(objectParamsObj);
+        }
+
+        if (arguments?.TryGetValue("arrayInputParameters", out var arrayParamsObj) == true)
+        {
+            arrayInputParameters = ReadStringList(arrayParamsObj);
+        }
+
+        var yaml = _generator.GenerateWorkflowSkeleton(name, description, inputParameters, objectInputParameters, arrayInputParameters, version);
         var wfvars = WorkflowArtifactHelper.GenerateWfvars(yaml);
         return new
         {
@@ -350,8 +364,33 @@ public sealed class GenerateWorkflowSkeletonTool : IMcpTool
             version,
             yaml,
             wfvars,
+            authoringHints = new[]
+            {
+                "Prefer ensure for create-if-missing or bootstrap HTTP stages.",
+                "Use expectedStatuses plus onStatus/jumpOnStatus when branching needs explicit status control.",
+                "Use bodyFile for large request payloads and dataFile + forEach for seed collections.",
+                "Use Object/Array input types when the workflow consumes structured JSON."
+            },
             warnings = warningMessages
         };
+    }
+
+    private static List<string> ReadStringList(object source)
+    {
+        if (source is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Array)
+        {
+            return JsonSerializer.Deserialize<List<string>>(jsonElement.GetRawText()) ?? [];
+        }
+
+        if (source is List<object> list)
+        {
+            return list
+                .Select(item => item.ToString() ?? string.Empty)
+                .Where(item => !string.IsNullOrWhiteSpace(item))
+                .ToList();
+        }
+
+        return [];
     }
 }
 
