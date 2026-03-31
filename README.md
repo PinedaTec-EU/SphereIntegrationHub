@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/PinedaTec-EU/SphereIntegrationHub">
-    <img loading="lazy" alt="Sphere RabbitMQ" src="./doc/SIH.png" width="85%"/>
+    <img loading="lazy" alt="Sphere RabbitMQ" src="./.doc/SIH.png" width="85%"/>
   </a>
 </p>
 
