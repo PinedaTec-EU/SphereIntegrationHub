@@ -8,10 +8,12 @@ namespace SphereIntegrationHub.Services;
 internal sealed class HttpRequestBuilder
 {
     private readonly TemplateResolver _templateResolver;
+    private readonly WorkflowDataFileService _dataFileService;
 
     public HttpRequestBuilder(TemplateResolver templateResolver)
     {
         _templateResolver = templateResolver;
+        _dataFileService = new WorkflowDataFileService();
     }
 
     public HttpRequestMessage Build(WorkflowStageDefinition stage, string baseUrl, TemplateContext context)
@@ -58,9 +60,10 @@ internal sealed class HttpRequestBuilder
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(stage.Body))
+        var bodyTemplate = ResolveBodyTemplate(stage, context);
+        if (!string.IsNullOrWhiteSpace(bodyTemplate))
         {
-            var body = _templateResolver.ResolveTemplate(stage.Body, context);
+            var body = _templateResolver.ResolveTemplate(bodyTemplate, context);
             var content = new StringContent(body, Encoding.UTF8);
             content.Headers.ContentType = contentType ?? new MediaTypeHeaderValue("application/json");
             request.Content = content;
@@ -72,6 +75,31 @@ internal sealed class HttpRequestBuilder
         }
 
         return request;
+    }
+
+    private string? ResolveBodyTemplate(WorkflowStageDefinition stage, TemplateContext context)
+    {
+        if (!string.IsNullOrWhiteSpace(stage.Body) && !string.IsNullOrWhiteSpace(stage.BodyFile))
+        {
+            throw new InvalidOperationException($"Stage '{stage.Name}' cannot define both body and bodyFile.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(stage.Body))
+        {
+            return stage.Body;
+        }
+
+        if (string.IsNullOrWhiteSpace(stage.BodyFile))
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(context.WorkflowPath))
+        {
+            throw new InvalidOperationException($"Stage '{stage.Name}' bodyFile requires workflowPath context.");
+        }
+
+        return _dataFileService.LoadText(stage.BodyFile, context.WorkflowPath);
     }
 
     private static string BuildRequestUrl(string baseUrl, string endpoint)

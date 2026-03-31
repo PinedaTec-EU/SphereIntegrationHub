@@ -8,15 +8,23 @@ public sealed class WorkflowStageDefinition
     public string? Endpoint { get; set; }
     public string? HttpVerb { get; set; }
     public int? ExpectedStatus { get; set; }
+    public int[]? ExpectedStatuses { get; set; }
     public Dictionary<string, string>? Headers { get; set; }
     public Dictionary<string, string>? Query { get; set; }
     public string? Body { get; set; }
+    public string? BodyFile { get; set; }
+    public string? DataFile { get; set; }
+    public string? ForEach { get; set; }
+    public string? ItemName { get; set; }
+    public string? IndexName { get; set; }
     public string? WorkflowRef { get; set; }
     public Dictionary<string, string>? Inputs { get; set; }
     public Dictionary<string, string>? Debug { get; set; }
     public string? Message { get; set; }
     public Dictionary<string, string>? Output { get; set; }
     public Dictionary<int, string>? JumpOnStatus { get; set; }
+    public Dictionary<int, WorkflowStageStatusAction>? OnStatus { get; set; }
+    public WorkflowStageEnsureDefinition? Ensure { get; set; }
     public int? DelaySeconds { get; set; }
     public string? AllowVersion { get; set; }
     public string? RunIf { get; set; }
@@ -33,4 +41,21 @@ public sealed class WorkflowStageMockDefinition
     public string? Payload { get; set; }
     public string? PayloadFile { get; set; }
     public Dictionary<string, string>? Output { get; set; }
+}
+
+public sealed class WorkflowStageStatusAction
+{
+    public string? JumpTo { get; set; }
+    public Dictionary<string, string>? Output { get; set; }
+    public string? Message { get; set; }
+    public bool Fail { get; set; }
+}
+
+public sealed class WorkflowStageEnsureDefinition
+{
+    public string Mode { get; set; } = "CreateIfMissing";
+    public int[]? ExistsOn { get; set; }
+    public string? JumpTo { get; set; }
+    public Dictionary<string, string>? Output { get; set; }
+    public string? Message { get; set; }
 }

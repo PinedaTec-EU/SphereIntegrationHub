@@ -130,6 +130,39 @@ public sealed class TemplateResolverTests
     }
 
     [Fact]
+    public void ResolveTemplate_ResolvesNestedJsonInputPath()
+    {
+        var resolver = new TemplateResolver();
+        using var json = JsonDocument.Parse("""
+        {
+          "customer": {
+            "id": "c-1"
+          }
+        }
+        """);
+
+        var context = new TemplateContext(
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["payload"] = json.RootElement.GetRawText()
+            },
+            new Dictionary<string, string>(),
+            new Dictionary<string, string>(),
+            new Dictionary<string, IReadOnlyDictionary<string, string>>(),
+            new Dictionary<string, IReadOnlyDictionary<string, string>>(),
+            new Dictionary<string, IReadOnlyDictionary<string, string>>(),
+            new Dictionary<string, string>(),
+            new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["payload"] = json.RootElement.Clone()
+            });
+
+        var resolved = resolver.ResolveTemplate("{{input.payload.customer.id}}", context);
+
+        Assert.Equal("c-1", resolved);
+    }
+
+    [Fact]
     public void ResolveTemplate_ResolvesWorkflowResultToken()
     {
         var resolver = new TemplateResolver();
