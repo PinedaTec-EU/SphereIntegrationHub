@@ -72,6 +72,7 @@ Use `references.environmentFile` (or CLI `--envfile`) to load a `.env` file for 
 Inputs from `.wfvars` can be scoped by environment and version (see `variables and context`).
 Stages can declare `delaySeconds` (0-60) to delay execution. Retry and circuit breaker settings apply only to `Endpoint` stages.
 Structured JSON is now first-class: workflows can consume `Object` and `Array` inputs, address JSON paths in tokens, load request bodies from `bodyFile`, load collections from `dataFile`, iterate with `forEach`, and declare idempotent intent with `ensure`.
+Execution reporting is also first-class: runs can emit JSON and HTML reports with stage timelines, retries, jumps, HTTP summaries, redacted payload capture, and a console summary for post-run diagnostics.
 
 ### Example workflow (login)
 
@@ -213,6 +214,24 @@ SphereIntegrationHub.cli \
   --input password=secret \
   --input accountName=Acme
 ```
+
+Generate full execution artifacts:
+
+```bash
+SphereIntegrationHub.cli \
+  --workflow ./src/resources/workflows/create-account.workflow \
+  --env pre \
+  --report-format both \
+  --capture-http bodies
+```
+
+This writes:
+
+- `{name}.{id}.workflow.output`
+- `{name}.{id}.{executionId}.workflow.report.json`
+- `{name}.{id}.{executionId}.workflow.report.html`
+
+Reports include stage timings, retries, jumps, ensure status, HTTP status, redacted headers/body capture, and final outputs.
 
 Override root `.env` for `{{env:NAME}}` tokens:
 
@@ -357,14 +376,15 @@ SphereIntegrationHub is now strong as a local-first API orchestration runtime an
 - ✅ Idempotent HTTP branching with `expectedStatuses`, `onStatus`, `jumpOnStatus`, and `ensure`
 - ✅ JSON-aware expressions and structured `Object` / `Array` inputs
 - ✅ `bodyFile`, `dataFile`, and `forEach` for large payloads and collection bootstraps
+- ✅ Post-execution observability with JSON/HTML reports, stage timelines, and summary output
 - ✅ MCP server that exposes these runtime authoring capabilities to AI agents
 
 ### Near-Term Priorities
 
-1. **Execution UX and Observability**
-   HTML/JSON reports, richer output artifacts, timings, and easier post-run inspection.
+1. **Assertions and Regression Diagnostics**
+   First-class assertions, golden snapshots, and failure diffs on top of the new execution reports.
 2. **Snapshot and Regression Testing**
-   First-class assertions against workflow outputs and golden snapshots.
+   Snapshot authoring helpers and update workflows for intentional baseline changes.
 3. **Secret Manager Integration**
    AWS Secrets Manager, Azure Key Vault, HashiCorp Vault, and similar providers.
 4. **Plugin/Transformer Extensibility**
@@ -373,7 +393,7 @@ SphereIntegrationHub is now strong as a local-first API orchestration runtime an
 ### Mid-Term Roadmap
 
 1. **GUI/Dashboard**
-   Optional web interface for execution history, outputs, logs, and diagnostics.
+   Optional web interface for execution history, outputs, logs, reports, and diagnostics.
 2. **Visual Workflow Editor**
    Web-based workflow builder for teams that want graphical authoring on top of the YAML runtime.
 3. **Higher-Level Runtime Primitives**

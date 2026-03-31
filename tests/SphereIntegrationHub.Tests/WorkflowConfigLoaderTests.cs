@@ -27,5 +27,7 @@ public sealed class WorkflowConfigLoaderTests
         var yaml = File.ReadAllText(configPath);
         Assert.Contains("features:", yaml, StringComparison.Ordinal);
         Assert.Contains("openTelemetry: false", yaml, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("reporting:", yaml, StringComparison.OrdinalIgnoreCase);
+        Assert.True(config.Reporting.Enabled);
     }
 }

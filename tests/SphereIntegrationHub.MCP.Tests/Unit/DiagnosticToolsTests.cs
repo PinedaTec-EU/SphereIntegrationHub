@@ -232,6 +232,22 @@ public class DiagnosticToolsTests : IDisposable
     }
 
     [Fact]
+    public async Task GetPluginCapabilities_IncludesExecutionReportingFeature()
+    {
+        var tool = new GetPluginCapabilitiesTool(_adapter);
+
+        var result = await tool.ExecuteAsync(new Dictionary<string, object>());
+        var json = ToJson(result);
+
+        json.TryGetProperty("features", out var features).Should().BeTrue();
+        features.ValueKind.Should().Be(JsonValueKind.Array);
+        features.EnumerateArray()
+            .Select(item => item.GetProperty("feature").GetString())
+            .Should()
+            .Contain("Execution Reporting");
+    }
+
+    [Fact]
     public async Task SuggestResilienceConfig_ForApiStage_SuggestsRetryAndTimeout()
     {
         // Arrange
