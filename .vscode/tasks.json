@@ -35,9 +35,9 @@
 			"command": "dotnet",
 			"type": "shell",
 			"args": [
-				"${workspaceFolder}/tools/increase.asm.version/increase.asm.version.dll",
-				"${workspaceFolder}",
-				"0.0.0.1"
+				"tool",
+				"run",
+				"versionbumper"
 			],
 			"group": "none",
 			"presentation": {

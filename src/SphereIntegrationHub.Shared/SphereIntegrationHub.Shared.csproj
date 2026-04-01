@@ -1,12 +1,11 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <OutputType>Library</OutputType>
-    <ReleaseVersion>0.3.2.96</ReleaseVersion>
+    <ReleaseVersion>0.3.2.101</ReleaseVersion>
     <AssemblyVersion>$(ReleaseVersion)</AssemblyVersion>
     <FileVersion>$(ReleaseVersion)</FileVersion>
     <Version>$(ReleaseVersion)</Version>
     <LangVersion>12</LangVersion>
   </PropertyGroup>
-
 </Project>
