@@ -79,6 +79,7 @@ public sealed class WorkflowStageExecutionRecord
     public DateTimeOffset StartedAtUtc { get; init; }
     public DateTimeOffset? FinishedAtUtc { get; set; }
     public long DurationMs { get; set; }
+    public int? DelaySeconds { get; set; }
     public int RetryCount { get; set; }
     public int? HttpStatusCode { get; set; }
     public string? EnsureMode { get; set; }
