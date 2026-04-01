@@ -42,9 +42,15 @@ input:
   - name: "username"
     type: "Text"
     required: true
+  - name: "payload"
+    type: "Object"
+    required: true
+  - name: "items"
+    type: "Array"
+    required: false
 ```
 
-`type` reuses `RandomValueType` enum values (Text, Number, Guid, etc.).
+`type` reuses `RandomValueType` enum values (Text, Number, Guid, Object, Array, etc.).
 
 ## initStage
 
@@ -95,17 +101,24 @@ stages:
     endpoint: "/api/accounts"
     httpVerb: "POST"
     expectedStatus: 201
+    # or: expectedStatuses: [200, 201, 409]
     headers:
       Authorization: "Bearer {{context.tokenId}}"
     delaySeconds: 2
     body: |
       { "name": "{{global:accountName}}" }
+    # or: bodyFile: "./payloads/create-account.json"
     debug:
       user: "{{input.username}}"
       token: "{{context.tokenId}}"
     message: "Login succeeded for {{input.username}}"
     output:
       dto: "{{response.body}}"
+    # optional collection iteration
+    # forEach: "{{input.items}}"
+    # dataFile: "./seed/accounts.json"
+    # itemName: "item"
+    # indexName: "index"
     retry:
       ref: "standard"
       httpStatus: [500, 503]
@@ -216,17 +229,24 @@ stages:
 
 Common fields:
 
-- `runIf`: conditional execution. Supported forms:
+- `runIf`: conditional execution with comparisons, boolean operators, and helper functions. Examples:
   - `{{context.tokenId}} == null`
   - `{{context.tokenId}} != ""`
-  - `{{stage:create-account.output.http_status}} == 205`
   - `{{stage:create-account.output.http_status}} in [505, 200, 201]`
-  - `{{stage:create-account.output.http_status}} not in [505, 200, 201]`
+  - `exists({{context:item}}) && !isEmptyJson({{response.body}})`
+  - `jsonLength({{input.items}}) > 0`
+  - `exists(first({{input.items}}))`
 - `debug`: key/value map printed before stage invocation when `--debug` is enabled (response tokens are not available).
 - `message`: printed after a stage completes successfully (response tokens are available for endpoint stages).
 - `context`: stage-level context updates (merges into shared context).
 - `set`: stage-level global updates (merges into workflow globals).
 - `jumpOnStatus` (endpoint only): status-based jump, including `endStage`.
+- `onStatus` (endpoint only): status-based branch with optional `jumpTo`, branch-local `output`, optional `message`, and optional `fail`.
+- `ensure` (endpoint only): semantic sugar for idempotent create/bootstrap flows.
+- `expectedStatuses` (endpoint only): accepted status codes list. Use this for idempotent bootstrap flows.
+- `bodyFile` (endpoint only): loads request body from a relative or absolute file.
+- `dataFile` + `forEach`: iterate endpoint/workflow stages over a JSON/YAML array.
+- `itemName` / `indexName`: names exposed into `context` during `forEach` iteration.
 - `retry` (endpoint only): retries on configured HTTP status codes.
 - `circuitBreaker` (endpoint only): short-circuits calls after repeated failures.
 
@@ -247,13 +267,98 @@ Rules:
 - Values are stage names or `endStage`.
 - Only available for `Endpoint` stages.
 
-Behavior with `expectedStatus`:
+Behavior with `expectedStatus` / `expectedStatuses`:
 
-- If the response status matches a `jumpOnStatus` entry, the workflow jumps to that stage (or ends).
-- `expectedStatus` is still enforced: if the response status does not equal `expectedStatus`, execution fails, even if a jump target exists.
-- If `expectedStatus` is `200` and `jumpOnStatus` has `200`, the jump is taken.
-- If no status matches `jumpOnStatus` and the response equals `expectedStatus`, execution continues to the next stage.
-- If the response matches neither `expectedStatus` nor any `jumpOnStatus` entry, execution fails.
+- `onStatus` is evaluated first.
+- Then `expectedStatuses` / `expectedStatus` are enforced.
+- Then legacy `jumpOnStatus` is applied when present.
+- This allows patterns like `expectedStatuses: [200, 201, 409]` plus `onStatus.409.jumpTo`.
+
+### onStatus details
+
+Use `onStatus` when a non-happy path should still produce outputs or branch without failing:
+
+```yaml
+expectedStatuses: [200, 201, 409]
+onStatus:
+  409:
+    jumpTo: "load-existing"
+    output:
+      exists: "true"
+      conflictBody: "{{response.body}}"
+```
+
+Rules:
+
+- Keys are numeric HTTP status codes.
+- `jumpTo` accepts a stage name or `endStage`.
+- `output` is merged into the stage output for that branch.
+- `fail: true` forces the branch to fail after branch outputs are computed.
+
+### ensure details
+
+Use `ensure` when the stage semantically means "create if missing" or "bootstrap idempotently":
+
+```yaml
+expectedStatus: 201
+ensure:
+  mode: "CreateIfMissing"
+  jumpTo: "load-existing"
+  output:
+    exists: "true"
+```
+
+Rules:
+
+- `ensure` is only supported on `Endpoint` stages.
+- Supported modes: `CreateIfMissing`, `Upsert`.
+- `existsOn` defaults to `[409]`.
+- `jumpTo` accepts a stage name or `endStage`.
+- `output` is merged only for the "already existed" branch.
+- Runtime automatically treats `existsOn` statuses as allowed, even if not listed in `expectedStatus` / `expectedStatuses`.
+- Runtime automatically adds semantic outputs:
+  - `ensure_status`: `created` or `existing`
+  - `ensured`: `true`
+  - `existed`: `true` or `false`
+
+Equivalent explicit form:
+
+```yaml
+expectedStatuses: [201, 409]
+onStatus:
+  409:
+    jumpTo: "load-existing"
+    output:
+      exists: "true"
+```
+
+### foreach and dataFile
+
+Use `forEach` when the stage should run once per array item:
+
+```yaml
+forEach: "{{input.items}}"
+itemName: "item"
+indexName: "index"
+body: |
+  {
+    "id": "{{context:item.id}}",
+    "position": "{{context:index}}"
+  }
+```
+
+`dataFile` can provide the collection directly:
+
+```yaml
+dataFile: "./seed/accounts.json"
+forEach: "accounts"
+```
+
+If `dataFile` is present:
+
+- JSON and YAML are supported.
+- `forEach` is optional; when present it is treated as a path inside the loaded document.
+- Stage outputs expose `foreach_count` and `foreach_items`.
 
 ## endStage
 

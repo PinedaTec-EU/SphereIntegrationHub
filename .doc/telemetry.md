@@ -64,8 +64,8 @@ Primary activities include:
 Useful tags:
 - `workflow.*` (`workflow.name`, `workflow.id`, `workflow.version`, `workflow.path`)
 - `catalog.*` (`catalog.path`, `catalog.version`)
-- `stage.*` (`stage.name`, `stage.kind`)
-- `http.*` (`http.method`, `http.url.base`, `http.url.path`, `http.status_code`)
+- `stage.*` (`stage.name`, `stage.kind`, `stage.status`, `stage.jump_target`, `stage.retry_count`, `stage.ensure_mode`, `stage.ensure_status`)
+- `http.*` (`http.method`, `http.url.base`, `http.url.path`, `http.status_code`, `http.expected_statuses`)
 - `file.*` (`file.path`, `file.separator`, `file.allow_export`)
 - `template.*` (`template.length`, `template.token.root`)
 - `expression.length`, `random.type`, `environment`, `api.definition`
@@ -76,3 +76,14 @@ Typical pipelines:
 - Use an OpenTelemetry Collector to receive OTLP (`openTelemetry.endpoint`) and forward to your backend (Jaeger, Tempo, Elastic, etc.).
 - Use the span names + tags above to build dashboards/alerts for slow workflows, failing endpoints, or invalid templates.
 
+## Relationship to execution reports
+
+OpenTelemetry and execution reports solve different problems:
+
+- OpenTelemetry is for centralized tracing, alerting, and cross-system correlation.
+- Execution reports are local per-run artifacts for post-mortem inspection and auditability.
+
+Recommended approach:
+
+- Enable OpenTelemetry when you need fleet-level visibility or external dashboards.
+- Keep reporting enabled for local diagnostics, CI job artifacts, and agent-friendly run inspection.

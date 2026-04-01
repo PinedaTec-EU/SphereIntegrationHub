@@ -1,13 +1,6 @@
 {
 	"version": "2.0.0",
-	"inputs": [
-		{
-			"id": "publishDir",
-			"type": "promptString",
-			"description": "Publish output folder (relative to workspace)",
-			"default": "dist/windows"
-		}
-	],
+	"inputs": [],
 	"tasks": [
 		{
 			"type": "shell",
@@ -53,6 +46,43 @@
 			"problemMatcher": "$msCompile"
 		},
 		{
+			"label": "publish tool cli (osx-x64 single-file)",
+			"command": "dotnet",
+			"type": "process",
+			"presentation": {
+				"reveal": "always"
+			},
+			"args": [
+				"publish",
+				"${workspaceFolder}/src/SphereIntegrationHub.cli/SphereIntegrationHub.cli.csproj",
+				"-c",
+				"Release",
+				"-r",
+				"osx-x64",
+				"/p:PublishSingleFile=true",
+				"/p:SelfContained=true",
+				"/p:DebugType=None",
+				"/p:DebugSymbols=false",
+				"-o",
+				"${workspaceFolder}/releases/dist/macos"
+			],
+			"problemMatcher": "$msCompile"
+		},
+		{
+			"label": "publish tool cli (bundle)",
+			"dependsOn": [
+				"publish tool cli (win-x64 single-file)",
+				"publish tool cli (osx-x64 single-file)"
+			],
+			"dependsOrder": "sequence",
+			"type": "shell",
+			"command": "echo Bundle publish complete.",
+			"presentation": {
+				"reveal": "always"
+			},
+			"problemMatcher": []
+		},
+		{
 			"label": "publish tool cli (win-x64 single-file)",
 			"command": "dotnet",
 			"type": "process",
@@ -71,7 +101,7 @@
 				"/p:DebugType=None",
 				"/p:DebugSymbols=false",
 				"-o",
-				"${workspaceFolder}/releases/${input:publishDir}/windows"
+				"${workspaceFolder}/releases/dist/windows"
 			],
 			"problemMatcher": "$msCompile"
 		},

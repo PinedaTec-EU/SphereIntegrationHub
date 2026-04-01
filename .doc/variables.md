@@ -339,8 +339,15 @@ Stages support conditional execution:
 runIf: "{{context.tokenId}} == null"
 ```
 
-Supported operators: `==`, `!=`, `in`, `not in`
-Supported values: `null`, quoted strings, numeric literals, or numeric list literals (`[200, 201]`).
+Supported operators include `==`, `!=`, `>`, `>=`, `<`, `<=`, `in`, `not in`, `&&`, `||`, and `!`.
+
+Supported helper functions:
+
+- `exists(value)`
+- `isEmptyJson(value)`
+- `jsonLength(value)`
+- `first(value)`
+- `any(value)`
 
 Examples:
 
@@ -349,4 +356,6 @@ runIf: "{{stage:create-account.output.http_status}} == 205"
 runIf: "{{context.tokenId}} != \"\""
 runIf: "{{stage:create-account.output.http_status}} in [500, 502, 503]"
 runIf: "{{stage:create-account.output.http_status}} not in [500, 502, 503]"
+runIf: "jsonLength({{input.items}}) > 0"
+runIf: "exists(first({{input.items}})) && !isEmptyJson({{response.body}})"
 ```

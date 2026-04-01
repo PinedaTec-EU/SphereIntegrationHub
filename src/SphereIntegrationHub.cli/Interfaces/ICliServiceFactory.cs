@@ -15,5 +15,5 @@ internal interface ICliServiceFactory
     ApiSwaggerCacheService CreateApiSwaggerCacheService(HttpClient httpClient);
     ApiEndpointValidator CreateApiEndpointValidator();
     WorkflowPlanner CreateWorkflowPlanner(WorkflowLoader workflowLoader);
-    WorkflowExecutor CreateWorkflowExecutor(HttpClient httpClient, DynamicValueService dynamicValueService, ISystemTimeProvider systemTimeProvider);
+    WorkflowExecutor CreateWorkflowExecutor(HttpClient httpClient, DynamicValueService dynamicValueService, ISystemTimeProvider systemTimeProvider, WorkflowExecutionReportOptions reportOptions);
 }

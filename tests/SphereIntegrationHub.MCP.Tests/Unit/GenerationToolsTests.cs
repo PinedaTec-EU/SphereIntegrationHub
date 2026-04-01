@@ -183,6 +183,30 @@ public class GenerationToolsTests : IDisposable
     }
 
     [Fact]
+    public void GenerateWorkflowSkeleton_WithStructuredInputsAndHints_ReturnsRuntimeAuthoringGuidance()
+    {
+        var tool = new GenerateWorkflowSkeletonTool(_adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["name"] = "structured-workflow",
+            ["description"] = "Workflow with structured inputs",
+            ["inputParameters"] = JsonSerializer.SerializeToElement(new[] { "payload", "items", "username" }),
+            ["objectInputParameters"] = JsonSerializer.SerializeToElement(new[] { "payload" }),
+            ["arrayInputParameters"] = JsonSerializer.SerializeToElement(new[] { "items" })
+        };
+
+        var result = tool.ExecuteAsync(args).Result;
+        var json = ToJson(result);
+        var yaml = json.GetProperty("yaml").GetString();
+
+        yaml.Should().Contain("type: Object");
+        yaml.Should().Contain("type: Array");
+        yaml.Should().Contain("ensure:");
+        json.TryGetProperty("authoringHints", out var hints).Should().BeTrue();
+        hints.EnumerateArray().Select(item => item.GetString()).Should().Contain(h => h!.Contains("ensure", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void GenerateWorkflowSkeleton_WithoutInputParameters_CreatesEmptyInputs()
     {
         // Arrange

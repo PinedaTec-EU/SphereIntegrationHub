@@ -182,9 +182,25 @@ public sealed class WorkflowValidator
                     errors.Add($"Stage '{stage.Name}' httpVerb is required for endpoint stages.");
                 }
 
-                if (stage.ExpectedStatus is null || stage.ExpectedStatus <= 0)
+                if ((stage.ExpectedStatus is null || stage.ExpectedStatus <= 0) &&
+                    (stage.ExpectedStatuses is null || stage.ExpectedStatuses.Length == 0))
+                {
+                    errors.Add($"Stage '{stage.Name}' expectedStatus or expectedStatuses is required.");
+                }
+
+                if (stage.ExpectedStatus is not null && stage.ExpectedStatus <= 0)
                 {
                     errors.Add($"Stage '{stage.Name}' expectedStatus must be a positive integer.");
+                }
+
+                if (stage.ExpectedStatuses is not null && stage.ExpectedStatuses.Any(status => status <= 0))
+                {
+                    errors.Add($"Stage '{stage.Name}' expectedStatuses must contain positive integers.");
+                }
+
+                if (!string.IsNullOrWhiteSpace(stage.Body) && !string.IsNullOrWhiteSpace(stage.BodyFile))
+                {
+                    errors.Add($"Stage '{stage.Name}' cannot define both body and bodyFile.");
                 }
 
                 if (stage.JumpOnStatus is not null)
@@ -195,6 +211,31 @@ public sealed class WorkflowValidator
                         {
                             errors.Add($"Stage '{stage.Name}' jump status must be a positive integer.");
                         }
+                    }
+                }
+
+                if (stage.OnStatus is not null)
+                {
+                    foreach (var item in stage.OnStatus)
+                    {
+                        if (item.Key <= 0)
+                        {
+                            errors.Add($"Stage '{stage.Name}' onStatus code must be a positive integer.");
+                        }
+                    }
+                }
+
+                if (stage.Ensure is not null)
+                {
+                    if (!string.Equals(stage.Ensure.Mode, "CreateIfMissing", StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(stage.Ensure.Mode, "Upsert", StringComparison.OrdinalIgnoreCase))
+                    {
+                        errors.Add($"Stage '{stage.Name}' ensure.mode must be CreateIfMissing or Upsert.");
+                    }
+
+                    if (stage.Ensure.ExistsOn is not null && stage.Ensure.ExistsOn.Any(status => status <= 0))
+                    {
+                        errors.Add($"Stage '{stage.Name}' ensure.existsOn must contain positive integers.");
                     }
                 }
 
@@ -221,6 +262,11 @@ public sealed class WorkflowValidator
                 if (stage.CircuitBreaker is not null)
                 {
                     errors.Add($"Stage '{stage.Name}' circuitBreaker is only supported for endpoint stages.");
+                }
+
+                if (stage.Ensure is not null)
+                {
+                    errors.Add($"Stage '{stage.Name}' ensure is only supported for endpoint stages.");
                 }
 
                 if (string.IsNullOrWhiteSpace(stage.WorkflowRef))
@@ -277,7 +323,8 @@ public sealed class WorkflowValidator
     {
         foreach (var stage in stages)
         {
-            if (stage.JumpOnStatus is null || stage.JumpOnStatus.Count == 0)
+            if ((stage.JumpOnStatus is null || stage.JumpOnStatus.Count == 0) &&
+                (stage.OnStatus is null || stage.OnStatus.Count == 0))
             {
                 continue;
             }
@@ -288,7 +335,10 @@ public sealed class WorkflowValidator
                 continue;
             }
 
-            foreach (var target in stage.JumpOnStatus.Values)
+            IEnumerable<string> jumpTargets = stage.JumpOnStatus is null
+                ? Array.Empty<string>()
+                : stage.JumpOnStatus.Values;
+            foreach (var target in jumpTargets)
             {
                 if (string.IsNullOrWhiteSpace(target))
                 {
@@ -301,6 +351,31 @@ public sealed class WorkflowValidator
                 {
                     errors.Add($"Stage '{stage.Name}' jump target '{target}' does not exist.");
                 }
+            }
+
+            if (stage.OnStatus is not null)
+            {
+                foreach (var action in stage.OnStatus.Values)
+                {
+                    if (string.IsNullOrWhiteSpace(action.JumpTo))
+                    {
+                        continue;
+                    }
+
+                    if (!string.Equals(action.JumpTo, "endStage", StringComparison.OrdinalIgnoreCase) &&
+                        !stageNames.Contains(action.JumpTo))
+                    {
+                        errors.Add($"Stage '{stage.Name}' onStatus jump target '{action.JumpTo}' does not exist.");
+                    }
+                }
+            }
+
+            if (stage.Ensure is not null &&
+                !string.IsNullOrWhiteSpace(stage.Ensure.JumpTo) &&
+                !string.Equals(stage.Ensure.JumpTo, "endStage", StringComparison.OrdinalIgnoreCase) &&
+                !stageNames.Contains(stage.Ensure.JumpTo))
+            {
+                errors.Add($"Stage '{stage.Name}' ensure jump target '{stage.Ensure.JumpTo}' does not exist.");
             }
         }
     }
@@ -484,6 +559,28 @@ public sealed class WorkflowValidator
                     ValidateTemplate(stage.Body, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' body", errors);
                 }
 
+                if (!string.IsNullOrWhiteSpace(stage.BodyFile))
+                {
+                    var resolvedPath = ResolveRelativePath(stage.BodyFile, workflowPath);
+                    if (!File.Exists(resolvedPath))
+                    {
+                        errors.Add($"Stage '{stage.Name}' bodyFile '{stage.BodyFile}' was not found.");
+                    }
+                    else
+                    {
+                        ValidateTemplate(File.ReadAllText(resolvedPath), inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' bodyFile", errors);
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(stage.DataFile))
+                {
+                    var resolvedPath = ResolveRelativePath(stage.DataFile, workflowPath);
+                    if (!File.Exists(resolvedPath))
+                    {
+                        errors.Add($"Stage '{stage.Name}' dataFile '{stage.DataFile}' was not found.");
+                    }
+                }
+
                 if (stage.Inputs is not null)
                 {
                     foreach (var input in stage.Inputs.Values)
@@ -532,6 +629,33 @@ public sealed class WorkflowValidator
                 if (!string.IsNullOrWhiteSpace(stage.RunIf))
                 {
                     ValidateRunIf(stage.RunIf, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' runIf", errors);
+                }
+
+                if (!string.IsNullOrWhiteSpace(stage.ForEach))
+                {
+                    ValidateRunIf(stage.ForEach, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' forEach", errors, requireExpressionSyntax: false);
+                }
+
+                if (stage.OnStatus is not null)
+                {
+                    foreach (var action in stage.OnStatus.Values)
+                    {
+                        if (action.Output is not null)
+                        {
+                            foreach (var output in action.Output.Values)
+                            {
+                                ValidateTemplate(output, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' onStatus output", errors, allowResponse: true);
+                            }
+                        }
+                    }
+                }
+
+                if (stage.Ensure?.Output is not null)
+                {
+                    foreach (var output in stage.Ensure.Output.Values)
+                    {
+                        ValidateTemplate(output, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' ensure output", errors, allowResponse: true);
+                    }
                 }
 
                 if (stage.Mock is not null)
@@ -836,15 +960,34 @@ public sealed class WorkflowValidator
         Dictionary<string, HashSet<string>> endpointOutputs,
         Dictionary<string, HashSet<string>> workflowOutputs,
         string location,
-        List<string> errors)
+        List<string> errors,
+        bool requireExpressionSyntax = true)
     {
-        if (!RunIfParser.TryParse(expression, out var token, out _, out _))
+        if (requireExpressionSyntax)
         {
-            errors.Add($"Invalid runIf expression '{expression}' in {location}.");
-            return;
+            try
+            {
+                _ = WorkflowExpressionEvaluator.ExtractTemplateTokens(expression);
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"Invalid runIf expression '{expression}' in {location}: {ex.Message}");
+                return;
+            }
         }
 
-        ValidateTemplate($"{{{{{token}}}}}", inputs, globals, environmentVariables, endpointOutputs, workflowOutputs, location, errors, allowResponse: false);
+        foreach (var token in WorkflowExpressionEvaluator.ExtractTemplateTokens(expression))
+        {
+            ValidateTemplate($"{{{{{token}}}}}", inputs, globals, environmentVariables, endpointOutputs, workflowOutputs, location, errors, allowResponse: false);
+        }
+    }
+
+    private static string ResolveRelativePath(string path, string workflowPath)
+    {
+        var baseDirectory = Path.GetDirectoryName(workflowPath) ?? string.Empty;
+        return Path.IsPathRooted(path)
+            ? path
+            : Path.GetFullPath(Path.Combine(baseDirectory, path));
     }
 
     private static void ValidateResilienceDefinitions(WorkflowResilienceDefinition? resilience, List<string> errors)

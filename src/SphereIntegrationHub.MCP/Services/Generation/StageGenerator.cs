@@ -48,8 +48,12 @@ public sealed class StageGenerator : IStageGenerator
         string name,
         string description,
         List<string> inputParameters,
+        List<string> objectInputParameters,
+        List<string> arrayInputParameters,
         string version)
     {
+        var objectInputLookup = new HashSet<string>(objectInputParameters, StringComparer.OrdinalIgnoreCase);
+        var arrayInputLookup = new HashSet<string>(arrayInputParameters, StringComparer.OrdinalIgnoreCase);
         var workflow = new Dictionary<string, object?>
         {
             ["version"] = version,
@@ -60,7 +64,11 @@ public sealed class StageGenerator : IStageGenerator
             ["input"] = inputParameters.Select(p => new Dictionary<string, object>
             {
                 ["name"] = p,
-                ["type"] = "Text",
+                ["type"] = objectInputLookup.Contains(p)
+                    ? "Object"
+                    : arrayInputLookup.Contains(p)
+                        ? "Array"
+                        : "Text",
                 ["required"] = true
             }).ToList(),
             ["stages"] = new List<Dictionary<string, object?>>
@@ -72,12 +80,30 @@ public sealed class StageGenerator : IStageGenerator
                     ["apiRef"] = "api-ref-name",
                     ["endpoint"] = "/api/resource",
                     ["httpVerb"] = "GET",
-                    ["expectedStatus"] = 200,
+                    ["expectedStatus"] = 201,
+                    ["ensure"] = new Dictionary<string, object>
+                    {
+                        ["mode"] = "CreateIfMissing",
+                        ["jumpTo"] = "load-existing",
+                        ["output"] = new Dictionary<string, string>
+                        {
+                            ["exists"] = "true"
+                        }
+                    },
                     ["output"] = new Dictionary<string, string>
                     {
                         ["dto"] = "{{response.body}}",
                         ["http_status"] = "{{response.status}}"
                     }
+                },
+                new()
+                {
+                    ["name"] = "load-existing",
+                    ["kind"] = "Endpoint",
+                    ["apiRef"] = "api-ref-name",
+                    ["endpoint"] = "/api/resource/existing",
+                    ["httpVerb"] = "GET",
+                    ["expectedStatus"] = 200
                 }
             },
             ["endStage"] = new Dictionary<string, object>

@@ -1,5 +1,13 @@
 # SphereIntegrationHub
 
+<p align="center">
+  <a href="https://github.com/PinedaTec-EU/SphereIntegrationHub">
+    <img loading="lazy" alt="Sphere RabbitMQ" src="./.doc/SIH.png" width="85%"/>
+  </a>
+</p>
+
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/PinedaTec-EU/SphereIntegrationHub)
+
 CLI tool to orchestrate API calls using versioned Swagger catalogs and YAML workflows. Workflows can reference other workflows, share context (like JWTs), validate endpoints against cached Swagger specs, and run in dry-run mode for validation.
 
 Documentation:
@@ -22,29 +30,6 @@ If you use SphereIntegrationHub in your company or project, we'd love to hear ab
 - Give us a ⭐ on GitHub — it helps the project grow
 - Share your experience on [LinkedIn](https://www.linkedin.com/in/jmrpineda) mentioning **#SphereIntegrationHub** — we repost and feature use cases
 - Drop us a line at [sih@pinedatec.eu](mailto:sih@pinedatec.eu) — tell us what you're automating, we'd love to feature it
-
-### Anonymous usage telemetry
-
-SphereIntegrationHub collects **anonymous** usage statistics to understand adoption (no personal data, no workflow content, no hostnames).
-
-The CLI sends a lightweight ping **at most once every 7 days**, containing only:
-
-| Field | Example |
-|-------|---------|
-| `installId` | random GUID generated on first run |
-| `version` | `0.3.1.49` |
-| `os` | `osx-arm64` |
-| `runs` | executions since last ping |
-| `daysSinceFirst` | days since first execution |
-
-**To opt out**, set the environment variable before running:
-
-```bash
-export SIH_USAGE_PING=0
-```
-
-Or in CI/CD pipeline variables: `SIH_USAGE_PING=0`
-
 
 ## Catalog
 
@@ -71,6 +56,20 @@ Templates support `{{env:NAME}}` to read environment variables anywhere values a
 Use `references.environmentFile` (or CLI `--envfile`) to load a `.env` file for those variables.
 Inputs from `.wfvars` can be scoped by environment and version (see `variables and context`).
 Stages can declare `delaySeconds` (0-60) to delay execution. Retry and circuit breaker settings apply only to `Endpoint` stages.
+Structured JSON is now first-class: workflows can consume `Object` and `Array` inputs, address JSON paths in tokens, load request bodies from `bodyFile`, load collections from `dataFile`, iterate with `forEach`, and declare idempotent intent with `ensure`.
+Execution reporting is also first-class: runs can emit JSON and HTML reports with stage timelines, retries, jumps, HTTP summaries, redacted payload capture, and a console summary for post-run diagnostics.
+
+## Execution reporting
+
+The CLI can persist post-run diagnostics as execution artifacts. This is part of the runtime now, not a planned feature.
+
+- JSON report: machine-readable execution timeline and outputs
+- HTML report: human-readable execution summary
+- Console summary: execution id plus generated artifact paths
+- Configurable HTTP capture: `none`, `headers`, or `bodies`
+- Redaction by default for sensitive headers and JSON fields
+
+Use [`.doc/cli.md`](.doc/cli.md) for flags and [`.doc/telemetry.md`](.doc/telemetry.md) for the relationship between local reports and OpenTelemetry.
 
 ### Example workflow (login)
 
@@ -110,6 +109,57 @@ stages:
 endStage:
   context:
     tokenId: "{{stage:login.output.jwt}}"
+```
+
+### Example workflow (idempotent bootstrap with files and foreach)
+
+```yaml
+version: "3.11"
+id: "01JBOOTSTRAPEXAMPLE0000000001"
+name: "bootstrap-accounts"
+description: "Creates accounts idempotently from a seed file."
+output: true
+references:
+  apis:
+    - name: "accounts"
+      definition: "accounts"
+input:
+  - name: "seed"
+    type: "Array"
+    required: true
+stages:
+  - name: "create-account"
+    kind: "Endpoint"
+    apiRef: "accounts"
+    endpoint: "/api/accounts"
+    httpVerb: "POST"
+    expectedStatus: 201
+    forEach: "{{input.seed}}"
+    itemName: "item"
+    bodyFile: "./payloads/create-account.json"
+    ensure:
+      mode: "CreateIfMissing"
+      jumpTo: "load-existing"
+      output:
+        exists: "true"
+  - name: "load-existing"
+    kind: "Endpoint"
+    apiRef: "accounts"
+    endpoint: "/api/accounts/{{context:item.id}}"
+    httpVerb: "GET"
+    expectedStatus: 200
+endStage:
+  output:
+    created: "{{stage:create-account.output.foreach_items}}"
+```
+
+Example `./payloads/create-account.json`:
+
+```json
+{
+  "id": "{{context:item.id}}",
+  "name": "{{context:item.name}}"
+}
 ```
 
 ## Usage
@@ -162,6 +212,24 @@ SphereIntegrationHub.cli \
   --input accountName=Acme
 ```
 
+Generate full execution artifacts:
+
+```bash
+SphereIntegrationHub.cli \
+  --workflow ./src/resources/workflows/create-account.workflow \
+  --env pre \
+  --report-format both \
+  --capture-http bodies
+```
+
+This writes:
+
+- `{name}.{id}.workflow.output`
+- `{name}.{id}.{executionId}.workflow.report.json`
+- `{name}.{id}.{executionId}.workflow.report.html`
+
+Reports include stage timings, retries, jumps, ensure status, HTTP status, redacted headers/body capture, and final outputs.
+
 Override root `.env` for `{{env:NAME}}` tokens:
 
 ```bash
@@ -174,6 +242,7 @@ SphereIntegrationHub.cli \
 ### Key Advantages of SphereIntegrationHub
 
 #### 🎯 1. Modular Workflow Composition
+
 Unlike Postman's monolithic collections, workflows can reference other workflows as reusable modules:
 
 ```yaml
@@ -188,6 +257,7 @@ stages:
 ```
 
 #### 🛡️ 2. Contract-First Validation
+
 Validate endpoints against cached Swagger specifications **before execution**:
 
 ```bash
@@ -197,6 +267,7 @@ Validate endpoints against cached Swagger specifications **before execution**:
 This catches endpoint mismatches, missing parameters, and schema violations at validation time, not runtime.
 
 #### 📦 3. GitOps-Ready Workflows
+
 YAML workflows are human-readable and Git-friendly. Pull requests show exact changes:
 
 ```diff
@@ -209,6 +280,7 @@ YAML workflows are human-readable and Git-friendly. Pull requests show exact cha
 Compare this to Postman's JSON exports with GUIDs and nested structures.
 
 #### 🔄 4. Context Propagation
+
 Seamlessly pass JWTs, IDs, and data between workflow stages and nested workflows:
 
 ```yaml
@@ -221,6 +293,7 @@ endStage:
 No scripting required—context flows declaratively.
 
 #### 🎲 5. Dynamic Value Service
+
 Generate random values with built-in formatting:
 
 ```yaml
@@ -234,6 +307,7 @@ variables:
 ```
 
 #### 🔍 6. Multi-Version API Catalog
+
 Manage multiple API versions and environments in a single catalog:
 
 ```json
@@ -257,6 +331,7 @@ Manage multiple API versions and environments in a single catalog:
 Swagger definitions are cached per version, ensuring validation against the correct contract.
 
 #### 🚀 7. CI/CD Native
+
 No conversion needed—workflows execute directly in pipelines:
 
 ```bash
@@ -267,6 +342,7 @@ SphereIntegrationHub.cli \
 ```
 
 #### 💾 8. Offline-First & Cloud-Free
+
 No account required. No cloud dependency. No internet connection needed for execution:
 
 - **All-in-one-place**: Workflows, catalogs, and Swagger cache live on disk
@@ -281,12 +357,14 @@ Unlike Postman (cloud sync required) or Apidog (account-based), SphereIntegratio
 ### When to Use Each Tool
 
 **Use Postman/Apidog/Bruno for:**
+
 - Interactive API exploration and debugging
 - Collaborative documentation with teams
 - Manual testing during development
 - Learning new APIs
 
 **Use SphereIntegrationHub for:**
+
 - Complex multi-step orchestration (10+ sequential calls)
 - Automated integration testing in CI/CD
 - Reproducible API workflows in Git
@@ -294,14 +372,43 @@ Unlike Postman (cloud sync required) or Apidog (account-based), SphereIntegratio
 - Production smoke tests and health checks
 - Scenarios requiring workflow composition and reuse
 
-### Future Enhancements
+### Roadmap
 
-The following features are planned for future releases (not in order):
+### Current Position
 
-1. **Visual Workflow Editor** - Web-based drag-and-drop workflow builder (n8n-style) for designing complex orchestrations visually
-2. **GUI/Dashboard** - Optional web interface for visualizing workflow executions and results
-3. **HTML/JSON Reports** - Structured output with metrics, timings, and navigable logs
-5. **Secret Manager Integration** - AWS Secrets Manager, Azure Key Vault, HashiCorp Vault support
-6. **Transformers/Plugins** - Load .NET assemblies with custom workflow stages for mapping and transformation
-8. **Snapshot Testing** - Compare workflow outputs against expected snapshots
-9. **MCP Integration** - Model Context Protocol server exposing SphereIntegrationHub's API catalog and workflows as real‑time context for AI coding assistants (Claude, GitHub Copilot, etc.). See [MCP Server documentation](.doc/mcp-server.md) for details. 🚧 **In Development**
+SphereIntegrationHub is now strong as a local-first API orchestration runtime and AI-assisted workflow authoring tool.
+
+- ✅ Contract-aware endpoint execution with versioned Swagger validation
+- ✅ Workflow composition and reusable child workflows
+- ✅ Idempotent HTTP branching with `expectedStatuses`, `onStatus`, `jumpOnStatus`, and `ensure`
+- ✅ JSON-aware expressions and structured `Object` / `Array` inputs
+- ✅ `bodyFile`, `dataFile`, and `forEach` for large payloads and collection bootstraps
+- ✅ Post-execution observability with JSON/HTML reports, stage timelines, and summary output
+- ✅ MCP server that exposes these runtime authoring capabilities to AI agents
+
+### Near-Term Priorities
+
+1. **Assertions and Regression Diagnostics**
+   First-class assertions, golden snapshots, and failure diffs on top of the new execution reports.
+2. **Snapshot and Regression Testing**
+   Snapshot authoring helpers and update workflows for intentional baseline changes.
+3. **Secret Manager Integration**
+   AWS Secrets Manager, Azure Key Vault, HashiCorp Vault, and similar providers.
+4. **Plugin/Transformer Extensibility**
+   Load custom .NET transformations and stage extensions safely.
+
+### Mid-Term Roadmap
+
+1. **GUI/Dashboard**
+   Optional web interface for execution history, outputs, logs, reports, and diagnostics.
+2. **Visual Workflow Editor**
+   Web-based workflow builder for teams that want graphical authoring on top of the YAML runtime.
+3. **Higher-Level Runtime Primitives**
+   More semantic stage sugar beyond `ensure`, plus better assertions and reusable payload/template blocks.
+
+### Ongoing Investment
+
+1. **MCP Integration**
+   Keep the MCP aligned with runtime capabilities so AI agents can generate valid workflows without inventing unsupported schema.
+2. **Authoring Ergonomics**
+   Improve generated examples, repair tools, diagnostics, and workflow scaffolding quality.

@@ -9,11 +9,15 @@ internal sealed class CliArgumentParser : ICliArgumentParser
         string? catalogPath = null;
         string? envFileOverride = null;
         string? varsFilePath = null;
+        string? reportFormat = null;
+        string? captureHttp = null;
         var refreshCache = false;
         var dryRun = false;
         var verbose = false;
         var debug = false;
         var mocked = false;
+        bool? redactSensitiveData = null;
+        bool? summaryConsole = null;
         var showHelp = false;
 
         for (var i = 0; i < args.Length; i++)
@@ -54,6 +58,18 @@ internal sealed class CliArgumentParser : ICliArgumentParser
                         return new InlineArguments(Error: "Missing value for --varsfile.");
                     }
                     break;
+                case "--report-format":
+                    if (!TryReadValue(args, ref i, out reportFormat))
+                    {
+                        return new InlineArguments(Error: "Missing value for --report-format.");
+                    }
+                    break;
+                case "--capture-http":
+                    if (!TryReadValue(args, ref i, out captureHttp))
+                    {
+                        return new InlineArguments(Error: "Missing value for --capture-http.");
+                    }
+                    break;
                 case "--refresh-cache":
                     refreshCache = true;
                     break;
@@ -68,6 +84,12 @@ internal sealed class CliArgumentParser : ICliArgumentParser
                     break;
                 case "--mocked":
                     mocked = true;
+                    break;
+                case "--no-redact":
+                    redactSensitiveData = false;
+                    break;
+                case "--no-summary":
+                    summaryConsole = false;
                     break;
                 case "--help":
                 case "-h":
@@ -89,11 +111,15 @@ internal sealed class CliArgumentParser : ICliArgumentParser
             catalogPath,
             envFileOverride,
             varsFilePath,
+            reportFormat,
+            captureHttp,
             refreshCache,
             dryRun,
             verbose,
             debug,
             mocked,
+            redactSensitiveData,
+            summaryConsole,
             null,
             showHelp);
     }

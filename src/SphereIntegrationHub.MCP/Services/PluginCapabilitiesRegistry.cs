@@ -8,51 +8,70 @@ internal static class PluginCapabilitiesRegistry
         {
             new
             {
-                type = "api",
-                description = "Makes HTTP requests to external APIs",
-                requiredFields = new[] { "api", "endpoint" },
-                optionalFields = new[] { "verb", "queryParams", "pathParams", "body", "headers", "output" },
-                capabilities = new[] { "HTTP requests", "Parameter templating", "Response capture", "Error handling" }
+                type = "endpoint",
+                description = "Calls an HTTP endpoint using the runtime workflow schema",
+                requiredFields = new[] { "name", "kind", "apiRef", "endpoint", "httpVerb" },
+                optionalFields = new[]
+                {
+                    "expectedStatus",
+                    "expectedStatuses",
+                    "headers",
+                    "query",
+                    "body",
+                    "bodyFile",
+                    "dataFile",
+                    "forEach",
+                    "itemName",
+                    "indexName",
+                    "runIf",
+                    "output",
+                    "jumpOnStatus",
+                    "onStatus",
+                    "ensure",
+                    "retry",
+                    "circuitBreaker",
+                    "message",
+                    "debug",
+                    "set",
+                    "context",
+                    "mock"
+                },
+                capabilities = new[]
+                {
+                    "HTTP requests",
+                    "Status branching with expectedStatuses/onStatus/jumpOnStatus/ensure",
+                    "Inline or file-based request bodies",
+                    "Collection iteration with forEach/dataFile",
+                    "Response capture into output"
+                }
             },
             new
             {
-                type = "transform",
-                description = "Transforms data using mappings or scripts",
-                requiredFields = new[] { "mapping" },
-                optionalFields = new[] { "script", "output" },
-                capabilities = new[] { "Field mapping", "Data transformation", "Scripting support" }
-            },
-            new
-            {
-                type = "condition",
-                description = "Conditionally executes stages based on expressions",
-                requiredFields = new[] { "condition", "then" },
-                optionalFields = new[] { "else" },
-                capabilities = new[] { "Boolean expressions", "Conditional branching", "Variable comparison" }
-            },
-            new
-            {
-                type = "loop",
-                description = "Iterates over collections",
-                requiredFields = new[] { "items", "do" },
-                optionalFields = new[] { "max-iterations", "output" },
-                capabilities = new[] { "Array iteration", "Nested stages", "Aggregation" }
-            },
-            new
-            {
-                type = "workflow-ref",
-                description = "Executes another workflow",
-                requiredFields = new[] { "workflow" },
-                optionalFields = new[] { "inputs", "output" },
-                capabilities = new[] { "Workflow composition", "Input/output mapping", "Nested execution" }
-            },
-            new
-            {
-                type = "parallel",
-                description = "Executes multiple stages in parallel",
-                requiredFields = new[] { "stages" },
-                optionalFields = new[] { "output" },
-                capabilities = new[] { "Concurrent execution", "Result aggregation", "Failure handling" }
+                type = "workflow",
+                description = "Executes another workflow using workflowRef",
+                requiredFields = new[] { "name", "kind", "workflowRef" },
+                optionalFields = new[]
+                {
+                    "inputs",
+                    "forEach",
+                    "dataFile",
+                    "itemName",
+                    "indexName",
+                    "runIf",
+                    "allowVersion",
+                    "message",
+                    "debug",
+                    "set",
+                    "context",
+                    "mock"
+                },
+                capabilities = new[]
+                {
+                    "Workflow composition",
+                    "Input/output mapping",
+                    "Nested execution",
+                    "Collection iteration over child workflows"
+                }
             }
         };
 
@@ -73,20 +92,90 @@ internal static class PluginCapabilitiesRegistry
                 new
                 {
                     feature = "Template Tokens",
-                    description = "Dynamic value substitution using {{ }} syntax",
-                    examples = new[] { "{{ input.userId }}", "{{ stages.fetch_user.output.body.name }}", "{{ system.timestamp }}" }
+                    description = "Dynamic value substitution using runtime tokens and JSON paths",
+                    examples = new[]
+                    {
+                        "{{input.userId}}",
+                        "{{context:item.id}}",
+                        "{{stage:create-account.output.dto}}",
+                        "{{response.body.id}}"
+                    }
                 },
                 new
                 {
-                    feature = "Resilience Policies",
-                    description = "Retry, timeout, and circuit breaker patterns",
-                    examples = new[] { "retry with exponential backoff", "timeout after 30s", "circuit breaker on failures" }
+                    feature = "Expressions",
+                    description = "runIf supports comparisons, boolean operators, and JSON helper functions",
+                    examples = new[]
+                    {
+                        "exists({{context:item}})",
+                        "jsonLength({{input.items}}) > 0",
+                        "!isEmptyJson({{response.body}})",
+                        "{{stage:create.output.http_status}} in [200, 201, 409]"
+                    }
+                },
+                new
+                {
+                    feature = "Idempotent Branching",
+                    description = "Endpoint stages can continue on non-happy statuses without failing first",
+                    examples = new[]
+                    {
+                        "expectedStatuses: [200, 201, 409]",
+                        "onStatus.409.jumpTo = load-existing",
+                        "ensure.mode = CreateIfMissing",
+                        "jumpOnStatus.404 = create-resource"
+                    }
+                },
+                new
+                {
+                    feature = "External Data Files",
+                    description = "Large payloads and collections can be loaded from JSON/YAML files",
+                    examples = new[]
+                    {
+                        "bodyFile: ./payloads/create-account.json",
+                        "dataFile: ./seed/accounts.json",
+                        "forEach: \"{{input.items}}\""
+                    }
+                },
+                new
+                {
+                    feature = "Complex Inputs",
+                    description = "Workflow inputs may be scalar, object, or array values",
+                    examples = new[]
+                    {
+                        "type: Object",
+                        "type: Array",
+                        "{{input.payload.customer.id}}"
+                    }
                 },
                 new
                 {
                     feature = "Context Management",
                     description = "Shared state across stages",
-                    examples = new[] { "context.sessionToken", "context.userData" }
+                    examples = new[] { "{{context.tokenId}}", "{{context:item}}", "{{global.accountId}}" }
+                },
+                new
+                {
+                    feature = "Authoring Guidance",
+                    description = "Prefer real runtime fields and avoid invented plugin stage types",
+                    examples = new[]
+                    {
+                        "Use kind: Endpoint or kind: Workflow",
+                        "Prefer ensure for create-if-missing bootstrap stages",
+                        "Prefer expectedStatuses for idempotent create/bootstrap flows",
+                        "Prefer bodyFile/dataFile when payloads are large"
+                    }
+                },
+                new
+                {
+                    feature = "Execution Reporting",
+                    description = "Runtime executions can emit JSON/HTML reports with stage-level diagnostics and configurable HTTP capture",
+                    examples = new[]
+                    {
+                        "--report-format both",
+                        "--capture-http headers",
+                        "--capture-http bodies",
+                        "reporting.summaryConsole = true"
+                    }
                 }
             }
         };

@@ -175,7 +175,7 @@ public class DiagnosticToolsTests : IDisposable
         var tool = new GetPluginCapabilitiesTool(_adapter);
         var args = new Dictionary<string, object>
         {
-            ["pluginType"] = "api"
+            ["pluginType"] = "endpoint"
         };
 
         // Act
@@ -186,7 +186,7 @@ public class DiagnosticToolsTests : IDisposable
         json.TryGetProperty("type", out var type).Should().BeTrue();
         json.TryGetProperty("description", out var description).Should().BeTrue();
 
-        type.GetString().Should().Be("api");
+        type.GetString().Should().Be("endpoint");
         description.ValueKind.Should().NotBe(JsonValueKind.Null);
     }
 
@@ -197,7 +197,7 @@ public class DiagnosticToolsTests : IDisposable
         var tool = new GetPluginCapabilitiesTool(_adapter);
         var args = new Dictionary<string, object>
         {
-            ["pluginType"] = "api"
+            ["pluginType"] = "endpoint"
         };
 
         // Act
@@ -219,7 +219,7 @@ public class DiagnosticToolsTests : IDisposable
         var tool = new GetPluginCapabilitiesTool(_adapter);
         var args = new Dictionary<string, object>
         {
-            ["pluginType"] = "transform"
+            ["pluginType"] = "workflow"
         };
 
         // Act
@@ -229,6 +229,22 @@ public class DiagnosticToolsTests : IDisposable
         // Assert
         json.TryGetProperty("capabilities", out var capabilities).Should().BeTrue();
         capabilities.ValueKind.Should().Be(JsonValueKind.Array);
+    }
+
+    [Fact]
+    public async Task GetPluginCapabilities_IncludesExecutionReportingFeature()
+    {
+        var tool = new GetPluginCapabilitiesTool(_adapter);
+
+        var result = await tool.ExecuteAsync(new Dictionary<string, object>());
+        var json = ToJson(result);
+
+        json.TryGetProperty("features", out var features).Should().BeTrue();
+        features.ValueKind.Should().Be(JsonValueKind.Array);
+        features.EnumerateArray()
+            .Select(item => item.GetProperty("feature").GetString())
+            .Should()
+            .Contain("Execution Reporting");
     }
 
     [Fact]
@@ -384,6 +400,39 @@ public class DiagnosticToolsTests : IDisposable
         tool.Name.Should().Be("get_plugin_capabilities");
         tool.Description.Should().NotBeNullOrEmpty();
         tool.InputSchema.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task GetPluginCapabilities_ReturnsCurrentRuntimeAuthoringFeatures()
+    {
+        var tool = new GetPluginCapabilitiesTool(_adapter);
+
+        var result = await tool.ExecuteAsync(new Dictionary<string, object>());
+        var json = ToJson(result);
+
+        json.TryGetProperty("features", out var features).Should().BeTrue();
+        features.EnumerateArray().Select(item => item.GetProperty("feature").GetString()).Should().Contain(new[]
+        {
+            "Expressions",
+            "Idempotent Branching",
+            "External Data Files",
+            "Complex Inputs"
+        });
+    }
+
+    [Fact]
+    public async Task GetPluginCapabilities_EndpointIncludesEnsureSemanticSugar()
+    {
+        var tool = new GetPluginCapabilitiesTool(_adapter);
+
+        var result = await tool.ExecuteAsync(new Dictionary<string, object>
+        {
+            ["pluginType"] = "endpoint"
+        });
+        var json = ToJson(result);
+
+        json.GetProperty("optionalFields").EnumerateArray().Select(item => item.GetString()).Should().Contain("ensure");
+        json.GetProperty("capabilities").EnumerateArray().Select(item => item.GetString()).Should().Contain(c => c!.Contains("ensure", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
