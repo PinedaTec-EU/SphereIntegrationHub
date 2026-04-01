@@ -26,7 +26,7 @@ call :help
 exit /b 1
 
 :help
-echo API Orchestrator Sphere Launcher
+echo Sphere Integration Hub (SIH) Launcher
 echo --------------------------------
 echo Usage:
 echo   sih ^<command^> [args]

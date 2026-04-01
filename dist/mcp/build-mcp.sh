@@ -127,7 +127,7 @@ BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 print_help() {
   cat <<'HELP'
-API Orchestrator Sphere Launcher
+Sphere Integration Hub (SIH) Launcher
 --------------------------------
 Usage:
   sih <command> [args]
@@ -219,7 +219,7 @@ call :help
 exit /b 1
 
 :help
-echo API Orchestrator Sphere Launcher
+echo Sphere Integration Hub (SIH) Launcher
 echo --------------------------------
 echo Usage:
 echo   sih ^<command^> [args]
