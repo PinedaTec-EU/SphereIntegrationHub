@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 using SphereIntegrationHub.Definitions;
 
 namespace SphereIntegrationHub.Services;
@@ -538,6 +540,8 @@ public sealed class WorkflowValidator
         {
             foreach (var stage in definition.Stages)
             {
+                var responseSample = TryLoadEndpointMockResponseSample(stage, workflowPath);
+
                 if (stage.Headers is not null)
                 {
                     foreach (var header in stage.Headers.Values)
@@ -599,14 +603,14 @@ public sealed class WorkflowValidator
 
                 if (!string.IsNullOrWhiteSpace(stage.Message))
                 {
-                    ValidateTemplate(stage.Message, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' message", errors, allowResponse: stage.Kind == WorkflowStageKind.Endpoint);
+                    ValidateTemplate(stage.Message, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' message", errors, allowResponse: stage.Kind == WorkflowStageKind.Endpoint, responseSample: responseSample);
                 }
 
                 if (stage.Output is not null)
                 {
                     foreach (var output in stage.Output.Values)
                     {
-                        ValidateTemplate(output, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' output", errors, allowResponse: stage.Kind == WorkflowStageKind.Endpoint);
+                        ValidateTemplate(output, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' output", errors, allowResponse: stage.Kind == WorkflowStageKind.Endpoint, responseSample: responseSample);
                     }
                 }
 
@@ -644,7 +648,7 @@ public sealed class WorkflowValidator
                         {
                             foreach (var output in action.Output.Values)
                             {
-                                ValidateTemplate(output, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' onStatus output", errors, allowResponse: true);
+                                ValidateTemplate(output, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' onStatus output", errors, allowResponse: true, responseSample: responseSample);
                             }
                         }
                     }
@@ -654,7 +658,7 @@ public sealed class WorkflowValidator
                 {
                     foreach (var output in stage.Ensure.Output.Values)
                     {
-                        ValidateTemplate(output, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' ensure output", errors, allowResponse: true);
+                        ValidateTemplate(output, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' ensure output", errors, allowResponse: true, responseSample: responseSample);
                     }
                 }
 
@@ -696,7 +700,8 @@ public sealed class WorkflowValidator
         Dictionary<string, HashSet<string>> workflowOutputs,
         string location,
         List<string> errors,
-        bool allowResponse = false)
+        bool allowResponse = false,
+        JsonElement? responseSample = null)
     {
         if (string.IsNullOrWhiteSpace(template))
         {
@@ -794,6 +799,12 @@ public sealed class WorkflowValidator
                     if (!allowResponse)
                     {
                         errors.Add($"Response token '{token}' is not allowed in {location}.");
+                        break;
+                    }
+
+                    if (!TryValidateResponseToken(token, segments, responseSample, out var responseError))
+                    {
+                        errors.Add($"{responseError} in {location}.");
                     }
                     break;
                 case "system":
@@ -855,6 +866,63 @@ public sealed class WorkflowValidator
         }
 
         error = $"Stage outputs were not found for '{token}'";
+        return false;
+    }
+
+    private static bool TryValidateResponseToken(
+        string token,
+        string[] segments,
+        JsonElement? responseSample,
+        out string error)
+    {
+        error = string.Empty;
+        if (segments.Length < 2)
+        {
+            error = $"Invalid response token '{token}'.";
+            return false;
+        }
+
+        if (segments[1].Equals("status", StringComparison.OrdinalIgnoreCase))
+        {
+            if (segments.Length != 2)
+            {
+                error = $"Invalid response token '{token}'. Expected 'response.status'.";
+                return false;
+            }
+
+            return true;
+        }
+
+        if (segments[1].Equals("headers", StringComparison.OrdinalIgnoreCase))
+        {
+            if (segments.Length != 3)
+            {
+                error = $"Invalid response token '{token}'. Expected 'response.headers.<HeaderName>'.";
+                return false;
+            }
+
+            return true;
+        }
+
+        if (!responseSample.HasValue)
+        {
+            return true;
+        }
+
+        var path = segments[1].Equals("body", StringComparison.OrdinalIgnoreCase)
+            ? segments.Skip(2).ToArray()
+            : segments.Skip(1).ToArray();
+        if (path.Length == 0)
+        {
+            return true;
+        }
+
+        if (JsonValueHelper.TryResolvePath(responseSample.Value, path, out _))
+        {
+            return true;
+        }
+
+        error = $"Response path '{string.Join(".", path)}' was not found for token '{token}'";
         return false;
     }
 
@@ -1190,6 +1258,33 @@ public sealed class WorkflowValidator
             {
                 ValidateTemplate(output, inputs, globals, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' mock output", errors);
             }
+        }
+    }
+
+    private JsonElement? TryLoadEndpointMockResponseSample(WorkflowStageDefinition stage, string workflowPath)
+    {
+        if (stage.Kind != WorkflowStageKind.Endpoint)
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(stage.Mock?.Payload) && string.IsNullOrWhiteSpace(stage.Mock?.PayloadFile))
+        {
+            return null;
+        }
+
+        try
+        {
+            var rawPayload = string.IsNullOrWhiteSpace(stage.Mock?.PayloadFile)
+                ? _mockPayloadService.LoadRawPayload(stage.Mock?.Payload ?? string.Empty, workflowPath)
+                : _mockPayloadService.LoadRawPayloadFromFile(stage.Mock?.PayloadFile ?? string.Empty, workflowPath);
+            var sanitized = MockPayloadService.SanitizeJsonForValidation(rawPayload);
+            using var document = JsonDocument.Parse(sanitized);
+            return document.RootElement.Clone();
+        }
+        catch
+        {
+            return null;
         }
     }
 

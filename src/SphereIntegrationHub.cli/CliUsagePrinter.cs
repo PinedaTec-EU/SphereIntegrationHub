@@ -6,6 +6,7 @@ internal sealed class CliUsagePrinter : ICliUsagePrinter
     {
         writer.WriteLine("Usage:");
         writer.WriteLine("  SphereIntegrationHub.cli --workflow <path> --env <environment> [--catalog <path>] [--envfile <path>] [--varsfile <path>] [--report-format <json|html|both|none>] [--capture-http <none|headers|bodies>] [--refresh-cache] [--dry-run] [--verbose] [--debug] [--mocked]");
+        writer.WriteLine("  SphereIntegrationHub.cli --version");
         writer.WriteLine();
         writer.WriteLine("Options:");
         writer.WriteLine("  -w, --workflow  Workflow file to execute.");
@@ -20,6 +21,7 @@ internal sealed class CliUsagePrinter : ICliUsagePrinter
         writer.WriteLine("      --verbose   Print detailed plan information.");
         writer.WriteLine("      --debug     Print stage debug sections before invocation.");
         writer.WriteLine("      --mocked    Use mock payloads/outputs when defined.");
+        writer.WriteLine("      --version   Print only the CLI version.");
         writer.WriteLine("      --no-redact Disable redaction of sensitive headers and payload fields in reports.");
         writer.WriteLine("      --no-summary Disable the post-execution summary block.");
         writer.WriteLine("  -h, --help      Show this help.");

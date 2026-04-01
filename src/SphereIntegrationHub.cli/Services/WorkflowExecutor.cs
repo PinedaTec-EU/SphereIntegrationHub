@@ -293,6 +293,12 @@ public sealed class WorkflowExecutor
                             _logger.Error($"{indent}{FormatStageTag(definition.Name, stage.Name)} failed after {stageTimer.Elapsed.TotalMilliseconds:F0} ms: {ex.Message}");
                             ApplyWorkflowStageResult(context, stage.Name, WorkflowResultStatus.Error, ex.Message);
                             CompleteStageRecord(stageRecord, context, "Error", null, ex.Message);
+                            if (captureErrors)
+                            {
+                                return BuildWorkflowErrorResult(definition, context, ex);
+                            }
+
+                            throw;
                         }
                         finally
                         {
@@ -599,6 +605,12 @@ public sealed class WorkflowExecutor
         }
 
         ApplyWorkflowStageResult(context, stage.Name, nestedResult.Status, nestedResult.Message);
+        if (string.Equals(nestedResult.Status, WorkflowResultStatus.Error.ToString(), StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Nested workflow '{nestedDocument.Definition.Name}' failed in stage '{stage.Name}': {nestedResult.Message}");
+        }
+
         _logger.Info(string.Empty);
     }
 
@@ -854,6 +866,8 @@ public sealed class WorkflowExecutor
         var iterations = ResolveForEachItems(stage, context, document.FilePath);
         var results = new List<IReadOnlyDictionary<string, string>>();
         var resultsJson = new List<JsonElement>();
+        var workflowResults = new List<IReadOnlyDictionary<string, string>>();
+        var workflowResultsJson = new List<JsonElement>();
 
         foreach (var iteration in iterations.Select((item, index) => new { item, index }))
         {
@@ -883,9 +897,15 @@ public sealed class WorkflowExecutor
                 results.Add(new Dictionary<string, string>(workflowOutput, StringComparer.OrdinalIgnoreCase));
                 resultsJson.Add(JsonSerializer.SerializeToElement(workflowOutput));
             }
+
+            if (context.WorkflowResults.TryGetValue(stage.Name, out var workflowResult))
+            {
+                workflowResults.Add(new Dictionary<string, string>(workflowResult, StringComparer.OrdinalIgnoreCase));
+                workflowResultsJson.Add(JsonSerializer.SerializeToElement(workflowResult));
+            }
         }
 
-        ApplyForEachWorkflowOutputs(stage, context, results, resultsJson);
+        ApplyForEachWorkflowOutputs(stage, context, results, resultsJson, workflowResults, workflowResultsJson);
     }
 
     private async Task<string?> ExecuteEndpointStageWithOptionalForEachAsync(
@@ -1153,17 +1173,25 @@ public sealed class WorkflowExecutor
         WorkflowStageDefinition stage,
         ExecutionContext context,
         List<IReadOnlyDictionary<string, string>> results,
-        List<JsonElement> resultsJson)
+        List<JsonElement> resultsJson,
+        List<IReadOnlyDictionary<string, string>> workflowResults,
+        List<JsonElement> workflowResultsJson)
     {
         if (!context.WorkflowOutputs.TryGetValue(stage.Name, out var current))
         {
             current = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
 
+        var failedCount = workflowResults.Count(result =>
+            result.TryGetValue("status", out var status) &&
+            string.Equals(status, WorkflowResultStatus.Error.ToString(), StringComparison.OrdinalIgnoreCase));
         var aggregated = new Dictionary<string, string>(current, StringComparer.OrdinalIgnoreCase)
         {
             ["foreach_count"] = results.Count.ToString(),
-            ["foreach_items"] = JsonSerializer.Serialize(results)
+            ["foreach_items"] = JsonSerializer.Serialize(results),
+            ["foreach_results"] = JsonSerializer.Serialize(workflowResults),
+            ["foreach_success_count"] = (workflowResults.Count - failedCount).ToString(),
+            ["foreach_failed_count"] = failedCount.ToString()
         };
         context.WorkflowOutputs[stage.Name] = aggregated;
 
@@ -1171,6 +1199,7 @@ public sealed class WorkflowExecutor
             ? new Dictionary<string, JsonElement>(jsonCurrent, StringComparer.OrdinalIgnoreCase)
             : new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
         aggregatedJson["foreach_items"] = JsonSerializer.SerializeToElement(resultsJson);
+        aggregatedJson["foreach_results"] = JsonSerializer.SerializeToElement(workflowResultsJson);
         context.WorkflowOutputsJson[stage.Name] = aggregatedJson;
     }
 
