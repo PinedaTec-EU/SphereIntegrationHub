@@ -252,7 +252,7 @@ public sealed class WorkflowExecutor
                         continue;
                     }
 
-                    await ApplyStageDelayAsync(definition.Name, stage, context, verbose, cancellationToken);
+                    await ApplyStageDelayAsync(definition.Name, stage, context, cancellationToken);
 
                     if (debug)
                     {
@@ -462,7 +462,6 @@ public sealed class WorkflowExecutor
         string workflowName,
         WorkflowStageDefinition stage,
         ExecutionContext context,
-        bool verbose,
         CancellationToken cancellationToken)
     {
         var delaySeconds = stage.DelaySeconds ?? 0;
@@ -471,10 +470,7 @@ public sealed class WorkflowExecutor
             return;
         }
 
-        if (verbose)
-        {
-            _logger.Info($"{GetIndent(context)}{FormatStageTag(workflowName, stage.Name)} delay: {delaySeconds}s.");
-        }
+        _logger.Info($"{GetIndent(context)}{FormatStageTag(workflowName, stage.Name)} delay: {delaySeconds}s.");
 
         await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
     }
@@ -1011,6 +1007,7 @@ public sealed class WorkflowExecutor
             RunIf = stage.RunIf,
             Mocked = isMocked,
             EnsureMode = stage.Ensure?.Mode,
+            DelaySeconds = stage.DelaySeconds > 0 ? stage.DelaySeconds : null,
             StartedAtUtc = _systemProvider.UtcNow
         };
         context.Report?.Stages.Add(record);
