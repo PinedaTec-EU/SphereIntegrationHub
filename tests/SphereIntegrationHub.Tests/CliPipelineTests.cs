@@ -130,6 +130,26 @@ public sealed class CliPipelineTests
             message.Text.Contains("circuitBreaker is only supported for endpoint stages", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public async Task RunAsync_MockedExecution_EmitsExecutionReportPaths()
+    {
+        var fixture = CreateFixture(swaggerHasEndpoint: true, includeMock: true, catalogVersion: "1.0", baseUrls: new Dictionary<string, string> { ["dev"] = "http://example.test" });
+        var pipeline = CreatePipeline();
+
+        var result = await pipeline.RunAsync(new InlineArguments(
+            WorkflowPath: fixture.WorkflowPath,
+            Environment: "dev",
+            CatalogPath: null,
+            Mocked: true,
+            ReportFormat: "both",
+            CaptureHttp: "bodies"), CancellationToken.None);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains(result.Messages, message => message.Text.Contains("JSON report:", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains("HTML report:", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains("Execution summary:", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static CliPipeline CreatePipeline()
     {
         var output = new TestOutputProvider();

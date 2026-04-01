@@ -35,10 +35,16 @@ internal static class TelemetryConstants
     internal const string TagApiDefinition = "api.definition";
     internal const string TagStageName = "stage.name";
     internal const string TagStageKind = "stage.kind";
+    internal const string TagStageStatus = "stage.status";
+    internal const string TagStageJumpTarget = "stage.jump_target";
+    internal const string TagStageRetryCount = "stage.retry_count";
+    internal const string TagStageEnsureMode = "stage.ensure.mode";
+    internal const string TagStageEnsureStatus = "stage.ensure.status";
     internal const string TagHttpMethod = "http.method";
     internal const string TagHttpBaseUrl = "http.url.base";
     internal const string TagHttpPath = "http.url.path";
     internal const string TagHttpStatusCode = "http.status_code";
+    internal const string TagHttpExpectedStatuses = "http.expected_statuses";
     internal const string TagFilePath = "file.path";
     internal const string TagFileSeparator = "file.separator";
     internal const string TagFileAllowExport = "file.allow_export";

@@ -268,7 +268,7 @@ AI: Let me check what APIs are available...
 | Tool | Parameters | Returns | Purpose |
 |------|------------|---------|---------|
 | `generate_endpoint_stage` | `version: string`<br>`apiName: string`<br>`endpoint: string`<br>`httpVerb: string`<br>`includeAuth: boolean`<br>`includeRetry: boolean` | `string` (YAML) | Generates complete endpoint stage from Swagger |
-| `generate_workflow_skeleton` | `name: string`<br>`description: string`<br>`version: string`<br>`stages: Array<StageSpec>` | `string` (YAML) | Generates workflow with initStage, stages, endStage |
+| `generate_workflow_skeleton` | `name: string`<br>`description: string`<br>`version: string`<br>`inputParameters?: Array<string>`<br>`objectInputParameters?: Array<string>`<br>`arrayInputParameters?: Array<string>` | `object` (`yaml`, `wfvars`, `authoringHints`) | Generates workflow with initStage, stages, endStage and runtime authoring hints |
 | `generate_mock_payload` | `version: string`<br>`apiName: string`<br>`endpoint: string`<br>`httpVerb: string`<br>`statusCode: number` | `string` (JSON) | Generates mock based on Swagger response schema |
 
 **Example Output (generate_endpoint_stage):**
@@ -279,7 +279,7 @@ AI: Let me check what APIs are available...
   apiRef: "accounts"
   endpoint: "/api/accounts"
   httpVerb: "POST"
-  expectedStatus: 201
+  expectedStatuses: [201, 409]
   headers:
     Authorization: "Bearer {{context.tokenId}}"
     Content-Type: "application/json"
@@ -292,12 +292,27 @@ AI: Let me check what APIs are available...
   output:
     accountId: "{{response.body.id}}"
     accountName: "{{response.body.name}}"
+  onStatus:
+    409:
+      jumpTo: "load-existing"
+      output:
+        exists: "true"
   retry:
     maxRetries: 3
     delayMs: 250
     httpStatus: [500, 503]
   message: "Account created: {{response.body.id}}"
 ```
+
+New runtime authoring features exposed through MCP:
+
+- `expectedStatuses` for multi-status acceptance
+- `onStatus` for idempotent branching with outputs
+- `ensure` as semantic sugar for idempotent create/bootstrap stages
+- JSON-aware `runIf` functions: `exists`, `isEmptyJson`, `jsonLength`, `first`, `any`
+- `bodyFile` for large request bodies
+- `dataFile` plus `forEach` for array-driven bootstraps
+- `Object` and `Array` workflow inputs
 
 #### 1.4 Variable Analysis (3 tools)
 
@@ -919,6 +934,39 @@ public class IntentAnalyzer
 - Execution plan is correct
 
 **Branch:** `feature/mcp-server-integration-phase3`
+
+---
+
+### Phase 4: Runtime-Aligned Authoring
+
+**Goal:** Make MCP expose the real SIH runtime shape instead of a generic workflow abstraction.
+
+**Deliverables:**
+
+- ✅ `get_plugin_capabilities` aligned with actual runtime stage kinds (`Endpoint`, `Workflow`)
+- ✅ Runtime authoring hints for `expectedStatuses`, `onStatus`, `bodyFile`, `dataFile`, `forEach`
+- ✅ Structured input authoring (`Object`, `Array`) surfaced in generation tools
+- ✅ Semantic sugar `ensure` exposed as the preferred idempotent authoring pattern
+- ✅ Documentation updated so agents and humans see the same contract
+
+**Validation:**
+
+- AI agents receive runtime-valid authoring guidance
+- MCP-generated workflow skeletons prefer supported fields over invented abstractions
+- Capability discovery reflects the same semantics documented in the runtime schema
+
+---
+
+### Phase 5: Next MCP Priorities
+
+**Goal:** Move from schema-aware generation to operationally useful AI assistance.
+
+**Planned Deliverables:**
+
+- Improved workflow repair/upgrade suggestions for new runtime primitives
+- Better generation of bootstrap/seed workflows using `ensure`, `bodyFile`, and `forEach`
+- Higher-level diagnostic tools that consume execution reports for idempotency, snapshot strategy, and post-run observability
+- Optional dedicated generation helpers for semantic patterns such as ensure/create-if-missing
 
 ---
 

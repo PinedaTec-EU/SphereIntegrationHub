@@ -9,6 +9,7 @@
     "chatgpt.openOnStartup": true,
     "dotnet.defaultSolution": "SphereIntegrationHub.slnx",
     "editor.formatOnSave": true,
+    "editor.accessibilitySupport": "off",
     "dotnet.formatting.organizeImportsOnFormat": true,
     "csharpOrganizeUsings.removeUnnecessaryUsings": true,
     "[csharp]": {

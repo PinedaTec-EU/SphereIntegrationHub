@@ -13,12 +13,16 @@ public sealed class WorkflowExecutor
     private readonly TemplateResolver _templateResolver;
     private readonly RandomValueFormattingOptions _formatting;
     private readonly MockPayloadService _mockPayloadService;
+    private readonly WorkflowDataFileService _dataFileService;
     private readonly WorkflowLoader _workflowLoader;
     private readonly VarsFileLoader _varsFileLoader;
     private readonly ISystemTimeProvider _systemProvider;
     private readonly IEndpointInvoker _endpointInvoker;
     private readonly IWorkflowOutputWriter _outputWriter;
+    private readonly IWorkflowExecutionReportWriter _reportWriter;
     private readonly IExecutionLogger _logger;
+    private readonly WorkflowExpressionEvaluator _expressionEvaluator;
+    private readonly WorkflowExecutionReportOptions _reportOptions;
 
     public WorkflowExecutor(
         HttpClient httpClient,
@@ -31,7 +35,9 @@ public sealed class WorkflowExecutor
         ISystemTimeProvider? systemProvider = null,
         IEndpointInvoker? endpointInvoker = null,
         IWorkflowOutputWriter? outputWriter = null,
-        IExecutionLogger? logger = null)
+        IExecutionLogger? logger = null,
+        IWorkflowExecutionReportWriter? reportWriter = null,
+        WorkflowExecutionReportOptions? reportOptions = null)
     {
         _dynamicValueService = dynamicValueService ?? throw new ArgumentNullException(nameof(dynamicValueService));
         _workflowLoader = workflowLoader ?? new WorkflowLoader();
@@ -39,10 +45,14 @@ public sealed class WorkflowExecutor
         _systemProvider = systemProvider ?? new SystemTimeProvider();
         _templateResolver = templateResolver ?? new TemplateResolver(_systemProvider);
         _mockPayloadService = mockPayloadService ?? new MockPayloadService();
+        _dataFileService = new WorkflowDataFileService();
         _formatting = formatting ?? RandomValueFormattingOptions.Default;
         _endpointInvoker = endpointInvoker ?? new HttpEndpointInvoker(httpClient, _templateResolver);
         _outputWriter = outputWriter ?? new WorkflowOutputWriter();
+        _reportWriter = reportWriter ?? new WorkflowExecutionReportWriter();
         _logger = logger ?? new ConsoleExecutionLogger();
+        _expressionEvaluator = new WorkflowExpressionEvaluator(_templateResolver);
+        _reportOptions = reportOptions ?? WorkflowExecutionReportOptions.Default;
     }
 
     private static string FormatWorkflowTag(string name) => $"[{name}]";
@@ -78,6 +88,81 @@ public sealed class WorkflowExecutor
         public bool HalfOpen { get; set; }
     }
 
+    private sealed class IterationScope : IDisposable
+    {
+        private readonly ExecutionContext _context;
+        private readonly string _itemName;
+        private readonly string _indexName;
+        private readonly string? _previousItem;
+        private readonly JsonElement? _previousItemJson;
+        private readonly string? _previousIndex;
+        private readonly JsonElement? _previousIndexJson;
+        private readonly bool _hadItem;
+        private readonly bool _hadIndex;
+
+        public IterationScope(ExecutionContext context, string itemName, string indexName, JsonElement item, int index)
+        {
+            _context = context;
+            _itemName = itemName;
+            _indexName = indexName;
+            _hadItem = context.Context.TryGetValue(itemName, out _previousItem);
+            _hadIndex = context.Context.TryGetValue(indexName, out _previousIndex);
+            if (context.ContextJson.TryGetValue(itemName, out var previousItemJson))
+            {
+                _previousItemJson = previousItemJson.Clone();
+            }
+
+            if (context.ContextJson.TryGetValue(indexName, out var previousIndexJson))
+            {
+                _previousIndexJson = previousIndexJson.Clone();
+            }
+
+            context.Context[itemName] = JsonValueHelper.ToDisplayString(item);
+            context.ContextJson[itemName] = item.Clone();
+            context.Context[indexName] = index.ToString();
+            context.ContextJson[indexName] = JsonSerializer.SerializeToElement(index);
+        }
+
+        public void Dispose()
+        {
+            if (_hadItem)
+            {
+                _context.Context[_itemName] = _previousItem ?? string.Empty;
+            }
+            else
+            {
+                _context.Context.Remove(_itemName);
+            }
+
+            if (_previousItemJson.HasValue)
+            {
+                _context.ContextJson[_itemName] = _previousItemJson.Value.Clone();
+            }
+            else
+            {
+                _context.ContextJson.Remove(_itemName);
+            }
+
+            if (_hadIndex)
+            {
+                _context.Context[_indexName] = _previousIndex ?? string.Empty;
+            }
+            else
+            {
+                _context.Context.Remove(_indexName);
+            }
+
+            if (_previousIndexJson.HasValue)
+            {
+                _context.ContextJson[_indexName] = _previousIndexJson.Value.Clone();
+            }
+            else
+            {
+                _context.ContextJson.Remove(_indexName);
+            }
+        }
+    }
+
     private sealed record WorkflowResultInfo(string Status, string Message);
 
     public async Task<WorkflowExecutionResult> ExecuteAsync(
@@ -92,18 +177,32 @@ public sealed class WorkflowExecutor
         CancellationToken cancellationToken)
     {
         var context = new ExecutionContext(inputs, document.EnvironmentVariables);
-        await ExecuteWorkflowAsync(
-            document,
-            catalogVersion,
-            environment,
-            context,
-            varsOverrideActive,
-            mocked,
-            verbose,
-            debug,
-            cancellationToken,
-            captureErrors: false);
-        return new WorkflowExecutionResult(context.WorkflowOutputs[document.Definition.Name], context.OutputFilePath);
+        ApplyTypedInputs(document.Definition, context);
+        context.Report = BuildExecutionReport(document, environment, inputs, mocked);
+
+        try
+        {
+            await ExecuteWorkflowAsync(
+                document,
+                catalogVersion,
+                environment,
+                context,
+                varsOverrideActive,
+                mocked,
+                verbose,
+                debug,
+                cancellationToken,
+                captureErrors: false);
+
+            var successResult = await FinalizeExecutionResultAsync(document, context, cancellationToken, success: true, errorMessage: null);
+            return successResult;
+        }
+        catch (Exception ex)
+        {
+            var failedResult = await FinalizeExecutionResultAsync(document, context, cancellationToken, success: false, errorMessage: ex.Message);
+            ex.Data["workflowExecutionResult"] = failedResult;
+            throw;
+        }
     }
 
     private async Task<WorkflowResultInfo> ExecuteWorkflowAsync(
@@ -148,6 +247,7 @@ public sealed class WorkflowExecutor
                     var stage = definition.Stages[index];
                     if (!ShouldRunStage(stage, context))
                     {
+                        RecordSkippedStage(definition.Name, stage, context);
                         index++;
                         continue;
                     }
@@ -161,6 +261,7 @@ public sealed class WorkflowExecutor
 
                     if (stage.Kind == WorkflowStageKind.Workflow)
                     {
+                        var stageRecord = BeginStageRecord(definition.Name, stage, context, isMocked: mocked && stage.Mock is not null);
                         using var stageActivity = Telemetry.ActivitySource.StartActivity(TelemetryConstants.ActivityWorkflowStage);
                         stageActivity?.SetTag(TelemetryConstants.TagStageName, stage.Name);
                         stageActivity?.SetTag(TelemetryConstants.TagStageKind, stage.Kind.ToString());
@@ -172,32 +273,26 @@ public sealed class WorkflowExecutor
                         var stageTimer = Stopwatch.StartNew();
                         try
                         {
-                            if (mocked && stage.Mock is not null)
-                            {
-                                ApplyWorkflowMock(stage, context);
-                                ApplyWorkflowStageResult(context, stage.Name, WorkflowResultStatus.Ok, string.Empty);
-                            }
-                            else
-                            {
-                                await ExecuteWorkflowStageAsync(
-                                    document,
-                                    stage,
-                                    catalogVersion,
-                                    environment,
-                                    context,
-                                    varsOverrideActive,
-                                    mocked,
-                                    verbose,
-                                    debug,
-                                    cancellationToken);
-                            }
+                            await ExecuteWorkflowStageWithOptionalForEachAsync(
+                                document,
+                                stage,
+                                catalogVersion,
+                                environment,
+                                context,
+                                varsOverrideActive,
+                                mocked,
+                                verbose,
+                                debug,
+                                cancellationToken);
                             PrintStageMessage(definition, stage, context, null);
+                            CompleteStageRecord(stageRecord, context, "Ok", null, null);
                         }
                         catch (Exception ex)
                         {
                             stageActivity?.SetStatus(ActivityStatusCode.Error, ex.Message);
                             _logger.Error($"{indent}{FormatStageTag(definition.Name, stage.Name)} failed after {stageTimer.Elapsed.TotalMilliseconds:F0} ms: {ex.Message}");
                             ApplyWorkflowStageResult(context, stage.Name, WorkflowResultStatus.Error, ex.Message);
+                            CompleteStageRecord(stageRecord, context, "Error", null, ex.Message);
                         }
                         finally
                         {
@@ -210,6 +305,7 @@ public sealed class WorkflowExecutor
                     }
                     else
                     {
+                        var stageRecord = BeginStageRecord(definition.Name, stage, context, isMocked: mocked && stage.Mock is not null);
                         using var stageActivity = Telemetry.ActivitySource.StartActivity(TelemetryConstants.ActivityWorkflowStage);
                         stageActivity?.SetTag(TelemetryConstants.TagStageName, stage.Name);
                         stageActivity?.SetTag(TelemetryConstants.TagStageKind, stage.Kind.ToString());
@@ -222,12 +318,23 @@ public sealed class WorkflowExecutor
                         string? jumpTarget;
                         try
                         {
-                            jumpTarget = await ExecuteEndpointStageAsync(definition, stage, apiBaseUrls, context, verbose, document.FilePath, mocked, cancellationToken);
+                            jumpTarget = await ExecuteEndpointStageWithOptionalForEachAsync(
+                                definition,
+                                stage,
+                                apiBaseUrls,
+                                context,
+                                verbose,
+                                document.FilePath,
+                                mocked,
+                                cancellationToken);
+                            stageRecord.JumpTarget = jumpTarget;
+                            CompleteStageRecord(stageRecord, context, string.IsNullOrWhiteSpace(jumpTarget) ? "Ok" : "Jumped", jumpTarget, null);
                         }
                         catch (Exception ex)
                         {
                             stageActivity?.SetStatus(ActivityStatusCode.Error, ex.Message);
                             _logger.Error($"{indent}{FormatStageTag(definition.Name, stage.Name)} failed after {stageTimer.Elapsed.TotalMilliseconds:F0} ms: {ex.Message}");
+                            CompleteStageRecord(stageRecord, context, "Error", null, ex.Message);
                             if (captureErrors)
                             {
                                 return BuildWorkflowErrorResult(definition, context, ex);
@@ -282,6 +389,7 @@ public sealed class WorkflowExecutor
 
             var workflowOutput = ResolveWorkflowOutput(definition, context);
             context.WorkflowOutputs[definition.Name] = workflowOutput;
+            context.WorkflowOutputsJson[definition.Name] = BuildJsonMap(workflowOutput);
 
             ApplyEndStageContext(definition, context);
             _logger.Info($"{indent}{FormatWorkflowTag(definition.Name)}#endStage processed.");
@@ -464,6 +572,8 @@ public sealed class WorkflowExecutor
             nestedDocument.EnvironmentVariables,
             context.Context,
             context.IndentLevel + 1);
+        CopyJsonContext(context, nestedContext);
+        ApplyTypedInputs(nestedDocument.Definition, nestedContext);
         var nestedResult = await ExecuteWorkflowAsync(
             nestedDocument,
             catalogVersion,
@@ -478,10 +588,14 @@ public sealed class WorkflowExecutor
         if (nestedContext.WorkflowOutputs.TryGetValue(nestedDocument.Definition.Name, out var nestedOutput))
         {
             context.WorkflowOutputs[stage.Name] = nestedOutput;
+            context.WorkflowOutputsJson[stage.Name] = nestedContext.WorkflowOutputsJson.TryGetValue(nestedDocument.Definition.Name, out var nestedOutputJson)
+                ? nestedOutputJson
+                : BuildJsonMap(nestedOutput);
         }
         else
         {
             context.WorkflowOutputs[stage.Name] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            context.WorkflowOutputsJson[stage.Name] = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
         }
 
         ApplyWorkflowStageResult(context, stage.Name, nestedResult.Status, nestedResult.Message);
@@ -526,6 +640,7 @@ public sealed class WorkflowExecutor
             if (mocked && stage.Mock is not null)
             {
                 responseContext = BuildMockResponse(stage, context, workflowPath);
+                UpdateActiveStageRecordForResponse(context, stage, responseContext, null, null, retriesUsed, workflowPath, mocked: true);
             }
             else
             {
@@ -540,7 +655,7 @@ public sealed class WorkflowExecutor
                     invocation = await _endpointInvoker.InvokeAsync(
                         stage,
                         baseUrl,
-                        context.BuildTemplateContext(),
+                        context.BuildTemplateContext(workflowPath),
                         cancellationToken);
                 }
                 catch (OperationCanceledException)
@@ -562,6 +677,7 @@ public sealed class WorkflowExecutor
                 }
 
                 responseContext = invocation.Response;
+                UpdateActiveStageRecordForResponse(context, stage, responseContext, invocation.RequestUri, invocation.HttpMethod, retriesUsed, workflowPath, mocked: false, invocation.RequestBody);
 
                 if (verbose)
                 {
@@ -591,6 +707,10 @@ public sealed class WorkflowExecutor
                 retriesUsed < retryPolicy.MaxRetries)
             {
                 retriesUsed++;
+                if (context.ActiveStageRecord is not null)
+                {
+                    context.ActiveStageRecord.RetryCount = retriesUsed;
+                }
                 _logger.Info($"{GetIndent(context)}{FormatStageTag(definition.Name, stage.Name)} retrying in {retryPolicy.DelayMs}ms (retry {retriesUsed}/{retryPolicy.MaxRetries}).");
                 await Task.Delay(retryPolicy.DelayMs, cancellationToken);
                 continue;
@@ -604,19 +724,21 @@ public sealed class WorkflowExecutor
             UpdateCircuitBreaker(circuitPolicy, context, responseContext.StatusCode);
         }
 
-        if (stage.ExpectedStatus.HasValue && responseContext.StatusCode != stage.ExpectedStatus.Value)
-        {
-            throw new InvalidOperationException(
-                $"Stage '{stage.Name}' returned {responseContext.StatusCode} but expected {stage.ExpectedStatus.Value}.");
-        }
+        Activity.Current?.SetTag(TelemetryConstants.TagHttpStatusCode, responseContext.StatusCode);
+        Activity.Current?.SetTag(TelemetryConstants.TagHttpExpectedStatuses, string.Join(",", BuildAllowedStatuses(stage).Order()));
 
         var stageOutput = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var stageOutputJson = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
         if (stage.Output is not null)
         {
             foreach (var output in stage.Output)
             {
                 var resolved = _templateResolver.ResolveTemplate(output.Value, context.BuildTemplateContext(), responseContext);
                 stageOutput[output.Key] = resolved;
+                if (JsonValueHelper.TryParse(resolved, out var outputJson))
+                {
+                    stageOutputJson[output.Key] = outputJson;
+                }
             }
         }
 
@@ -625,8 +747,39 @@ public sealed class WorkflowExecutor
             stageOutput["http_status"] = responseContext.StatusCode.ToString();
         }
 
+        ApplyEnsureOutputs(stage, responseContext.StatusCode, stageOutput, stageOutputJson);
+
+        if (responseContext.Json is not null && !stageOutputJson.ContainsKey("body"))
+        {
+            stageOutputJson["body"] = responseContext.Json.RootElement.Clone();
+        }
+
         context.EndpointOutputs[stage.Name] = stageOutput;
+        context.EndpointOutputsJson[stage.Name] = stageOutputJson;
+        UpdateActiveStageRecordOutput(context, stageOutput, responseContext.StatusCode);
         PrintStageMessage(definition, stage, context, responseContext);
+
+        if (TryResolveStatusAction(stage, responseContext.StatusCode, out var statusAction))
+        {
+            ApplyStatusActionOutput(statusAction, stage, context, responseContext, stageOutput, stageOutputJson);
+            context.EndpointOutputs[stage.Name] = stageOutput;
+            context.EndpointOutputsJson[stage.Name] = stageOutputJson;
+
+            if (statusAction.Fail)
+            {
+                throw BuildUnexpectedStatusException(stage, responseContext.StatusCode);
+            }
+
+            if (!string.IsNullOrWhiteSpace(statusAction.JumpTo))
+            {
+                return statusAction.JumpTo;
+            }
+        }
+
+        if (!IsExpectedStatus(stage, responseContext.StatusCode))
+        {
+            throw BuildUnexpectedStatusException(stage, responseContext.StatusCode);
+        }
 
         if (stage.JumpOnStatus is not null &&
             stage.JumpOnStatus.TryGetValue(responseContext.StatusCode, out var jumpTarget))
@@ -661,6 +814,668 @@ public sealed class WorkflowExecutor
 
         var onExceptionMessage = stage.Retry.Messages?.OnException;
         return new RetryPolicy(maxRetries.Value, delayMs.Value, httpStatus, onExceptionMessage);
+    }
+
+    private async Task ExecuteWorkflowStageWithOptionalForEachAsync(
+        WorkflowDocument document,
+        WorkflowStageDefinition stage,
+        ApiCatalogVersion catalogVersion,
+        string environment,
+        ExecutionContext context,
+        bool varsOverrideActive,
+        bool mocked,
+        bool verbose,
+        bool debug,
+        CancellationToken cancellationToken)
+    {
+        if (!HasForEach(stage))
+        {
+            if (mocked && stage.Mock is not null)
+            {
+                ApplyWorkflowMock(stage, context);
+                ApplyWorkflowStageResult(context, stage.Name, WorkflowResultStatus.Ok, string.Empty);
+                return;
+            }
+
+            await ExecuteWorkflowStageAsync(
+                document,
+                stage,
+                catalogVersion,
+                environment,
+                context,
+                varsOverrideActive,
+                mocked,
+                verbose,
+                debug,
+                cancellationToken);
+            return;
+        }
+
+        var iterations = ResolveForEachItems(stage, context, document.FilePath);
+        var results = new List<IReadOnlyDictionary<string, string>>();
+        var resultsJson = new List<JsonElement>();
+
+        foreach (var iteration in iterations.Select((item, index) => new { item, index }))
+        {
+            using var scope = BeginIterationScope(stage, context, iteration.item, iteration.index);
+            if (mocked && stage.Mock is not null)
+            {
+                ApplyWorkflowMock(stage, context);
+                ApplyWorkflowStageResult(context, stage.Name, WorkflowResultStatus.Ok, string.Empty);
+            }
+            else
+            {
+                await ExecuteWorkflowStageAsync(
+                    document,
+                    stage,
+                    catalogVersion,
+                    environment,
+                    context,
+                    varsOverrideActive,
+                    mocked,
+                    verbose,
+                    debug,
+                    cancellationToken);
+            }
+
+            if (context.WorkflowOutputs.TryGetValue(stage.Name, out var workflowOutput))
+            {
+                results.Add(new Dictionary<string, string>(workflowOutput, StringComparer.OrdinalIgnoreCase));
+                resultsJson.Add(JsonSerializer.SerializeToElement(workflowOutput));
+            }
+        }
+
+        ApplyForEachWorkflowOutputs(stage, context, results, resultsJson);
+    }
+
+    private async Task<string?> ExecuteEndpointStageWithOptionalForEachAsync(
+        WorkflowDefinition definition,
+        WorkflowStageDefinition stage,
+        IReadOnlyDictionary<string, string> apiBaseUrls,
+        ExecutionContext context,
+        bool verbose,
+        string workflowPath,
+        bool mocked,
+        CancellationToken cancellationToken)
+    {
+        if (!HasForEach(stage))
+        {
+            return await ExecuteEndpointStageAsync(definition, stage, apiBaseUrls, context, verbose, workflowPath, mocked, cancellationToken);
+        }
+
+        var iterations = ResolveForEachItems(stage, context, workflowPath);
+        var results = new List<IReadOnlyDictionary<string, string>>();
+        var resultsJson = new List<JsonElement>();
+
+        foreach (var iteration in iterations.Select((item, index) => new { item, index }))
+        {
+            using var scope = BeginIterationScope(stage, context, iteration.item, iteration.index);
+            var jumpTarget = await ExecuteEndpointStageAsync(definition, stage, apiBaseUrls, context, verbose, workflowPath, mocked, cancellationToken);
+            if (context.EndpointOutputs.TryGetValue(stage.Name, out var output))
+            {
+                results.Add(new Dictionary<string, string>(output, StringComparer.OrdinalIgnoreCase));
+                resultsJson.Add(JsonSerializer.SerializeToElement(output));
+            }
+
+            if (!string.IsNullOrWhiteSpace(jumpTarget))
+            {
+                ApplyForEachEndpointOutputs(stage, context, results, resultsJson);
+                return jumpTarget;
+            }
+        }
+
+        ApplyForEachEndpointOutputs(stage, context, results, resultsJson);
+        return null;
+    }
+
+    private bool HasForEach(WorkflowStageDefinition stage)
+        => !string.IsNullOrWhiteSpace(stage.ForEach) || !string.IsNullOrWhiteSpace(stage.DataFile);
+
+    private WorkflowExecutionReport BuildExecutionReport(
+        WorkflowDocument document,
+        string environment,
+        IReadOnlyDictionary<string, string> inputs,
+        bool mocked)
+    {
+        return new WorkflowExecutionReport
+        {
+            WorkflowName = document.Definition.Name,
+            WorkflowId = document.Definition.Id,
+            WorkflowVersion = document.Definition.Version,
+            WorkflowPath = document.FilePath,
+            Environment = environment,
+            Mocked = mocked,
+            DryRun = false,
+            StartedAtUtc = _systemProvider.UtcNow,
+            Inputs = new Dictionary<string, string>(inputs, StringComparer.OrdinalIgnoreCase)
+        };
+    }
+
+    private async Task<WorkflowExecutionResult> FinalizeExecutionResultAsync(
+        WorkflowDocument document,
+        ExecutionContext context,
+        CancellationToken cancellationToken,
+        bool success,
+        string? errorMessage)
+    {
+        var outputs = context.WorkflowOutputs.TryGetValue(document.Definition.Name, out var workflowOutputs)
+            ? workflowOutputs
+            : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        if (context.Report is not null)
+        {
+            context.Report.Result = success ? "Ok" : "Error";
+            context.Report.ErrorMessage = errorMessage;
+            context.Report.FinishedAtUtc = _systemProvider.UtcNow;
+            context.Report.DurationMs = (long)(context.Report.FinishedAtUtc.Value - context.Report.StartedAtUtc).TotalMilliseconds;
+            context.Report.Output = WorkflowExecutionRedactor.ConvertOutputs(outputs);
+            context.Report.OutputFilePath = context.OutputFilePath;
+            context.Report.Metrics.TotalStages = context.Report.Stages.Count;
+        }
+
+        var artifacts = context.Report is null
+            ? new WorkflowExecutionArtifacts(null, null)
+            : await _reportWriter.WriteAsync(context.Report, document, _reportOptions, cancellationToken);
+
+        return new WorkflowExecutionResult(outputs, context.OutputFilePath, artifacts.JsonReportPath, artifacts.HtmlReportPath, context.Report?.ExecutionId);
+    }
+
+    private WorkflowStageExecutionRecord BeginStageRecord(string workflowName, WorkflowStageDefinition stage, ExecutionContext context, bool isMocked)
+    {
+        var record = new WorkflowStageExecutionRecord
+        {
+            WorkflowName = workflowName,
+            StageName = stage.Name,
+            StageKind = stage.Kind.ToString(),
+            Depth = context.IndentLevel,
+            RunIf = stage.RunIf,
+            Mocked = isMocked,
+            EnsureMode = stage.Ensure?.Mode,
+            StartedAtUtc = _systemProvider.UtcNow
+        };
+        context.Report?.Stages.Add(record);
+        context.ActiveStageRecord = record;
+        return record;
+    }
+
+    private void CompleteStageRecord(WorkflowStageExecutionRecord stageRecord, ExecutionContext context, string status, string? jumpTarget, string? errorMessage)
+    {
+        stageRecord.Status = status;
+        stageRecord.JumpTarget = jumpTarget;
+        stageRecord.ErrorMessage = errorMessage;
+        stageRecord.FinishedAtUtc = _systemProvider.UtcNow;
+        stageRecord.DurationMs = (long)(stageRecord.FinishedAtUtc.Value - stageRecord.StartedAtUtc).TotalMilliseconds;
+        context.ActiveStageRecord = null;
+
+        if (context.Report is null)
+        {
+            return;
+        }
+
+        switch (status)
+        {
+            case "Skipped":
+                context.Report.Metrics.SkippedStages++;
+                break;
+            case "Error":
+                context.Report.Metrics.FailedStages++;
+                context.Report.Metrics.ExecutedStages++;
+                break;
+            default:
+                context.Report.Metrics.ExecutedStages++;
+                break;
+        }
+
+        if (stageRecord.Mocked)
+        {
+            context.Report.Metrics.MockedStages++;
+        }
+
+        if (string.Equals(stageRecord.StageKind, WorkflowStageKind.Endpoint.ToString(), StringComparison.OrdinalIgnoreCase))
+        {
+            context.Report.Metrics.HttpStages++;
+        }
+        else
+        {
+            context.Report.Metrics.WorkflowStages++;
+        }
+
+        if (!string.IsNullOrWhiteSpace(jumpTarget))
+        {
+            context.Report.Metrics.JumpedStages++;
+        }
+
+        context.Report.Metrics.TotalRetries += stageRecord.RetryCount;
+    }
+
+    private void RecordSkippedStage(string workflowName, WorkflowStageDefinition stage, ExecutionContext context)
+    {
+        var record = new WorkflowStageExecutionRecord
+        {
+            WorkflowName = workflowName,
+            StageName = stage.Name,
+            StageKind = stage.Kind.ToString(),
+            Depth = context.IndentLevel,
+            Status = "Skipped",
+            RunIf = stage.RunIf,
+            StartedAtUtc = _systemProvider.UtcNow,
+            FinishedAtUtc = _systemProvider.UtcNow,
+            DurationMs = 0
+        };
+        context.Report?.Stages.Add(record);
+        if (context.Report is not null)
+        {
+            context.Report.Metrics.SkippedStages++;
+            if (string.Equals(record.StageKind, WorkflowStageKind.Endpoint.ToString(), StringComparison.OrdinalIgnoreCase))
+            {
+                context.Report.Metrics.HttpStages++;
+            }
+            else
+            {
+                context.Report.Metrics.WorkflowStages++;
+            }
+        }
+    }
+
+    private IReadOnlyList<JsonElement> ResolveForEachItems(WorkflowStageDefinition stage, ExecutionContext context, string workflowPath)
+    {
+        JsonElement source;
+        if (!string.IsNullOrWhiteSpace(stage.DataFile))
+        {
+            source = _dataFileService.LoadStructured(stage.DataFile, workflowPath);
+            if (!string.IsNullOrWhiteSpace(stage.ForEach))
+            {
+                var path = stage.ForEach.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                if (!JsonValueHelper.TryResolvePath(source, path, out source))
+                {
+                    throw new InvalidOperationException($"Stage '{stage.Name}' forEach path '{stage.ForEach}' was not found in dataFile.");
+                }
+            }
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(stage.ForEach))
+            {
+                throw new InvalidOperationException($"Stage '{stage.Name}' forEach requires a source expression.");
+            }
+
+            var token = ExtractSingleToken(stage.ForEach);
+            var value = _templateResolver.ResolveTokenValue(token, context.BuildTemplateContext(), null, allowJsonStage: true);
+            if (!value.JsonValue.HasValue)
+            {
+                throw new InvalidOperationException($"Stage '{stage.Name}' forEach source must resolve to a JSON array.");
+            }
+
+            source = value.JsonValue.Value;
+        }
+
+        if (source.ValueKind != JsonValueKind.Array)
+        {
+            throw new InvalidOperationException($"Stage '{stage.Name}' forEach source must be a JSON array.");
+        }
+
+        return source.EnumerateArray().Select(item => item.Clone()).ToArray();
+    }
+
+    private IterationScope BeginIterationScope(WorkflowStageDefinition stage, ExecutionContext context, JsonElement item, int index)
+    {
+        var itemName = string.IsNullOrWhiteSpace(stage.ItemName) ? "item" : stage.ItemName;
+        var indexName = string.IsNullOrWhiteSpace(stage.IndexName) ? "index" : stage.IndexName;
+        return new IterationScope(context, itemName!, indexName!, item, index);
+    }
+
+    private void ApplyForEachEndpointOutputs(
+        WorkflowStageDefinition stage,
+        ExecutionContext context,
+        List<IReadOnlyDictionary<string, string>> results,
+        List<JsonElement> resultsJson)
+    {
+        if (!context.EndpointOutputs.TryGetValue(stage.Name, out var current))
+        {
+            current = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var aggregated = new Dictionary<string, string>(current, StringComparer.OrdinalIgnoreCase)
+        {
+            ["foreach_count"] = results.Count.ToString()
+        };
+        aggregated["foreach_items"] = JsonSerializer.Serialize(results);
+        context.EndpointOutputs[stage.Name] = aggregated;
+
+        var aggregatedJson = context.EndpointOutputsJson.TryGetValue(stage.Name, out var jsonCurrent)
+            ? new Dictionary<string, JsonElement>(jsonCurrent, StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+        aggregatedJson["foreach_items"] = JsonSerializer.SerializeToElement(resultsJson);
+        context.EndpointOutputsJson[stage.Name] = aggregatedJson;
+    }
+
+    private void ApplyForEachWorkflowOutputs(
+        WorkflowStageDefinition stage,
+        ExecutionContext context,
+        List<IReadOnlyDictionary<string, string>> results,
+        List<JsonElement> resultsJson)
+    {
+        if (!context.WorkflowOutputs.TryGetValue(stage.Name, out var current))
+        {
+            current = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var aggregated = new Dictionary<string, string>(current, StringComparer.OrdinalIgnoreCase)
+        {
+            ["foreach_count"] = results.Count.ToString(),
+            ["foreach_items"] = JsonSerializer.Serialize(results)
+        };
+        context.WorkflowOutputs[stage.Name] = aggregated;
+
+        var aggregatedJson = context.WorkflowOutputsJson.TryGetValue(stage.Name, out var jsonCurrent)
+            ? new Dictionary<string, JsonElement>(jsonCurrent, StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+        aggregatedJson["foreach_items"] = JsonSerializer.SerializeToElement(resultsJson);
+        context.WorkflowOutputsJson[stage.Name] = aggregatedJson;
+    }
+
+    private void ApplyTypedInputs(WorkflowDefinition definition, ExecutionContext context)
+    {
+        if (definition.Input is null)
+        {
+            return;
+        }
+
+        foreach (var input in definition.Input)
+        {
+            if (!context.Inputs.TryGetValue(input.Name, out var rawValue))
+            {
+                continue;
+            }
+
+            if (input.Type is RandomValueType.Object or RandomValueType.Array)
+            {
+                if (!JsonValueHelper.TryParse(rawValue, out var json))
+                {
+                    throw new InvalidOperationException($"Input '{input.Name}' must contain valid JSON for type '{input.Type}'.");
+                }
+
+                context.InputJson[input.Name] = json;
+            }
+            else
+            {
+                AssignJsonValue(context.InputJson, input.Name, rawValue);
+            }
+        }
+    }
+
+    private static void CopyJsonContext(ExecutionContext source, ExecutionContext target)
+    {
+        foreach (var pair in source.ContextJson)
+        {
+            target.ContextJson[pair.Key] = pair.Value.Clone();
+        }
+    }
+
+    private static IReadOnlyDictionary<string, JsonElement> BuildJsonMap(IReadOnlyDictionary<string, string> values)
+    {
+        var result = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in values)
+        {
+            AssignJsonValue(result, pair.Key, pair.Value);
+        }
+
+        return result;
+    }
+
+    private static void AssignJsonValue(IDictionary<string, JsonElement> target, string key, string value)
+    {
+        if (JsonValueHelper.TryParse(value, out var json))
+        {
+            target[key] = json;
+        }
+    }
+
+    private void UpdateActiveStageRecordForResponse(
+        ExecutionContext context,
+        WorkflowStageDefinition stage,
+        ResponseContext responseContext,
+        string? requestUri,
+        string? httpMethod,
+        int retriesUsed,
+        string workflowPath,
+        bool mocked,
+        string? requestBody = null)
+    {
+        var record = context.ActiveStageRecord;
+        if (record is null)
+        {
+            return;
+        }
+
+        record.Mocked = mocked;
+        record.HttpStatusCode = responseContext.StatusCode;
+        record.RequestUri = requestUri;
+        record.HttpMethod = httpMethod ?? stage.HttpVerb;
+        record.RetryCount = retriesUsed;
+        record.EnsureStatus = stage.Ensure is null
+            ? null
+            : ((stage.Ensure.ExistsOn is { Length: > 0 } ? stage.Ensure.ExistsOn : new[] { 409 }).Contains(responseContext.StatusCode)
+                ? "existing"
+                : "created");
+
+        if (_reportOptions.CaptureHttp == ExecutionHttpCaptureMode.None)
+        {
+            return;
+        }
+
+        if (_reportOptions.CaptureHttp is ExecutionHttpCaptureMode.Headers or ExecutionHttpCaptureMode.Bodies)
+        {
+            record.ResponseHeaders = WorkflowExecutionRedactor.RedactHeaders(responseContext.Headers, _reportOptions.RedactSensitiveData);
+        }
+
+        if (_reportOptions.CaptureHttp == ExecutionHttpCaptureMode.Bodies)
+        {
+            record.RequestHeaders = ExtractRequestHeaders(stage, context.BuildTemplateContext(workflowPath));
+            record.RequestBody = WorkflowExecutionRedactor.RedactBody(requestBody, _reportOptions.RedactSensitiveData);
+            record.ResponseBody = WorkflowExecutionRedactor.RedactBody(responseContext.Body, _reportOptions.RedactSensitiveData);
+        }
+    }
+
+    private void UpdateActiveStageRecordOutput(ExecutionContext context, IReadOnlyDictionary<string, string> stageOutput, int statusCode)
+    {
+        var record = context.ActiveStageRecord;
+        if (record is null)
+        {
+            return;
+        }
+
+        record.HttpStatusCode = statusCode;
+        record.Output = WorkflowExecutionRedactor.ConvertOutputs(stageOutput);
+        if (stageOutput.TryGetValue("ensure_status", out var ensureStatus))
+        {
+            record.EnsureStatus = ensureStatus;
+        }
+    }
+
+    private Dictionary<string, string>? ExtractRequestHeaders(WorkflowStageDefinition stage, TemplateContext templateContext)
+    {
+        if (stage.Headers is null || stage.Headers.Count == 0)
+        {
+            return null;
+        }
+
+        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in stage.Headers)
+        {
+            headers[pair.Key] = _templateResolver.ResolveTemplate(pair.Value, templateContext);
+        }
+
+        return WorkflowExecutionRedactor.RedactHeaders(headers, _reportOptions.RedactSensitiveData);
+    }
+
+    private static bool TryResolveStatusAction(WorkflowStageDefinition stage, int statusCode, out WorkflowStageStatusAction statusAction)
+    {
+        statusAction = new WorkflowStageStatusAction();
+        if (stage.OnStatus is not null && stage.OnStatus.TryGetValue(statusCode, out var configured))
+        {
+            statusAction = configured;
+            return true;
+        }
+
+        if (TryResolveEnsureStatusAction(stage, statusCode, out var ensureAction))
+        {
+            statusAction = ensureAction;
+            return true;
+        }
+
+        if (stage.JumpOnStatus is not null && stage.JumpOnStatus.TryGetValue(statusCode, out var jumpTarget))
+        {
+            statusAction = new WorkflowStageStatusAction { JumpTo = jumpTarget };
+            return true;
+        }
+
+        return false;
+    }
+
+    private void ApplyStatusActionOutput(
+        WorkflowStageStatusAction statusAction,
+        WorkflowStageDefinition stage,
+        ExecutionContext context,
+        ResponseContext responseContext,
+        IDictionary<string, string> stageOutput,
+        IDictionary<string, JsonElement> stageOutputJson)
+    {
+        if (statusAction.Output is not null)
+        {
+            foreach (var pair in statusAction.Output)
+            {
+                var resolved = _templateResolver.ResolveTemplate(pair.Value, context.BuildTemplateContext(), responseContext);
+                stageOutput[pair.Key] = resolved;
+                AssignJsonValue(stageOutputJson, pair.Key, resolved);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(statusAction.Message))
+        {
+            stage.Message = statusAction.Message;
+        }
+    }
+
+    private static bool IsExpectedStatus(WorkflowStageDefinition stage, int statusCode)
+    {
+        var expectedStatuses = BuildAllowedStatuses(stage);
+        if (expectedStatuses.Count > 0)
+        {
+            return expectedStatuses.Contains(statusCode);
+        }
+
+        return true;
+    }
+
+    private static InvalidOperationException BuildUnexpectedStatusException(WorkflowStageDefinition stage, int statusCode)
+    {
+        var expectedStatuses = BuildAllowedStatuses(stage);
+        if (expectedStatuses.Count > 0)
+        {
+            return new InvalidOperationException(
+                $"Stage '{stage.Name}' returned {statusCode} but expected one of [{string.Join(", ", expectedStatuses.Order())}].");
+        }
+
+        return new InvalidOperationException(
+            $"Stage '{stage.Name}' returned {statusCode} but expected {stage.ExpectedStatus}.");
+    }
+
+    private static HashSet<int> BuildAllowedStatuses(WorkflowStageDefinition stage)
+    {
+        var statuses = new HashSet<int>();
+        if (stage.ExpectedStatuses is { Length: > 0 })
+        {
+            foreach (var status in stage.ExpectedStatuses)
+            {
+                statuses.Add(status);
+            }
+        }
+        else if (stage.ExpectedStatus.HasValue)
+        {
+            statuses.Add(stage.ExpectedStatus.Value);
+        }
+
+        if (stage.Ensure?.ExistsOn is { Length: > 0 })
+        {
+            foreach (var status in stage.Ensure.ExistsOn)
+            {
+                statuses.Add(status);
+            }
+        }
+        else if (stage.Ensure is not null)
+        {
+            statuses.Add(409);
+        }
+
+        return statuses;
+    }
+
+    private static bool TryResolveEnsureStatusAction(WorkflowStageDefinition stage, int statusCode, out WorkflowStageStatusAction statusAction)
+    {
+        statusAction = new WorkflowStageStatusAction();
+        if (stage.Ensure is null)
+        {
+            return false;
+        }
+
+        var existsStatuses = stage.Ensure.ExistsOn is { Length: > 0 }
+            ? stage.Ensure.ExistsOn
+            : new[] { 409 };
+        if (!existsStatuses.Contains(statusCode))
+        {
+            return false;
+        }
+
+        var output = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ensure_status"] = "existing",
+            ["ensured"] = "true",
+            ["existed"] = "true"
+        };
+        if (stage.Ensure.Output is not null)
+        {
+            foreach (var pair in stage.Ensure.Output)
+            {
+                output[pair.Key] = pair.Value;
+            }
+        }
+
+        statusAction = new WorkflowStageStatusAction
+        {
+            JumpTo = stage.Ensure.JumpTo,
+            Message = stage.Ensure.Message,
+            Output = output
+        };
+        return true;
+    }
+
+    private static void ApplyEnsureOutputs(WorkflowStageDefinition stage, int statusCode, IDictionary<string, string> stageOutput, IDictionary<string, JsonElement> stageOutputJson)
+    {
+        if (stage.Ensure is null)
+        {
+            return;
+        }
+
+        var existsStatuses = stage.Ensure.ExistsOn is { Length: > 0 }
+            ? stage.Ensure.ExistsOn
+            : new[] { 409 };
+        var existed = existsStatuses.Contains(statusCode);
+        stageOutput["ensure_status"] = existed ? "existing" : "created";
+        stageOutput["ensured"] = "true";
+        stageOutput["existed"] = existed ? "true" : "false";
+        AssignJsonValue(stageOutputJson, "ensure_status", stageOutput["ensure_status"]);
+    }
+
+    private static string ExtractSingleToken(string template)
+    {
+        var tokens = TemplateResolver.ExtractTokens(template).ToArray();
+        if (tokens.Length != 1)
+        {
+            throw new InvalidOperationException($"ForEach expression '{template}' must contain exactly one template token.");
+        }
+
+        return tokens[0];
     }
 
     private CircuitBreakerPolicy? ResolveCircuitBreakerPolicy(
@@ -869,7 +1684,7 @@ public sealed class WorkflowExecutor
             throw new InvalidOperationException($"Stage '{stage.Name}' mock payload is not valid JSON: {ex.Message}");
         }
 
-        var status = stage.Mock?.Status ?? stage.ExpectedStatus ?? 200;
+        var status = stage.Mock?.Status ?? stage.ExpectedStatus ?? stage.ExpectedStatuses?.FirstOrDefault() ?? 200;
         return new ResponseContext(
             status,
             resolvedPayload,
@@ -910,6 +1725,7 @@ public sealed class WorkflowExecutor
 
             var value = _dynamicValueService.Generate(randomDefinition, new PayloadProcessorContext(1, string.Empty, string.Empty, string.Empty, string.Empty), _formatting);
             context.Globals[variable.Name] = value;
+            AssignJsonValue(context.GlobalJson, variable.Name, value);
         }
 
         ApplyInitContext(definition, context);
@@ -931,6 +1747,7 @@ public sealed class WorkflowExecutor
 
             var resolved = _templateResolver.ResolveTemplate(pair.Value, context.BuildTemplateContext());
             context.Context[pair.Key] = resolved;
+            AssignJsonValue(context.ContextJson, pair.Key, resolved);
         }
     }
 
@@ -1030,32 +1847,57 @@ public sealed class WorkflowExecutor
             int indentLevel = 0)
         {
             Inputs = new Dictionary<string, string>(inputs, StringComparer.OrdinalIgnoreCase);
+            InputJson = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
             EnvironmentVariables = new Dictionary<string, string>(environmentVariables, StringComparer.OrdinalIgnoreCase);
             Globals = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            GlobalJson = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
             EndpointOutputs = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+            EndpointOutputsJson = new Dictionary<string, IReadOnlyDictionary<string, JsonElement>>(StringComparer.OrdinalIgnoreCase);
             WorkflowOutputs = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+            WorkflowOutputsJson = new Dictionary<string, IReadOnlyDictionary<string, JsonElement>>(StringComparer.OrdinalIgnoreCase);
             WorkflowResults = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
             CircuitBreakers = new Dictionary<string, CircuitBreakerState>(StringComparer.OrdinalIgnoreCase);
             Context = parentContext is null
                 ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, string>(parentContext, StringComparer.OrdinalIgnoreCase);
+            ContextJson = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
             IndentLevel = Math.Max(0, indentLevel);
         }
 
         public Dictionary<string, string> Inputs { get; }
+        public Dictionary<string, JsonElement> InputJson { get; }
         public Dictionary<string, string> EnvironmentVariables { get; }
         public Dictionary<string, string> Globals { get; }
+        public Dictionary<string, JsonElement> GlobalJson { get; }
         public Dictionary<string, string> Context { get; }
+        public Dictionary<string, JsonElement> ContextJson { get; }
         public Dictionary<string, IReadOnlyDictionary<string, string>> EndpointOutputs { get; }
+        public Dictionary<string, IReadOnlyDictionary<string, JsonElement>> EndpointOutputsJson { get; }
         public Dictionary<string, IReadOnlyDictionary<string, string>> WorkflowOutputs { get; }
+        public Dictionary<string, IReadOnlyDictionary<string, JsonElement>> WorkflowOutputsJson { get; }
         public Dictionary<string, IReadOnlyDictionary<string, string>> WorkflowResults { get; }
         public Dictionary<string, CircuitBreakerState> CircuitBreakers { get; }
         public string? OutputFilePath { get; set; }
         public int IndentLevel { get; }
+        public WorkflowExecutionReport? Report { get; set; }
+        public WorkflowStageExecutionRecord? ActiveStageRecord { get; set; }
 
-        public TemplateContext BuildTemplateContext()
+        public TemplateContext BuildTemplateContext(string? workflowPath = null)
         {
-            return new TemplateContext(Inputs, Globals, Context, EndpointOutputs, WorkflowOutputs, WorkflowResults, EnvironmentVariables);
+            return new TemplateContext(
+                Inputs,
+                Globals,
+                Context,
+                EndpointOutputs,
+                WorkflowOutputs,
+                WorkflowResults,
+                EnvironmentVariables,
+                InputJson,
+                GlobalJson,
+                ContextJson,
+                EndpointOutputsJson,
+                WorkflowOutputsJson,
+                workflowPath);
         }
     }
 
@@ -1067,6 +1909,7 @@ public sealed class WorkflowExecutor
             {
                 var resolved = _templateResolver.ResolveTemplate(pair.Value, context.BuildTemplateContext());
                 context.Globals[pair.Key] = resolved;
+                AssignJsonValue(context.GlobalJson, pair.Key, resolved);
             }
         }
 
@@ -1076,6 +1919,7 @@ public sealed class WorkflowExecutor
             {
                 var resolved = _templateResolver.ResolveTemplate(pair.Value, context.BuildTemplateContext());
                 context.Context[pair.Key] = resolved;
+                AssignJsonValue(context.ContextJson, pair.Key, resolved);
             }
         }
     }
@@ -1104,6 +1948,7 @@ public sealed class WorkflowExecutor
         {
             var resolved = _templateResolver.ResolveTemplate(pair.Value, context.BuildTemplateContext());
             context.Context[pair.Key] = resolved;
+            AssignJsonValue(context.ContextJson, pair.Key, resolved);
         }
     }
 
@@ -1119,69 +1964,7 @@ public sealed class WorkflowExecutor
 
     private bool EvaluateCondition(string expression, ExecutionContext context)
     {
-        if (!RunIfParser.TryParse(expression, out var token, out var op, out var rawValue))
-        {
-            throw new InvalidOperationException($"Invalid runIf expression '{expression}'.");
-        }
-
-        var actual = ResolveNullableToken(token, context);
-        if (op.Equals("in", StringComparison.OrdinalIgnoreCase))
-        {
-            var values = NormalizeRunIfList(rawValue);
-            return values.Contains(actual ?? string.Empty);
-        }
-
-        if (op.Equals("not in", StringComparison.OrdinalIgnoreCase))
-        {
-            var values = NormalizeRunIfList(rawValue);
-            return !values.Contains(actual ?? string.Empty);
-        }
-
-        var expected = NormalizeRunIfValue(rawValue, out var expectedIsNull);
-        var isEqual = expectedIsNull
-            ? string.IsNullOrEmpty(actual)
-            : string.Equals(actual ?? string.Empty, expected ?? string.Empty, StringComparison.Ordinal);
-        return op == "==" ? isEqual : !isEqual;
-    }
-
-    private static string? NormalizeRunIfValue(string rawValue, out bool expectedIsNull)
-    {
-        expectedIsNull = rawValue.Equals("null", StringComparison.OrdinalIgnoreCase);
-        if (expectedIsNull)
-        {
-            return null;
-        }
-
-        if (rawValue.Length >= 2 &&
-            ((rawValue.StartsWith('"') && rawValue.EndsWith('"')) ||
-             (rawValue.StartsWith('\'') && rawValue.EndsWith('\''))))
-        {
-            return rawValue[1..^1];
-        }
-
-        return rawValue;
-    }
-
-    private static HashSet<string> NormalizeRunIfList(string rawValue)
-    {
-        var values = new HashSet<string>(StringComparer.Ordinal);
-        if (!rawValue.StartsWith('[') || !rawValue.EndsWith(']'))
-        {
-            return values;
-        }
-
-        var inner = rawValue[1..^1];
-        if (string.IsNullOrWhiteSpace(inner))
-        {
-            return values;
-        }
-
-        foreach (var item in inner.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            values.Add(item);
-        }
-
-        return values;
+        return _expressionEvaluator.Evaluate(expression, context.BuildTemplateContext());
     }
 
     private string? ResolveNullableToken(string token, ExecutionContext context)
@@ -1378,10 +2161,14 @@ public sealed class WorkflowExecutor
         }
 
         context.WorkflowOutputs[stage.Name] = output;
+        context.WorkflowOutputsJson[stage.Name] = BuildJsonMap(output);
     }
 
 }
 
 public sealed record WorkflowExecutionResult(
     IReadOnlyDictionary<string, string> Output,
-    string? OutputFilePath);
+    string? OutputFilePath,
+    string? JsonReportPath,
+    string? HtmlReportPath,
+    string? ExecutionId);
