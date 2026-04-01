@@ -59,6 +59,18 @@ Stages can declare `delaySeconds` (0-60) to delay execution. Retry and circuit b
 Structured JSON is now first-class: workflows can consume `Object` and `Array` inputs, address JSON paths in tokens, load request bodies from `bodyFile`, load collections from `dataFile`, iterate with `forEach`, and declare idempotent intent with `ensure`.
 Execution reporting is also first-class: runs can emit JSON and HTML reports with stage timelines, retries, jumps, HTTP summaries, redacted payload capture, and a console summary for post-run diagnostics.
 
+## Token and Workflow Semantics
+
+Agents generating workflows should assume these runtime rules:
+
+- `{{response.status}}`, `{{response.body}}`, and `{{response.headers.HeaderName}}` are supported for endpoint stages.
+- `{{response.body.some.path}}` and `{{response.some.path}}` are valid when the response body is JSON.
+- Optional path segments use a `?` suffix on the segment itself, for example `{{response.body.account.status?}}` or `{{stage:create.output.items.0.id?}}`. Missing optional segments resolve to empty output instead of failing.
+- Workflow validation can check response token paths against endpoint mock payloads when `stage.mock.payload` or `stage.mock.payloadFile` is present.
+- `kind: Workflow` stage failures propagate to the parent workflow; parent execution does not continue past a failed child workflow.
+- `forEach` on workflow stages aggregates both outputs and result state. In addition to `foreach_count` and `foreach_items`, workflow stages expose `foreach_results`, `foreach_success_count`, and `foreach_failed_count`.
+- `response.*` tokens are endpoint-stage only. Workflow stages should use `stage:<name>.workflow.output.*` and `stage:<name>.workflow.result.{status,message}` instead.
+
 ## Execution reporting
 
 The CLI can persist post-run diagnostics as execution artifacts. This is part of the runtime now, not a planned feature.
@@ -380,9 +392,13 @@ SphereIntegrationHub is now strong as a local-first API orchestration runtime an
 
 - ✅ Contract-aware endpoint execution with versioned Swagger validation
 - ✅ Workflow composition and reusable child workflows
+- ✅ Child workflow failures propagate to the parent workflow
 - ✅ Idempotent HTTP branching with `expectedStatuses`, `onStatus`, `jumpOnStatus`, and `ensure`
 - ✅ JSON-aware expressions and structured `Object` / `Array` inputs
+- ✅ Response token validation against endpoint mock payloads during workflow validation
+- ✅ Optional path segments with `?` for sparse JSON payloads
 - ✅ `bodyFile`, `dataFile`, and `forEach` for large payloads and collection bootstraps
+- ✅ Aggregated `forEach` workflow result state via `foreach_results`, `foreach_success_count`, and `foreach_failed_count`
 - ✅ Post-execution observability with JSON/HTML reports, stage timelines, and summary output
 - ✅ MCP server that exposes these runtime authoring capabilities to AI agents
 

@@ -165,9 +165,20 @@ The MCP surface is aligned with the current SIH runtime schema. Agents should pr
 - `dataFile` plus `forEach` for collection-driven bootstraps
 - `type: Object` and `type: Array` for structured workflow inputs
 - JSON-aware expressions such as `jsonLength(...)`, `exists(...)`, `first(...)`, and `isEmptyJson(...)`
+- response tokens such as `{{response.status}}`, `{{response.body}}`, and `{{response.headers.HeaderName}}` on endpoint stages
+- optional JSON path segments via `?`, for example `{{response.body.account.status?}}`
+- workflow-stage result tokens such as `{{stage:child.workflow.result.status}}` and `{{stage:child.workflow.result.message}}`
+- aggregated workflow `forEach` outputs: `foreach_items`, `foreach_results`, `foreach_success_count`, and `foreach_failed_count`
 - execution reporting controls such as `--report-format`, `--capture-http`, and `reporting.*` defaults in `workflows.config`
 
 Use `get_plugin_capabilities` to retrieve these authoring capabilities in structured form at runtime.
+
+Additional runtime assumptions agents can rely on:
+
+- `response.status` vs `response.body.status` is not ambiguous at runtime; both are distinct and supported when applicable.
+- Workflow validation can validate response token paths against endpoint mock payloads when endpoint mocks are present.
+- Failures in `kind: Workflow` stages propagate to the parent workflow instead of being treated as soft reporting-only issues.
+- Reporting is a current runtime capability. Nested workflow state aggregation is the narrower concern when reasoning about composed runs.
 
 ## Runtime Observability Exposed to Agents
 

@@ -39,17 +39,10 @@ internal sealed class CliApp
 
     public async Task<int> RunAsync(string[] args)
     {
+        var parseResult = _argumentParser.ParseArgs(args);
+
         // Resolve assembly version
         var assemblyVersion = typeof(global::Program).Assembly.GetName().Version;
-        var message = $"{CliConstants.CliVersionPrefix}{assemblyVersion}";
-
-        _output.Out.WriteLine(message);
-        _output.Out.WriteLine(new string('-', message.Length + 1));
-
-        // Fire anonymous usage ping (at most once every 7 days). Non-blocking.
-        var pingTask = UsagePingService.RecordAndMaybePing(assemblyVersion?.ToString() ?? "unknown");
-
-        var parseResult = _argumentParser.ParseArgs(args);
         if (parseResult.Error is not null)
         {
             _output.Error.WriteLine(parseResult.Error);
@@ -57,6 +50,20 @@ internal sealed class CliApp
             _usagePrinter.PrintUsage(_output.Error);
             return 1;
         }
+
+        if (parseResult.ShowVersion)
+        {
+            _output.Out.WriteLine(assemblyVersion?.ToString() ?? "unknown");
+            return 0;
+        }
+
+        var message = $"{CliConstants.CliVersionPrefix}{assemblyVersion}";
+
+        _output.Out.WriteLine(message);
+        _output.Out.WriteLine(new string('-', message.Length + 1));
+
+        // Fire anonymous usage ping (at most once every 7 days). Non-blocking.
+        var pingTask = UsagePingService.RecordAndMaybePing(assemblyVersion?.ToString() ?? "unknown");
 
         if (parseResult.ShowHelp)
         {

@@ -19,6 +19,7 @@ internal sealed class CliArgumentParser : ICliArgumentParser
         bool? redactSensitiveData = null;
         bool? summaryConsole = null;
         var showHelp = false;
+        var showVersion = false;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -95,6 +96,9 @@ internal sealed class CliArgumentParser : ICliArgumentParser
                 case "-h":
                     showHelp = true;
                     break;
+                case "--version":
+                    showVersion = true;
+                    break;
                 default:
                     return new InlineArguments(Error: $"Unknown argument '{arg}'.");
             }
@@ -121,7 +125,8 @@ internal sealed class CliArgumentParser : ICliArgumentParser
             redactSensitiveData,
             summaryConsole,
             null,
-            showHelp);
+            showHelp,
+            showVersion);
     }
 
     private static bool TryReadValue(string[] args, ref int index, out string? value)

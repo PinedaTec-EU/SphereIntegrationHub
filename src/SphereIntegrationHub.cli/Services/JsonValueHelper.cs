@@ -5,6 +5,8 @@ namespace SphereIntegrationHub.Services;
 
 internal static class JsonValueHelper
 {
+    private static readonly JsonElement NullElement = JsonDocument.Parse("null").RootElement.Clone();
+
     public static bool TryParse(string? raw, out JsonElement element)
     {
         if (string.IsNullOrWhiteSpace(raw))
@@ -44,19 +46,28 @@ internal static class JsonValueHelper
         resolved = element;
         foreach (var segment in segments)
         {
-            if (resolved.ValueKind == JsonValueKind.Object && resolved.TryGetProperty(segment, out var property))
+            var isOptional = segment.EndsWith("?", StringComparison.Ordinal);
+            var normalizedSegment = isOptional ? segment[..^1] : segment;
+
+            if (resolved.ValueKind == JsonValueKind.Object && resolved.TryGetProperty(normalizedSegment, out var property))
             {
                 resolved = property;
                 continue;
             }
 
             if (resolved.ValueKind == JsonValueKind.Array &&
-                int.TryParse(segment, NumberStyles.Integer, CultureInfo.InvariantCulture, out var index) &&
+                int.TryParse(normalizedSegment, NumberStyles.Integer, CultureInfo.InvariantCulture, out var index) &&
                 index >= 0 &&
                 index < resolved.GetArrayLength())
             {
                 resolved = resolved[index];
                 continue;
+            }
+
+            if (isOptional)
+            {
+                resolved = NullElement;
+                return true;
             }
 
             resolved = default;
