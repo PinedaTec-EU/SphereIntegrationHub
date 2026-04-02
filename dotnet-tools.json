@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "isRoot": true,
+  "tools": {
+    "pinedatec.versionbumper": {
+      "version": "1.0.0.13",
+      "commands": [
+        "versionbumper"
+      ],
+      "rollForward": false
+    }
+  }
+}

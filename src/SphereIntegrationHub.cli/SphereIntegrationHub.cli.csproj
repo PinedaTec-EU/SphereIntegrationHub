@@ -1,8 +1,8 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <ReleaseVersion>0.4.2.98</ReleaseVersion>
+    <ReleaseVersion>0.3.2.103</ReleaseVersion>
     <AssemblyVersion>$(ReleaseVersion)</AssemblyVersion>
     <FileVersion>$(ReleaseVersion)</FileVersion>
     <Version>$(ReleaseVersion)</Version>
@@ -15,11 +15,9 @@
     <PackageTags>cli;dotnet-tool;workflows;openapi;swagger;integration</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
-
   <ItemGroup>
     <ProjectReference Include="../SphereIntegrationHub.Shared/SphereIntegrationHub.Shared.csproj" />
   </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="System.CommandLine" />
     <PackageReference Include="Ulid" />
@@ -28,9 +26,7 @@
     <PackageReference Include="OpenTelemetry.Exporter.Console" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
   </ItemGroup>
-
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="\" Link="README.md" />
   </ItemGroup>
-
 </Project>

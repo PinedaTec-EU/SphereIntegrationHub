@@ -96,4 +96,15 @@ public sealed class CliArgumentParserTests
         Assert.True(result.Debug);
         Assert.True(result.Mocked);
     }
+
+    [Fact]
+    public void ParseArgs_Version_SetsShowVersion()
+    {
+        ICliArgumentParser parser = new CliArgumentParser();
+
+        var result = parser.ParseArgs(new[] { "--version" });
+
+        Assert.True(result.ShowVersion);
+        Assert.Null(result.Error);
+    }
 }

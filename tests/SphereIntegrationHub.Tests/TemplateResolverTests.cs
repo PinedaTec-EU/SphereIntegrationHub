@@ -73,6 +73,38 @@ public sealed class TemplateResolverTests
     }
 
     [Fact]
+    public void ResolveTemplate_OptionalResponsePathReturnsEmptyWhenSegmentIsMissing()
+    {
+        var resolver = new TemplateResolver();
+        var context = new TemplateContext(
+            new Dictionary<string, string>(),
+            new Dictionary<string, string>(),
+            new Dictionary<string, string>(),
+            new Dictionary<string, IReadOnlyDictionary<string, string>>(),
+            new Dictionary<string, IReadOnlyDictionary<string, string>>(),
+            new Dictionary<string, IReadOnlyDictionary<string, string>>(),
+            new Dictionary<string, string>());
+
+        using var document = JsonDocument.Parse("""
+        {
+          "account": {
+            "id": "a-1"
+          }
+        }
+        """);
+
+        var response = new ResponseContext(
+            200,
+            document.RootElement.GetRawText(),
+            new Dictionary<string, string>(),
+            document);
+
+        var resolved = resolver.ResolveTemplate("{{response.account.status?}}", context, response);
+
+        Assert.Equal(string.Empty, resolved);
+    }
+
+    [Fact]
     public void ResolveTemplate_ResolvesStageJsonToken()
     {
         var resolver = new TemplateResolver();

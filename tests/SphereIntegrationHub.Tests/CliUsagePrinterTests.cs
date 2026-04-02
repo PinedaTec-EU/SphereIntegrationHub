@@ -16,5 +16,6 @@ public sealed class CliUsagePrinterTests
         Assert.Contains("Usage:", output, StringComparison.Ordinal);
         Assert.Contains("--workflow", output, StringComparison.Ordinal);
         Assert.Contains("--env", output, StringComparison.Ordinal);
+        Assert.Contains("--version", output, StringComparison.Ordinal);
     }
 }
