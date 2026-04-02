@@ -117,6 +117,7 @@ public sealed class CliAppTests
         public VarsFileLoader CreateVarsFileLoader() => throw new InvalidOperationException("Unexpected factory call");
         public WorkflowValidator CreateWorkflowValidator(WorkflowLoader workflowLoader) => throw new InvalidOperationException("Unexpected factory call");
         public ApiCatalogReader CreateApiCatalogReader() => throw new InvalidOperationException("Unexpected factory call");
+        public ApiHealthCheckProbe CreateApiHealthCheckProbe() => throw new InvalidOperationException("Unexpected factory call");
         public ApiSwaggerCacheService CreateApiSwaggerCacheService(HttpClient httpClient) => throw new InvalidOperationException("Unexpected factory call");
         public ApiEndpointValidator CreateApiEndpointValidator() => throw new InvalidOperationException("Unexpected factory call");
         public WorkflowPlanner CreateWorkflowPlanner(WorkflowLoader workflowLoader) => throw new InvalidOperationException("Unexpected factory call");

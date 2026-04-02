@@ -42,6 +42,8 @@ internal sealed class CliServiceFactory : ICliServiceFactory
 
     public ApiCatalogReader CreateApiCatalogReader() => new();
 
+    public ApiHealthCheckProbe CreateApiHealthCheckProbe() => new();
+
     public ApiSwaggerCacheService CreateApiSwaggerCacheService(HttpClient httpClient)
         => new(httpClient, _logger);
 

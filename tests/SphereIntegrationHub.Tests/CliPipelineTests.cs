@@ -1,5 +1,8 @@
 using SphereIntegrationHub.cli;
 using SphereIntegrationHub.Definitions;
+using WireMock.RequestBuilders;
+using WireMock.ResponseBuilders;
+using WireMock.Server;
 
 namespace SphereIntegrationHub.Tests;
 
@@ -150,6 +153,78 @@ public sealed class CliPipelineTests
         Assert.Contains(result.Messages, message => message.Text.Contains("Execution summary:", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public async Task RunAsync_DryRun_HealthCheckConfigured_ReportsHealthyEndpoint()
+    {
+        using var server = WireMockServer.Start();
+        server
+            .Given(Request.Create().WithPath("/health").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200));
+        var fixture = CreateFixture(
+            swaggerHasEndpoint: true,
+            includeMock: true,
+            catalogVersion: "1.0",
+            baseUrls: new Dictionary<string, string> { ["dev"] = server.Url! },
+            healthCheck: "/health");
+        var pipeline = CreatePipeline();
+
+        var result = await pipeline.RunAsync(new InlineArguments(
+            WorkflowPath: fixture.WorkflowPath,
+            Environment: "dev",
+            CatalogPath: null,
+            DryRun: true), CancellationToken.None);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains(result.Messages, message => message.Text.Contains("API health checks:", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains($"OK accounts -> {server.Url}/health", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task RunAsync_DryRun_HealthCheckConfigured_ReportsFailingEndpointButContinues()
+    {
+        using var server = WireMockServer.Start();
+        server
+            .Given(Request.Create().WithPath("/health").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(503));
+        var fixture = CreateFixture(
+            swaggerHasEndpoint: true,
+            includeMock: true,
+            catalogVersion: "1.0",
+            baseUrls: new Dictionary<string, string> { ["dev"] = server.Url! },
+            healthCheck: "/health");
+        var pipeline = CreatePipeline();
+
+        var result = await pipeline.RunAsync(new InlineArguments(
+            WorkflowPath: fixture.WorkflowPath,
+            Environment: "dev",
+            CatalogPath: null,
+            DryRun: true), CancellationToken.None);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains(result.Messages, message => message.Text.Contains($"Warning accounts -> {server.Url}/health", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains("Dry-run completed successfully", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task RunAsync_DryRun_WithoutHealthCheck_DoesNotEmitHealthCheckMessages()
+    {
+        var fixture = CreateFixture(
+            swaggerHasEndpoint: true,
+            includeMock: true,
+            catalogVersion: "1.0",
+            baseUrls: new Dictionary<string, string> { ["dev"] = "http://example.test" });
+        var pipeline = CreatePipeline();
+
+        var result = await pipeline.RunAsync(new InlineArguments(
+            WorkflowPath: fixture.WorkflowPath,
+            Environment: "dev",
+            CatalogPath: null,
+            DryRun: true), CancellationToken.None);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.DoesNotContain(result.Messages, message => message.Text.Contains("API health checks:", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static CliPipeline CreatePipeline()
     {
         var output = new TestOutputProvider();
@@ -168,6 +243,7 @@ public sealed class CliPipelineTests
         bool includeMock,
         string catalogVersion,
         Dictionary<string, string> baseUrls,
+        string? healthCheck = null,
         bool includeSelfJumpOnMock = false,
         bool includeWorkflowStageResilience = false)
     {
@@ -197,6 +273,7 @@ public sealed class CliPipelineTests
               {
                 "name": "accounts",
                 "swaggerUrl": "{{swaggerUrl}}",
+                "healthCheck": {{(healthCheck is null ? "null" : $"\"{healthCheck}\"")}},
                 "baseUrl": null,
                 "basePath": null
               }
