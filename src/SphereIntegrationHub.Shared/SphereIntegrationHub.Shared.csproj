@@ -2,7 +2,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Library</OutputType>
-    <ReleaseVersion>0.4.2.104</ReleaseVersion>
+    <ReleaseVersion>0.5.3.105</ReleaseVersion>
     <AssemblyVersion>$(ReleaseVersion)</AssemblyVersion>
     <FileVersion>$(ReleaseVersion)</FileVersion>
     <Version>$(ReleaseVersion)</Version>
