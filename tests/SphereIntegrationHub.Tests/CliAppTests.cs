@@ -59,6 +59,26 @@ public sealed class CliAppTests
         Assert.Contains("Missing required parameters", output.Error.ToString(), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task RunAsync_WithShowVersion_Returns0AndPrintsOnlyVersion()
+    {
+        var output = new TestOutputProvider();
+        var usage = new TestUsagePrinter();
+        var app = new CliApp(
+            argumentParser: new TestParser(new InlineArguments(ShowVersion: true)),
+            usagePrinter: usage,
+            outputProvider: output,
+            serviceFactory: new ThrowingServiceFactory());
+
+        var result = await app.RunAsync(Array.Empty<string>());
+
+        var stdout = ((StringWriter)output.Out).ToString().Trim();
+        Assert.Equal(0, result);
+        Assert.Equal(0, usage.CallCount);
+        Assert.DoesNotContain("Sphere Integration Hub", stdout, StringComparison.Ordinal);
+        Assert.Matches(@"^\d+\.\d+\.\d+\.\d+$|^unknown$", stdout);
+    }
+
     private sealed class TestParser : ICliArgumentParser
     {
         private readonly InlineArguments _result;

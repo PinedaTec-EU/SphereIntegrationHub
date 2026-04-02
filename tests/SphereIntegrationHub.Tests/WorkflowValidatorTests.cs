@@ -108,6 +108,106 @@ public sealed class WorkflowValidatorTests
     }
 
     [Fact]
+    public void Validate_FlagsResponsePathMissingFromMockPayload()
+    {
+        var definition = new WorkflowDefinition
+        {
+            Version = "1.0",
+            Id = "01",
+            Name = "test",
+            References = new WorkflowReference
+            {
+                Apis = new List<ApiReferenceItem>
+                {
+                    new() { Name = "accounts", Definition = "accounts" }
+                }
+            },
+            Stages = new List<WorkflowStageDefinition>
+            {
+                new()
+                {
+                    Name = "create",
+                    Kind = WorkflowStageKind.Endpoint,
+                    ApiRef = "accounts",
+                    Endpoint = "/api/accounts",
+                    HttpVerb = "POST",
+                    ExpectedStatus = 200,
+                    Mock = new WorkflowStageMockDefinition
+                    {
+                        Payload = """
+                        {
+                          "account": {
+                            "id": "a-1"
+                          }
+                        }
+                        """
+                    },
+                    Output = new Dictionary<string, string>
+                    {
+                        ["status"] = "{{response.body.account.status}}"
+                    }
+                }
+            }
+        };
+
+        var document = new WorkflowDocument(definition, "/tmp/test.workflow", new Dictionary<string, string>());
+        var validator = new WorkflowValidator(new WorkflowLoader());
+        var errors = validator.Validate(document);
+
+        Assert.Contains(errors, e => e.Contains("response.body.account.status", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validate_AllowsOptionalResponsePathMissingFromMockPayload()
+    {
+        var definition = new WorkflowDefinition
+        {
+            Version = "1.0",
+            Id = "01",
+            Name = "test",
+            References = new WorkflowReference
+            {
+                Apis = new List<ApiReferenceItem>
+                {
+                    new() { Name = "accounts", Definition = "accounts" }
+                }
+            },
+            Stages = new List<WorkflowStageDefinition>
+            {
+                new()
+                {
+                    Name = "create",
+                    Kind = WorkflowStageKind.Endpoint,
+                    ApiRef = "accounts",
+                    Endpoint = "/api/accounts",
+                    HttpVerb = "POST",
+                    ExpectedStatus = 200,
+                    Mock = new WorkflowStageMockDefinition
+                    {
+                        Payload = """
+                        {
+                          "account": {
+                            "id": "a-1"
+                          }
+                        }
+                        """
+                    },
+                    Output = new Dictionary<string, string>
+                    {
+                        ["status"] = "{{response.body.account.status?}}"
+                    }
+                }
+            }
+        };
+
+        var document = new WorkflowDocument(definition, "/tmp/test.workflow", new Dictionary<string, string>());
+        var validator = new WorkflowValidator(new WorkflowLoader());
+        var errors = validator.Validate(document);
+
+        Assert.DoesNotContain(errors, e => e.Contains("response.body.account.status?", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Validate_FlagsStageDelayOverLimit()
     {
         var definition = new WorkflowDefinition

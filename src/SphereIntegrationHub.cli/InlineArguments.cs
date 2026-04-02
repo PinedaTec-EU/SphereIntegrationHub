@@ -17,6 +17,7 @@ internal sealed record InlineArguments(
     bool? SummaryConsole = null,
     Dictionary<string, string>? Inputs = null,
     bool ShowHelp = false,
+    bool ShowVersion = false,
     string? Error = null)
 {
     public Dictionary<string, string> Inputs { get; init; } =
