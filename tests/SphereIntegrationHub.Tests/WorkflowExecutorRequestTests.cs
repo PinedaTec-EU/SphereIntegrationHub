@@ -304,4 +304,193 @@ public sealed class WorkflowExecutorRequestTests
         Assert.Contains("/api/licensing/tiers", requests);
         Assert.Contains("/api/licensing/tiers/tier-123/publish", requests);
     }
+
+    [Fact]
+    public async Task ExecuteAsync_ConvertsEnumNameUsingRequestContract()
+    {
+        using WireMockServer server = WireMockServer.Start();
+        server
+            .Given(Request.Create().WithPath("/api/accounts").UsingPost())
+            .RespondWith(Response.Create()
+                .WithStatusCode(201)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody("{\"ok\":true}"));
+
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"sih-contract-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+        var cacheRoot = Path.Combine(tempRoot, "cache");
+        Directory.CreateDirectory(cacheRoot);
+        File.WriteAllText(
+            Path.Combine(cacheRoot, "accounts.json"),
+            """
+            {
+              "openapi": "3.0.1",
+              "paths": {
+                "/api/accounts": {
+                  "post": {
+                    "requestBody": {
+                      "required": true,
+                      "content": {
+                        "application/json": {
+                          "schema": {
+                            "type": "object",
+                            "required": ["status"],
+                            "properties": {
+                              "status": {
+                                "type": "integer",
+                                "enum": [0, 1],
+                                "x-enumNames": ["Pending", "Active"]
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        try
+        {
+            var definition = CreateRequestContractWorkflow("{\"status\":\"Active\",\"name\":\"test\"}");
+            var document = new WorkflowDocument(definition, "/tmp/test.workflow", new Dictionary<string, string>());
+            var catalogVersion = CreateRequestContractCatalog(server);
+            var processor = new RequestBodyContractProcessor(RequestContractRegistry.Load(definition, catalogVersion, cacheRoot));
+
+            using var httpClient = new HttpClient();
+            var executor = new WorkflowExecutor(httpClient, new DynamicValueService(), requestBodyContractProcessor: processor);
+
+            await executor.ExecuteAsync(
+                document,
+                catalogVersion,
+                "test",
+                new Dictionary<string, string>(),
+                varsOverrideActive: false,
+                mocked: false,
+                verbose: false,
+                debug: false,
+                cancellationToken: CancellationToken.None);
+
+            var entry = Assert.Single(server.LogEntries);
+            Assert.Equal("{\"status\":1,\"name\":\"test\"}", entry.RequestMessage!.Body?.ToString());
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, true);
+        }
+    }
+
+    [Fact]
+    public void ProcessRequestBody_WhenTypeDoesNotMatch_ThrowsFieldFocusedError()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"sih-contract-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+        var cacheRoot = Path.Combine(tempRoot, "cache");
+        Directory.CreateDirectory(cacheRoot);
+        File.WriteAllText(
+            Path.Combine(cacheRoot, "accounts.json"),
+            """
+            {
+              "openapi": "3.0.1",
+              "paths": {
+                "/api/accounts": {
+                  "post": {
+                    "requestBody": {
+                      "required": true,
+                      "content": {
+                        "application/json": {
+                          "schema": {
+                            "type": "object",
+                            "required": ["count"],
+                            "properties": {
+                              "count": {
+                                "type": "integer"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        try
+        {
+            var definition = CreateRequestContractWorkflow("{\"count\":\"oops\"}");
+            var catalogVersion = CreateRequestContractCatalog(baseUrl: "http://example.test");
+            var processor = new RequestBodyContractProcessor(RequestContractRegistry.Load(definition, catalogVersion, cacheRoot));
+            var stage = Assert.Single(definition.Stages!);
+
+            var exception = Assert.Throws<InvalidOperationException>(() => processor.Process(stage, "{\"count\":\"oops\"}"));
+
+            Assert.Contains("request body field '$.count'", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("expected integer", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("got string", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, true);
+        }
+    }
+
+    private static WorkflowDefinition CreateRequestContractWorkflow(string body)
+    {
+        return new WorkflowDefinition
+        {
+            Version = "3.11",
+            Id = "test-workflow",
+            Name = "test-workflow",
+            References = new WorkflowReference
+            {
+                Apis = new List<ApiReferenceItem>
+                {
+                    new()
+                    {
+                        Name = "accounts",
+                        Definition = "accounts"
+                    }
+                }
+            },
+            Stages = new List<WorkflowStageDefinition>
+            {
+                new()
+                {
+                    Name = "create-account",
+                    Kind = WorkflowStageKind.Endpoint,
+                    ApiRef = "accounts",
+                    Endpoint = "/api/accounts",
+                    HttpVerb = "POST",
+                    ExpectedStatus = 201,
+                    Body = body
+                }
+            }
+        };
+    }
+
+    private static ApiCatalogVersion CreateRequestContractCatalog(WireMockServer server)
+        => CreateRequestContractCatalog(server.Url!);
+
+    private static ApiCatalogVersion CreateRequestContractCatalog(string baseUrl)
+    {
+        return new ApiCatalogVersion
+        {
+            Version = "test",
+            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["test"] = baseUrl
+            },
+            Definitions = new List<ApiDefinition>
+            {
+                new ApiDefinition { Name = "accounts", SwaggerUrl = "http://unused" }
+            }
+        };
+    }
 }

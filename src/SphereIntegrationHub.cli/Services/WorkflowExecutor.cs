@@ -34,6 +34,7 @@ public sealed class WorkflowExecutor
         RandomValueFormattingOptions? formatting = null,
         ISystemTimeProvider? systemProvider = null,
         IEndpointInvoker? endpointInvoker = null,
+        IRequestBodyContractProcessor? requestBodyContractProcessor = null,
         IWorkflowOutputWriter? outputWriter = null,
         IExecutionLogger? logger = null,
         IWorkflowExecutionReportWriter? reportWriter = null,
@@ -47,7 +48,7 @@ public sealed class WorkflowExecutor
         _mockPayloadService = mockPayloadService ?? new MockPayloadService();
         _dataFileService = new WorkflowDataFileService();
         _formatting = formatting ?? RandomValueFormattingOptions.Default;
-        _endpointInvoker = endpointInvoker ?? new HttpEndpointInvoker(httpClient, _templateResolver);
+        _endpointInvoker = endpointInvoker ?? new HttpEndpointInvoker(httpClient, _templateResolver, requestBodyContractProcessor);
         _outputWriter = outputWriter ?? new WorkflowOutputWriter();
         _reportWriter = reportWriter ?? new WorkflowExecutionReportWriter();
         _logger = logger ?? new ConsoleExecutionLogger();

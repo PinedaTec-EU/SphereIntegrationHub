@@ -99,7 +99,8 @@ internal sealed class CliPipeline : ICliPipeline
             return BuildDryRunResult(workflowDocument, workflowLoader, parseResult, stopwatch, messages);
         }
 
-        return await ExecuteWorkflowAsync(parseResult, workflowDocument, selectedVersion, varsOverrideActive, reportOptions, messages, cancellationToken);
+        var cacheRoot = Path.Combine(_pathResolver.ResolveDefaultCacheRoot(parseResult.WorkflowPath), selectedVersion.Version);
+        return await ExecuteWorkflowAsync(parseResult, workflowDocument, selectedVersion, cacheRoot, varsOverrideActive, reportOptions, messages, cancellationToken);
     }
 
     private void EmitPreamble(InlineArguments parseResult, List<CliRunMessage> messages)
@@ -425,6 +426,7 @@ internal sealed class CliPipeline : ICliPipeline
         InlineArguments parseResult,
         WorkflowDocument workflowDocument,
         ApiCatalogVersion selectedVersion,
+        string cacheRoot,
         bool varsOverrideActive,
         WorkflowExecutionReportOptions reportOptions,
         List<CliRunMessage> messages,
@@ -435,7 +437,14 @@ internal sealed class CliPipeline : ICliPipeline
             using var httpClient = _serviceFactory.CreateHttpClient();
             var systemTimeProvider = _serviceFactory.CreateSystemTimeProvider();
             var dynamicValueService = _serviceFactory.CreateDynamicValueService(systemTimeProvider);
-            var executor = _serviceFactory.CreateWorkflowExecutor(httpClient, dynamicValueService, systemTimeProvider, reportOptions);
+            var requestBodyContractProcessor = new RequestBodyContractProcessor(
+                RequestContractRegistry.Load(workflowDocument.Definition, selectedVersion, cacheRoot));
+            var executor = _serviceFactory.CreateWorkflowExecutor(
+                httpClient,
+                dynamicValueService,
+                systemTimeProvider,
+                reportOptions,
+                requestBodyContractProcessor);
             var result = await executor.ExecuteAsync(
                 workflowDocument,
                 selectedVersion,

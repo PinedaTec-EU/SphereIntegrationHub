@@ -126,7 +126,8 @@ public sealed class CliAppTests
             HttpClient httpClient,
             DynamicValueService dynamicValueService,
             ISystemTimeProvider systemTimeProvider,
-            WorkflowExecutionReportOptions reportOptions)
+            WorkflowExecutionReportOptions reportOptions,
+            IRequestBodyContractProcessor? requestBodyContractProcessor = null)
             => throw new InvalidOperationException("Unexpected factory call");
     }
 }
