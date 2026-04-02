@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <ReleaseVersion>0.3.2.96</ReleaseVersion>
+    <ReleaseVersion>0.4.2.98</ReleaseVersion>
     <AssemblyVersion>$(ReleaseVersion)</AssemblyVersion>
     <FileVersion>$(ReleaseVersion)</FileVersion>
     <Version>$(ReleaseVersion)</Version>
