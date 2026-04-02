@@ -4,4 +4,5 @@ internal interface ICliOutputProvider
 {
     TextWriter Out { get; }
     TextWriter Error { get; }
+    bool UseColors { get; }
 }

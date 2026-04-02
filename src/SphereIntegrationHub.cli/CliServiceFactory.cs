@@ -11,7 +11,7 @@ internal sealed class CliServiceFactory : ICliServiceFactory
     public CliServiceFactory(ICliOutputProvider? outputProvider = null)
     {
         var output = outputProvider ?? new ConsoleOutputProvider();
-        _logger = new ConsoleExecutionLogger(output.Out, output.Error);
+        _logger = new ConsoleExecutionLogger(output.Out, output.Error, output.UseColors);
     }
 
     public HttpClient CreateHttpClient()

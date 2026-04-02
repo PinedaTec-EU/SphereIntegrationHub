@@ -376,5 +376,6 @@ public sealed class CliPipelineTests
     {
         public TextWriter Out { get; } = new StringWriter();
         public TextWriter Error { get; } = new StringWriter();
+        public bool UseColors => false;
     }
 }
