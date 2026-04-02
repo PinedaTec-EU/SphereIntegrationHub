@@ -64,6 +64,8 @@ public sealed class WorkflowExecutionReportWriterTests
         Assert.NotNull(artifacts.HtmlReportPath);
         Assert.True(File.Exists(artifacts.JsonReportPath!));
         Assert.True(File.Exists(artifacts.HtmlReportPath!));
+        Assert.EndsWith($"{Path.DirectorySeparatorChar}workflow-report.exec-1.workflow.report.json", artifacts.JsonReportPath, StringComparison.Ordinal);
+        Assert.EndsWith($"{Path.DirectorySeparatorChar}workflow-report.exec-1.workflow.report.html", artifacts.HtmlReportPath, StringComparison.Ordinal);
 
         using var parsed = JsonDocument.Parse(await File.ReadAllTextAsync(artifacts.JsonReportPath!));
         Assert.Equal("Ok", parsed.RootElement.GetProperty("Result").GetString());

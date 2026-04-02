@@ -33,11 +33,13 @@ public sealed class WorkflowOutputWriterTests
 
         var document = new WorkflowDocument(definition, workflowPath, new Dictionary<string, string>());
         var writer = new WorkflowOutputWriter();
+        const string executionId = "exec-1";
 
-        var outputFilePath = await writer.WriteOutputAsync(definition, document, outputs, CancellationToken.None);
+        var outputFilePath = await writer.WriteOutputAsync(definition, document, executionId, outputs, CancellationToken.None);
 
         Assert.False(string.IsNullOrWhiteSpace(outputFilePath));
         Assert.True(File.Exists(outputFilePath));
+        Assert.EndsWith($"{Path.DirectorySeparatorChar}test-workflow.{executionId}.workflow.output", outputFilePath, StringComparison.Ordinal);
 
         var json = await File.ReadAllTextAsync(outputFilePath!);
         using var parsed = JsonDocument.Parse(json);
