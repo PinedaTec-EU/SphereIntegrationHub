@@ -369,7 +369,9 @@ public sealed class GenerateWorkflowSkeletonTool : IMcpTool
                 "Prefer ensure for create-if-missing or bootstrap HTTP stages.",
                 "Use expectedStatuses plus onStatus/jumpOnStatus when branching needs explicit status control.",
                 "Use bodyFile for large request payloads and dataFile + forEach for seed collections.",
-                "Use Object/Array input types when the workflow consumes structured JSON."
+                "Use Object/Array input types when the workflow consumes structured JSON.",
+                "Use runIf helpers like exists, empty, coalesce, jsonLength, and isEmptyJson for control logic.",
+                "Use optional path suffix ? and workflow.result/workflow.output tokens when composing child workflows."
             },
             warnings = warningMessages
         };

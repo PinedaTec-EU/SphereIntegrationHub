@@ -68,6 +68,7 @@ Agents generating workflows should assume these runtime rules:
 - `{{response.status}}`, `{{response.body}}`, and `{{response.headers.HeaderName}}` are supported for endpoint stages.
 - `{{response.body.some.path}}` and `{{response.some.path}}` are valid when the response body is JSON.
 - Optional path segments use a `?` suffix on the segment itself, for example `{{response.body.account.status?}}` or `{{stage:create.output.items.0.id?}}`. Missing optional segments resolve to empty output instead of failing.
+- `runIf` supports compound expressions with `&&`, `||`, `!`, parentheses, safe comparisons against missing tokens, and helpers such as `exists(...)`, `empty(...)`, `coalesce(...)`, `first(...)`, `any(...)`, `jsonLength(...)`, and `isEmptyJson(...)`.
 - Workflow validation can check response token paths against endpoint mock payloads when `stage.mock.payload` or `stage.mock.payloadFile` is present.
 - `kind: Workflow` stage failures propagate to the parent workflow; parent execution does not continue past a failed child workflow.
 - `forEach` on workflow stages aggregates both outputs and result state. In addition to `foreach_count` and `foreach_items`, workflow stages expose `foreach_results`, `foreach_success_count`, and `foreach_failed_count`.
@@ -176,6 +177,18 @@ Example `./payloads/create-account.json`:
 }
 ```
 
+## Sample Workflows
+
+The repository includes reference workflows under `samples/`:
+
+- `sample-parent.workflow` and `sample-child.workflow`: parent/child composition, workflow outputs/results, retries, circuit breakers, and conditional follow-up stages.
+- `sample-conditional.workflow`: compound `runIf` with `&&`, `||`, parentheses, safe missing-token checks, optional JSON paths, `empty(...)`, and `coalesce(...)`.
+- `sample-bootstrap.workflow`: `expectedStatuses`, `onStatus`, `ensure`, `bodyFile`, `dataFile`, and `forEach` for seed/bootstrap scenarios.
+- `sample-parent.wfvars`: companion input example for the parent/child sample.
+- `payloads/bootstrap-account.json` and `seed/accounts.json`: file-backed request and collection samples used by `sample-bootstrap.workflow`.
+
+Use these files directly when authoring new workflows or when prompting MCP-based generation.
+
 ## Usage
 
 Dry-run (validates workflow, references, and swagger paths without calling endpoints):
@@ -238,9 +251,9 @@ SphereIntegrationHub.cli \
 
 This writes:
 
-- `{name}.{id}.workflow.output`
-- `{name}.{id}.{executionId}.workflow.report.json`
-- `{name}.{id}.{executionId}.workflow.report.html`
+- `{name}.{executionId}.workflow.output`
+- `{name}.{executionId}.workflow.report.json`
+- `{name}.{executionId}.workflow.report.html`
 
 Reports include stage timings, retries, jumps, ensure status, HTTP status, redacted headers/body capture, and final outputs.
 

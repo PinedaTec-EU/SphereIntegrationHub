@@ -309,10 +309,13 @@ New runtime authoring features exposed through MCP:
 - `expectedStatuses` for multi-status acceptance
 - `onStatus` for idempotent branching with outputs
 - `ensure` as semantic sugar for idempotent create/bootstrap stages
-- JSON-aware `runIf` functions: `exists`, `isEmptyJson`, `jsonLength`, `first`, `any`
+- JSON-aware `runIf` functions: `exists`, `empty`, `coalesce`, `isEmptyJson`, `jsonLength`, `first`, `any`
+- Optional JSON path segments with `?` and safe missing-token comparisons inside `runIf`
 - `bodyFile` for large request bodies
 - `dataFile` plus `forEach` for array-driven bootstraps
 - `Object` and `Array` workflow inputs
+- Workflow-stage result/output tokens such as `stage:<name>.workflow.result.*` and `stage:<name>.workflow.output.*`
+- Execution artifacts named by workflow name plus execution id (`{name}.{executionId}.workflow.output`, reports in JSON/HTML)
 
 #### 1.4 Variable Analysis (3 tools)
 

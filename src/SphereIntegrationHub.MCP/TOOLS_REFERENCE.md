@@ -4,8 +4,8 @@ This document summarizes the current MCP surface implemented in `src/SphereInteg
 
 ## Tool Count
 
-- Total tools: `30`
-- L1: `22`
+- Total tools: `35`
+- L1: `27`
 - L2: `5`
 - L3: `1`
 - L4: `2`
@@ -51,6 +51,7 @@ And returns authoring hints for:
 - `bodyFile`
 - `dataFile`
 - `forEach`
+- `runIf` helper functions such as `exists`, `empty`, and `coalesce`
 - structured JSON inputs
 
 ### `generate_mock_payload`

@@ -96,8 +96,12 @@ Rules:
 
 When reporting is enabled, SIH writes one or both of:
 
-- `{workflow-name}.{workflow-id}.{executionId}.workflow.report.json`
-- `{workflow-name}.{workflow-id}.{executionId}.workflow.report.html`
+- `{workflow-name}.{executionId}.workflow.report.json`
+- `{workflow-name}.{executionId}.workflow.report.html`
+
+When workflow output persistence is enabled, SIH also writes:
+
+- `{workflow-name}.{executionId}.workflow.output`
 
 The report contains:
 
