@@ -412,6 +412,7 @@ public sealed class WorkflowExecutor
                 context.OutputFilePath = await _outputWriter.WriteOutputAsync(
                     definition,
                     document,
+                    context.Report?.ExecutionId ?? Ulid.NewUlid().ToString(),
                     workflowOutput,
                     cancellationToken);
             }

@@ -23,7 +23,7 @@ public sealed class WorkflowExecutionReportWriter : IWorkflowExecutionReportWrit
         var outputDirectory = Path.Combine(baseDirectory, "output");
         Directory.CreateDirectory(outputDirectory);
         var safeName = document.Definition.Name.Replace(' ', '-');
-        var prefix = $"{safeName}.{document.Definition.Id}.{report.ExecutionId}";
+        var prefix = $"{safeName}.{report.ExecutionId}";
 
         string? jsonPath = null;
         string? htmlPath = null;
