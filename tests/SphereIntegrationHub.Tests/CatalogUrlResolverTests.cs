@@ -55,4 +55,30 @@ public sealed class CatalogUrlResolverTests
 
         Assert.Equal("https://localhost:5009/swagger/v1/swagger.json", swaggerUri.ToString());
     }
+
+    [Fact]
+    public void ResolveHealthCheckUri_WithRelativePathAndPort_ReturnsExpandedAbsoluteUri()
+    {
+        var version = new ApiCatalogVersion
+        {
+            Version = "0.1",
+            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["local"] = "https://localhost"
+            },
+            Definitions = []
+        };
+
+        var definition = new ApiDefinition
+        {
+            Name = "TravelAgent.Admin.Api",
+            SwaggerUrl = "/swagger/v1/swagger.json",
+            HealthCheck = "/health",
+            Port = 5009
+        };
+
+        var healthCheckUri = CatalogUrlResolver.ResolveHealthCheckUri(version, definition, "local");
+
+        Assert.Equal("https://localhost:5009/health", healthCheckUri.ToString());
+    }
 }
