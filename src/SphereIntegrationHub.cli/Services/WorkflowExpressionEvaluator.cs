@@ -64,7 +64,8 @@ public sealed class WorkflowExpressionEvaluator
                     return value;
                 }
 
-                value = Value.FromBoolean(value.ToBoolean() || ParseAnd().ToBoolean());
+                var right = ParseAnd();
+                value = Value.FromBoolean(value.ToBoolean() || right.ToBoolean());
             }
         }
 
@@ -79,7 +80,8 @@ public sealed class WorkflowExpressionEvaluator
                     return value;
                 }
 
-                value = Value.FromBoolean(value.ToBoolean() && ParseUnary().ToBoolean());
+                var right = ParseUnary();
+                value = Value.FromBoolean(value.ToBoolean() && right.ToBoolean());
             }
         }
 
@@ -124,22 +126,22 @@ public sealed class WorkflowExpressionEvaluator
 
             if (TryConsume(">="))
             {
-                return Value.FromBoolean(left.CompareTo(ParsePrimary()) >= 0);
+                return Value.FromBoolean(EvaluateRelational(left, ParsePrimary(), comparison => comparison >= 0));
             }
 
             if (TryConsume("<="))
             {
-                return Value.FromBoolean(left.CompareTo(ParsePrimary()) <= 0);
+                return Value.FromBoolean(EvaluateRelational(left, ParsePrimary(), comparison => comparison <= 0));
             }
 
             if (TryConsume(">"))
             {
-                return Value.FromBoolean(left.CompareTo(ParsePrimary()) > 0);
+                return Value.FromBoolean(EvaluateRelational(left, ParsePrimary(), comparison => comparison > 0));
             }
 
             if (TryConsume("<"))
             {
-                return Value.FromBoolean(left.CompareTo(ParsePrimary()) < 0);
+                return Value.FromBoolean(EvaluateRelational(left, ParsePrimary(), comparison => comparison < 0));
             }
 
             return left;
@@ -207,8 +209,16 @@ public sealed class WorkflowExpressionEvaluator
 
             var token = _expression[_index..closeIndex].Trim();
             _index = closeIndex + 2;
-            var value = _resolver.ResolveTokenValue(token, _context, _responseContext, allowJsonStage: true);
-            return Value.FromResolved(value);
+
+            try
+            {
+                var value = _resolver.ResolveTokenValue(token, _context, _responseContext, allowJsonStage: true);
+                return Value.FromResolved(value);
+            }
+            catch (InvalidOperationException ex) when (IsSafeMissingTokenFailure(ex))
+            {
+                return Value.Missing;
+            }
         }
 
         private Value ParseList()
@@ -299,6 +309,8 @@ public sealed class WorkflowExpressionEvaluator
             return name.ToLowerInvariant() switch
             {
                 "exists" => Value.FromBoolean(arguments.Count == 1 && arguments[0].Exists),
+                "empty" => Value.FromBoolean(arguments.Count == 1 && arguments[0].IsEmpty()),
+                "coalesce" => ResolveCoalesce(arguments),
                 "isemptyjson" => Value.FromBoolean(arguments.Count == 1 && arguments[0].TryGetJson(out var emptyJson) && JsonValueHelper.IsEmpty(emptyJson)),
                 "jsonlength" => Value.FromNumber(arguments.Count == 1 && arguments[0].TryGetJson(out var sizedJson) ? JsonValueHelper.GetLength(sizedJson) : 0),
                 "first" => ResolveFirst(arguments),
@@ -344,6 +356,19 @@ public sealed class WorkflowExpressionEvaluator
             return Value.FromBoolean(source.ToBoolean());
         }
 
+        private static Value ResolveCoalesce(List<Value> arguments)
+        {
+            foreach (var argument in arguments)
+            {
+                if (!argument.IsNullLike())
+                {
+                    return argument;
+                }
+            }
+
+            return Value.Null;
+        }
+
         private static bool Contains(Value haystack, Value needle)
         {
             if (haystack.Kind == ValueKind.List && haystack.ListValue is not null)
@@ -357,6 +382,16 @@ public sealed class WorkflowExpressionEvaluator
             }
 
             return false;
+        }
+
+        private static bool EvaluateRelational(Value left, Value right, Func<int, bool> predicate)
+        {
+            if (left.IsNullLike() || right.IsNullLike())
+            {
+                return false;
+            }
+
+            return predicate(left.CompareTo(right));
         }
 
         private string ParseIdentifier()
@@ -460,6 +495,12 @@ public sealed class WorkflowExpressionEvaluator
                 _index++;
             }
         }
+
+        private static bool IsSafeMissingTokenFailure(InvalidOperationException exception)
+        {
+            return exception.Message.Contains("was not found", StringComparison.OrdinalIgnoreCase) ||
+                   exception.Message.Contains("were not found", StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     private enum ValueKind
@@ -474,15 +515,17 @@ public sealed class WorkflowExpressionEvaluator
 
     private sealed class Value
     {
-        public static Value Null { get; } = new(ValueKind.Null, null, null, null, null);
+        public static Value Missing { get; } = new(ValueKind.Null, null, null, null, null, exists: false);
+        public static Value Null { get; } = new(ValueKind.Null, null, null, null, null, exists: true);
 
-        private Value(ValueKind kind, string? stringValue, decimal? numberValue, bool? boolValue, JsonElement? jsonValue)
+        private Value(ValueKind kind, string? stringValue, decimal? numberValue, bool? boolValue, JsonElement? jsonValue, bool exists)
         {
             Kind = kind;
             StringValue = stringValue;
             NumberValue = numberValue;
             BoolValue = boolValue;
             JsonValue = jsonValue;
+            Exists = exists;
         }
 
         public ValueKind Kind { get; }
@@ -491,19 +534,19 @@ public sealed class WorkflowExpressionEvaluator
         public bool? BoolValue { get; }
         public JsonElement? JsonValue { get; }
         public List<Value>? ListValue { get; private init; }
-        public bool Exists => Kind != ValueKind.Null;
+        public bool Exists { get; }
 
-        public static Value FromString(string? value) => value is null ? Null : new(ValueKind.String, value, null, null, null);
-        public static Value FromNumber(decimal value) => new(ValueKind.Number, null, value, null, null);
-        public static Value FromBoolean(bool value) => new(ValueKind.Boolean, null, null, value, null);
-        public static Value FromJson(JsonElement value) => new(ValueKind.Json, null, null, null, value.Clone());
-        public static Value FromList(List<Value> value) => new(ValueKind.List, null, null, null, null) { ListValue = value };
+        public static Value FromString(string? value) => value is null ? Null : new(ValueKind.String, value, null, null, null, exists: true);
+        public static Value FromNumber(decimal value) => new(ValueKind.Number, null, value, null, null, exists: true);
+        public static Value FromBoolean(bool value) => new(ValueKind.Boolean, null, null, value, null, exists: true);
+        public static Value FromJson(JsonElement value) => new(ValueKind.Json, null, null, null, value.Clone(), exists: true);
+        public static Value FromList(List<Value> value) => new(ValueKind.List, null, null, null, null, exists: true) { ListValue = value };
 
         public static Value FromResolved(ResolvedTokenValue value)
         {
             if (!value.Exists)
             {
-                return Null;
+                return Missing;
             }
 
             if (value.JsonValue.HasValue)
@@ -531,6 +574,29 @@ public sealed class WorkflowExpressionEvaluator
             return false;
         }
 
+        public bool IsNullLike()
+        {
+            return !Exists ||
+                   Kind == ValueKind.Null ||
+                   (TryGetJson(out var json) && json.ValueKind == JsonValueKind.Null);
+        }
+
+        public bool IsEmpty()
+        {
+            if (IsNullLike())
+            {
+                return true;
+            }
+
+            return Kind switch
+            {
+                ValueKind.String => string.IsNullOrEmpty(StringValue),
+                ValueKind.List => ListValue?.Count is not > 0,
+                ValueKind.Json when TryGetJson(out var json) => JsonValueHelper.IsEmpty(json),
+                _ => false
+            };
+        }
+
         public bool ToBoolean()
         {
             return Kind switch
@@ -546,6 +612,11 @@ public sealed class WorkflowExpressionEvaluator
 
         public int CompareTo(Value other)
         {
+            if (IsNullLike() || other.IsNullLike())
+            {
+                return 0;
+            }
+
             if (TryGetDecimal(this, out var left) && TryGetDecimal(other, out var right))
             {
                 return left.CompareTo(right);
@@ -572,6 +643,11 @@ public sealed class WorkflowExpressionEvaluator
 
         public static bool Equals(Value left, Value right)
         {
+            if (left.IsNullLike() || right.IsNullLike())
+            {
+                return left.IsNullLike() && right.IsNullLike();
+            }
+
             if (TryGetDecimal(left, out var leftNumber) && TryGetDecimal(right, out var rightNumber))
             {
                 return leftNumber == rightNumber;
