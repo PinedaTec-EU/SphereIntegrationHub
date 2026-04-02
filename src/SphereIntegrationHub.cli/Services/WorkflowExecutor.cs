@@ -60,6 +60,15 @@ public sealed class WorkflowExecutor
     private static string FormatStageTag(string workflowName, string stageName)
         => $"{FormatWorkflowTag(workflowName)}#{stageName}";
 
+    private static string FormatWorkflowHeader(string name) => $"workflow {FormatWorkflowTag(name)}";
+
+    private static string FormatStepEntry(string stageName) => $"- step: {stageName}";
+
+    private static string FormatWorkflowCompletion(double elapsedMilliseconds)
+        => $"- completed in {elapsedMilliseconds:F0} ms.";
+
+    private static string GetStepIndent(ExecutionContext context) => GetIndent(context.IndentLevel + 2);
+
     private static string GetIndent(int indentLevel)
         => indentLevel <= 0 ? string.Empty : new string(' ', indentLevel);
 
@@ -233,7 +242,7 @@ public sealed class WorkflowExecutor
                 ValidateInputs(definition, context.Inputs);
             }
             InitializeGlobals(definition, context);
-            _logger.Info($"{indent}{FormatWorkflowTag(definition.Name)}#initStage processed.");
+            _logger.Info($"{indent}{FormatWorkflowHeader(definition.Name)}");
 
             if (definition.Stages is not null)
             {
@@ -290,7 +299,7 @@ public sealed class WorkflowExecutor
                         catch (Exception ex)
                         {
                             stageActivity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-                            _logger.Error($"{indent}{FormatStageTag(definition.Name, stage.Name)} failed after {stageTimer.Elapsed.TotalMilliseconds:F0} ms: {ex.Message}");
+                            _logger.Error($"{GetStepIndent(context)}{FormatStepEntry(stage.Name)} failed after {stageTimer.Elapsed.TotalMilliseconds:F0} ms: {ex.Message}");
                             ApplyWorkflowStageResult(context, stage.Name, WorkflowResultStatus.Error, ex.Message);
                             CompleteStageRecord(stageRecord, context, "Error", null, ex.Message);
                             if (captureErrors)
@@ -305,7 +314,7 @@ public sealed class WorkflowExecutor
                             stageTimer.Stop();
                         }
 
-                        _logger.Info($"{indent}{FormatStageTag(definition.Name, stage.Name)} completed in {stageTimer.Elapsed.TotalMilliseconds:F0} ms.");
+                        _logger.Info($"{GetStepIndent(context)}{FormatStepEntry(stage.Name)} completed in {stageTimer.Elapsed.TotalMilliseconds:F0} ms.");
                         ApplyStageSetters(stage, context);
                         index++;
                     }
@@ -339,7 +348,7 @@ public sealed class WorkflowExecutor
                         catch (Exception ex)
                         {
                             stageActivity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-                            _logger.Error($"{indent}{FormatStageTag(definition.Name, stage.Name)} failed after {stageTimer.Elapsed.TotalMilliseconds:F0} ms: {ex.Message}");
+                            _logger.Error($"{GetStepIndent(context)}{FormatStepEntry(stage.Name)} failed after {stageTimer.Elapsed.TotalMilliseconds:F0} ms: {ex.Message}");
                             CompleteStageRecord(stageRecord, context, "Error", null, ex.Message);
                             if (captureErrors)
                             {
@@ -353,7 +362,7 @@ public sealed class WorkflowExecutor
                             stageTimer.Stop();
                         }
 
-                        _logger.Info($"{indent}{FormatStageTag(definition.Name, stage.Name)} completed in {stageTimer.Elapsed.TotalMilliseconds:F0} ms.");
+                        _logger.Info($"{GetStepIndent(context)}{FormatStepEntry(stage.Name)} completed in {stageTimer.Elapsed.TotalMilliseconds:F0} ms.");
                         ApplyStageSetters(stage, context);
                         if (!string.IsNullOrWhiteSpace(jumpTarget))
                         {
@@ -398,8 +407,6 @@ public sealed class WorkflowExecutor
             context.WorkflowOutputsJson[definition.Name] = BuildJsonMap(workflowOutput);
 
             ApplyEndStageContext(definition, context);
-            _logger.Info($"{indent}{FormatWorkflowTag(definition.Name)}#endStage processed.");
-
             if (definition.Output)
             {
                 context.OutputFilePath = await _outputWriter.WriteOutputAsync(
@@ -410,7 +417,7 @@ public sealed class WorkflowExecutor
             }
 
             workflowTimer.Stop();
-            _logger.Info($"{indent}Workflow {FormatWorkflowTag(definition.Name)} completed in {workflowTimer.Elapsed.TotalMilliseconds:F0} ms.");
+            _logger.Info($"{GetStepIndent(context)}{FormatWorkflowCompletion(workflowTimer.Elapsed.TotalMilliseconds)}");
             return BuildWorkflowSuccessResult(definition, context);
         }
         catch (Exception ex)
@@ -518,7 +525,6 @@ public sealed class WorkflowExecutor
             _logger.Info($"{GetIndent(context)}{FormatStageTag(document.Definition.Name, stage.Name)} resolved workflow '{nestedDocument.Definition.Name}' at '{nestedDocument.FilePath}'.");
         }
 
-        _logger.Info($"{GetIndent(context)}Calling nested workflow {FormatWorkflowTag(nestedDocument.Definition.Name)} from stage {FormatStageTag(document.Definition.Name, stage.Name)}.");
         if (verbose)
         {
             _logger.Info($"{GetIndent(context.IndentLevel + 1)}Workflow loaded: {nestedDocument.Definition.Name} ({nestedDocument.Definition.Id}).");
