@@ -1,6 +1,8 @@
 # Dry-Run Validation
 
-The `--dry-run` mode validates workflows and prints an execution plan without calling any endpoints.
+The `--dry-run` mode validates workflows and prints an execution plan without executing workflow endpoints.
+
+If a referenced API definition includes `healthCheck` in the catalog, SIH performs that HTTP precheck and reports the result without failing the dry-run by itself.
 
 ## What is validated
 

@@ -12,6 +12,11 @@ This document summarizes the current MCP surface implemented in `src/SphereInteg
 
 ## Key Generation Tools
 
+Catalog authoring notes for agents:
+- API definitions may include optional `healthCheck`
+- `healthCheck` can be an absolute URL or a relative path such as `/health`
+- when present, runtime probes it before swagger caching and workflow execution and reports failures without aborting the run
+
 ### `generate_endpoint_stage`
 
 Generates a SphereIntegrationHub `Endpoint` stage aligned with runtime schema (`kind`, `apiRef`, `httpVerb`, `expectedStatus`, `output`).

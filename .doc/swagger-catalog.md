@@ -21,6 +21,7 @@ Example:
       {
         "name": "example-service",
         "swaggerUrl": "/example/swagger/v1.0/swagger.json",
+        "healthCheck": "/health",
         "baseUrl": {
           "local": "http://localhost:8081"
         },
@@ -35,6 +36,7 @@ Notes:
 
 - `version` matches the workflow `version`.
 - `swaggerUrl` can be absolute or relative. Relative URLs are resolved against `definitions[].baseUrl[env]` when defined, otherwise `baseUrl[env]`.
+- `healthCheck` is optional. When present, SIH performs an HTTP `GET` before swagger caching and workflow execution. It can be an absolute URL or a relative path resolved against the definition/version base URL.
 - `definitions[].baseUrl` is optional. When present, it overrides `baseUrl` for that definition and environment.
 - `definitions[].basePath` is optional. When present, it is appended between the resolved base URL and the endpoint path.
 - Swagger files are cached per version:
