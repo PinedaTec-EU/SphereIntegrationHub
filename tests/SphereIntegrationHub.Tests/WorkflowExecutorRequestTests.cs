@@ -206,4 +206,102 @@ public sealed class WorkflowExecutorRequestTests
             Directory.Delete(tempRoot, true);
         }
     }
+
+    [Fact]
+    public async Task ExecuteAsync_InterpolatesEndpointTemplatesFromPreviousStageOutput()
+    {
+        using WireMockServer server = WireMockServer.Start();
+        server
+            .Given(Request.Create().WithPath("/api/licensing/tiers").UsingPost())
+            .RespondWith(Response.Create()
+                .WithStatusCode(201)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody("{\"tierId\":\"tier-123\"}"));
+        server
+            .Given(Request.Create().WithPath("/api/licensing/tiers/tier-123/publish").UsingPost())
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody("{\"published\":true}"));
+
+        var definition = new WorkflowDefinition
+        {
+            Version = "3.11",
+            Id = "test-workflow",
+            Name = "test-workflow",
+            References = new WorkflowReference
+            {
+                Apis = new List<ApiReferenceItem>
+                {
+                    new()
+                    {
+                        Name = "licensing",
+                        Definition = "licensing"
+                    }
+                }
+            },
+            Stages = new List<WorkflowStageDefinition>
+            {
+                new()
+                {
+                    Name = "create-tier",
+                    Kind = WorkflowStageKind.Endpoint,
+                    ApiRef = "licensing",
+                    Endpoint = "/api/licensing/tiers",
+                    HttpVerb = "POST",
+                    ExpectedStatus = 201,
+                    Output = new Dictionary<string, string>
+                    {
+                        ["tierId"] = "{{response.body.tierId}}"
+                    }
+                },
+                new()
+                {
+                    Name = "publish-tier",
+                    Kind = WorkflowStageKind.Endpoint,
+                    ApiRef = "licensing",
+                    Endpoint = "/api/licensing/tiers/{{stage:create-tier.output.tierId}}/publish",
+                    HttpVerb = "POST",
+                    ExpectedStatus = 200
+                }
+            }
+        };
+
+        var document = new WorkflowDocument(
+            definition,
+            "/tmp/test.workflow",
+            new Dictionary<string, string>());
+
+        var catalogVersion = new ApiCatalogVersion
+        {
+            Version = "test",
+            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["test"] = server.Url!
+            },
+            Definitions = new List<ApiDefinition>
+            {
+                new ApiDefinition { Name = "licensing", SwaggerUrl = "http://unused" }
+            }
+        };
+
+        using var httpClient = new HttpClient();
+        var executor = new WorkflowExecutor(httpClient, new DynamicValueService());
+
+        await executor.ExecuteAsync(
+            document,
+            catalogVersion,
+            "test",
+            new Dictionary<string, string>(),
+            varsOverrideActive: false,
+            mocked: false,
+            verbose: false,
+            debug: false,
+            cancellationToken: CancellationToken.None);
+
+        var requests = server.LogEntries.Select(entry => entry.RequestMessage!.Path).ToArray();
+        Assert.Equal(2, requests.Length);
+        Assert.Contains("/api/licensing/tiers", requests);
+        Assert.Contains("/api/licensing/tiers/tier-123/publish", requests);
+    }
 }

@@ -28,7 +28,8 @@ internal sealed class HttpRequestBuilder
             throw new InvalidOperationException($"Stage '{stage.Name}' httpVerb is required.");
         }
 
-        var url = BuildRequestUrl(baseUrl, stage.Endpoint);
+        var resolvedEndpoint = _templateResolver.ResolveTemplate(stage.Endpoint, context);
+        var url = BuildRequestUrl(baseUrl, resolvedEndpoint);
         if (stage.Query is not null && stage.Query.Count > 0)
         {
             var queryParts = stage.Query.Select(pair =>
