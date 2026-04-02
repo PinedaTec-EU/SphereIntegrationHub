@@ -52,6 +52,36 @@ public static class CatalogUrlResolver
         return new Uri(baseUri, expandedSwaggerUrl.TrimStart('/'));
     }
 
+    public static Uri ResolveHealthCheckUri(ApiCatalogVersion version, ApiDefinition definition, string environment)
+    {
+        if (string.IsNullOrWhiteSpace(definition.HealthCheck))
+        {
+            throw new InvalidOperationException(
+                $"Cannot resolve health check because definition '{definition.Name}' does not define healthCheck.");
+        }
+
+        if (Uri.TryCreate(definition.HealthCheck, UriKind.Absolute, out var absolute) &&
+            (absolute.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+             absolute.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
+        {
+            return absolute;
+        }
+
+        if (!TryResolveBaseUrl(version, definition, environment, out var baseUrl))
+        {
+            throw new InvalidOperationException(
+                $"Cannot resolve healthCheck '{definition.HealthCheck}' because baseUrl is missing for version '{version.Version}' and definition '{definition.Name}'.");
+        }
+
+        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var baseUri))
+        {
+            throw new InvalidOperationException(
+                $"Invalid baseUrl '{baseUrl}' for version '{version.Version}'.");
+        }
+
+        return new Uri(baseUri, definition.HealthCheck.TrimStart('/'));
+    }
+
     private static bool TryResolveFromMap(IReadOnlyDictionary<string, string> map, string environment, out string? baseUrl)
     {
         if (map.TryGetValue(environment, out baseUrl) && !string.IsNullOrWhiteSpace(baseUrl))
