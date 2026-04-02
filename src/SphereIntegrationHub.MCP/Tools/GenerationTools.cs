@@ -1476,6 +1476,7 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
                                     port = new { type = "integer" },
                                     basePath = new { type = "string" },
                                     swaggerUrl = new { type = "string" },
+                                    healthCheck = new { type = "string", description = "Optional health endpoint URL or relative path to probe before workflow execution." },
                                     baseUrl = new
                                     {
                                         type = "object",
@@ -1547,6 +1548,7 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
                     : (int?)null;
                 var basePath = definitionItem.TryGetProperty("basePath", out var basePathEl) ? basePathEl.GetString() : null;
                 var swaggerUrl = definitionItem.TryGetProperty("swaggerUrl", out var swaggerEl) ? swaggerEl.GetString() : null;
+                var healthCheck = definitionItem.TryGetProperty("healthCheck", out var healthCheckEl) ? healthCheckEl.GetString() : null;
                 if (string.IsNullOrWhiteSpace(name) ||
                     string.IsNullOrWhiteSpace(basePath) ||
                     string.IsNullOrWhiteSpace(swaggerUrl))
@@ -1579,6 +1581,7 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
                     Port = port,
                     BasePath = basePath!,
                     SwaggerUrl = normalizedSwaggerUrl,
+                    HealthCheck = string.IsNullOrWhiteSpace(healthCheck) ? null : healthCheck,
                     BaseUrl = definitionBaseUrl.Count > 0 ? definitionBaseUrl : null
                 });
             }
@@ -1704,6 +1707,7 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
             version = new { type = "string", description = "Catalog version (e.g. 3.11)" },
             apiName = new { type = "string", description = "Definition name" },
             swaggerUrl = new { type = "string", description = "Swagger URL (absolute or relative)" },
+            healthCheck = new { type = "string", description = "Optional health endpoint URL or relative path to probe before workflow execution" },
             port = new { type = "integer", description = "Optional API port to apply on resolved baseUrl for runtime and swagger resolution" },
             basePath = new { type = "string", description = "API base path (e.g. /api/accounts)" },
             environment = new { type = "string", description = "Environment key to resolve relative swaggerUrl (default: pre)" },
@@ -1727,6 +1731,7 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
         var swaggerUrl = arguments?.GetValueOrDefault("swaggerUrl")?.ToString()
             ?? throw new ArgumentException("swaggerUrl is required");
         swaggerUrl = CatalogSwaggerUrlNormalizer.NormalizeForCatalog(swaggerUrl);
+        var healthCheck = arguments?.GetValueOrDefault("healthCheck")?.ToString();
         var port = arguments?.TryGetValue("port", out var portObj) == true &&
                    int.TryParse(portObj?.ToString(), out var parsedPort)
             ? parsedPort
@@ -1790,6 +1795,7 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
                     Port = storedPort,
                     BasePath = basePathValue,
                     SwaggerUrl = storedSwaggerUrl,
+                    HealthCheck = string.IsNullOrWhiteSpace(healthCheck) ? null : healthCheck,
                     BaseUrl = InferDefinitionBaseUrl(swaggerUrl, environment)
                 };
 
@@ -1824,6 +1830,7 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
                 Port = storedPort,
                 BasePath = basePathValue,
                 SwaggerUrl = storedSwaggerUrl,
+                HealthCheck = string.IsNullOrWhiteSpace(healthCheck) ? null : healthCheck,
                 BaseUrl = InferDefinitionBaseUrl(swaggerUrl, environment)
             };
             versionEntry.Definitions.Add(definition);
@@ -1834,6 +1841,7 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
             definition.BasePath = basePathValue;
             definition.SwaggerUrl = storedSwaggerUrl;
             definition.Port = storedPort;
+            definition.HealthCheck = string.IsNullOrWhiteSpace(healthCheck) ? null : healthCheck;
             var inferredBaseUrl = InferDefinitionBaseUrl(swaggerUrl, environment);
             if (inferredBaseUrl.Count > 0)
             {

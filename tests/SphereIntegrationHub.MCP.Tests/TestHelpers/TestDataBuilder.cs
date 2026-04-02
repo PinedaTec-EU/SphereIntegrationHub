@@ -273,13 +273,15 @@ public static class TestDataBuilder
                     {
                         Name = "AccountsAPI",
                         BasePath = "/api/accounts",
-                        SwaggerUrl = "https://api.example.com/swagger/accounts.json"
+                        SwaggerUrl = "https://api.example.com/swagger/accounts.json",
+                        HealthCheck = (string?)"/health/accounts"
                     },
                     new
                     {
                         Name = "UsersAPI",
                         BasePath = "/api/users",
-                        SwaggerUrl = "https://api.example.com/swagger/users.json"
+                        SwaggerUrl = "https://api.example.com/swagger/users.json",
+                        HealthCheck = (string?)null
                     }
                 }
             },
@@ -297,19 +299,22 @@ public static class TestDataBuilder
                     {
                         Name = "AccountsAPI",
                         BasePath = "/api/accounts",
-                        SwaggerUrl = "https://api.example.com/swagger/accounts.json"
+                        SwaggerUrl = "https://api.example.com/swagger/accounts.json",
+                        HealthCheck = (string?)"/health/accounts"
                     },
                     new
                     {
                         Name = "UsersAPI",
                         BasePath = "/api/users",
-                        SwaggerUrl = "https://api.example.com/swagger/users.json"
+                        SwaggerUrl = "https://api.example.com/swagger/users.json",
+                        HealthCheck = (string?)null
                     },
                     new
                     {
                         Name = "ProductsAPI",
                         BasePath = "/api/products",
-                        SwaggerUrl = "https://api.example.com/swagger/products.json"
+                        SwaggerUrl = "https://api.example.com/swagger/products.json",
+                        HealthCheck = (string?)null
                     }
                 }
             }
