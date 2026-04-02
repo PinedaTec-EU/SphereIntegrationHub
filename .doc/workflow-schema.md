@@ -8,7 +8,7 @@ Workflows are YAML files with extension `.workflow`. Each workflow has a unique 
 - `id` (string, required): ULID for the workflow.
 - `name` (string, required): Workflow name.
 - `description` (string, optional): Human description.
-- `output` (bool, optional): Whether to write output file (`{name}.{id}.workflow.output`).
+- `output` (bool, optional): Whether to write output file (`{name}.{executionId}.workflow.output`).
 - `references` (object, optional): External workflow and API references.
 - `input` (array, optional): Required inputs from the caller.
 - `initStage` (object, optional): Workflow-specific variables and context defaults.
@@ -229,11 +229,13 @@ stages:
 
 Common fields:
 
-- `runIf`: conditional execution with comparisons, boolean operators, and helper functions. Examples:
+- `runIf`: conditional execution with comparisons, boolean operators, parentheses, safe missing-token checks, and helper functions. Examples:
   - `{{context.tokenId}} == null`
   - `{{context.tokenId}} != ""`
   - `{{stage:create-account.output.http_status}} in [505, 200, 201]`
   - `exists({{context:item}}) && !isEmptyJson({{response.body}})`
+  - `empty({{stage:create-account.output.accountId}}) || {{context.tokenId}} == null`
+  - `coalesce({{stage:create-account.output.accountId}}, {{context.accountId}}, 'pending') != 'pending'`
   - `jsonLength({{input.items}}) > 0`
   - `exists(first({{input.items}}))`
 - `debug`: key/value map printed before stage invocation when `--debug` is enabled (response tokens are not available).

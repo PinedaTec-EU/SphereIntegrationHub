@@ -88,7 +88,7 @@ stages:
 
   - name: "register-metadata"
     kind: "Endpoint"
-    runIf: "{{stage:create-account.output.accountAppId}} != null"
+    runIf: "{{stage:create-account.workflow.result.status}} == 'Ok' && !empty({{stage:create-account.output.accountAppId}})"
     apiRef: "accounts"
     endpoint: "/api/accounts/{{stage:create-account.output.accountAppId}}/metadata"
     httpVerb: "POST"
