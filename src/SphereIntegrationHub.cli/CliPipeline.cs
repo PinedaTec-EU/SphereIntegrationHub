@@ -355,6 +355,8 @@ internal sealed class CliPipeline : ICliPipeline
         catch (Exception ex)
         {
             AddError(messages, $"Failed to cache swagger definitions: {ex.Message}");
+            AddInfo(messages, "");
+            AddError(messages, "Workflow aborted!");
             return false;
         }
     }
