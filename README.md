@@ -33,13 +33,15 @@ If you use SphereIntegrationHub in your company or project, we'd love to hear ab
 
 ## Catalog
 
-The API catalog is a fixed JSON file with versions, environment base URLs, and optional per-definition overrides:
+The API catalog is a fixed JSON file with versions, environment base URLs, and optional per-definition overrides such as `healthCheck`:
 
 `src/resources/api-catalog.json`
 
 Swagger definitions are cached per version in:
 
 `src/resources/cache/{version}/{definition}.json`
+
+If a definition includes `healthCheck`, the CLI performs an HTTP precheck before swagger caching and workflow execution, reports any failures, and continues.
 
 ## Workflow overview
 

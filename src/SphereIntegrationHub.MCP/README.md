@@ -170,6 +170,7 @@ The MCP surface is aligned with the current SIH runtime schema. Agents should pr
 - workflow-stage result tokens such as `{{stage:child.workflow.result.status}}` and `{{stage:child.workflow.result.message}}`
 - aggregated workflow `forEach` outputs: `foreach_items`, `foreach_results`, `foreach_success_count`, and `foreach_failed_count`
 - execution reporting controls such as `--report-format`, `--capture-http`, and `reporting.*` defaults in `workflows.config`
+- catalog definitions may include optional `healthCheck` URLs or relative paths for runtime preflight validation
 
 Use `get_plugin_capabilities` to retrieve these authoring capabilities in structured form at runtime.
 
