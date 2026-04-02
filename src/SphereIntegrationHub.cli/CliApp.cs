@@ -83,7 +83,10 @@ internal sealed class CliApp
         foreach (var resultMessage in runResult.Messages)
         {
             var writer = resultMessage.Kind == CliRunMessageKind.Error ? _output.Error : _output.Out;
-            writer.WriteLine(resultMessage.Text);
+            var text = resultMessage.Kind == CliRunMessageKind.Error
+                ? ConsoleMessageFormatter.FormatError(resultMessage.Text, _output.UseColors)
+                : ConsoleMessageFormatter.FormatInfo(resultMessage.Text, _output.UseColors);
+            writer.WriteLine(text);
         }
 
         // Allow the background ping up to 4 seconds to complete before process exits.
