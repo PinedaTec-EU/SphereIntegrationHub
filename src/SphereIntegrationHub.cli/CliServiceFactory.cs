@@ -57,11 +57,13 @@ internal sealed class CliServiceFactory : ICliServiceFactory
         HttpClient httpClient,
         DynamicValueService dynamicValueService,
         ISystemTimeProvider systemTimeProvider,
-        WorkflowExecutionReportOptions reportOptions)
+        WorkflowExecutionReportOptions reportOptions,
+        IRequestBodyContractProcessor? requestBodyContractProcessor = null)
         => new(
             httpClient,
             dynamicValueService,
             systemProvider: systemTimeProvider,
+            requestBodyContractProcessor: requestBodyContractProcessor,
             logger: _logger,
             reportWriter: new WorkflowExecutionReportWriter(),
             reportOptions: reportOptions);

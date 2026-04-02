@@ -9,11 +9,13 @@ internal sealed class HttpRequestBuilder
 {
     private readonly TemplateResolver _templateResolver;
     private readonly WorkflowDataFileService _dataFileService;
+    private readonly IRequestBodyContractProcessor _requestBodyContractProcessor;
 
-    public HttpRequestBuilder(TemplateResolver templateResolver)
+    public HttpRequestBuilder(TemplateResolver templateResolver, IRequestBodyContractProcessor? requestBodyContractProcessor = null)
     {
         _templateResolver = templateResolver;
         _dataFileService = new WorkflowDataFileService();
+        _requestBodyContractProcessor = requestBodyContractProcessor ?? NoOpRequestBodyContractProcessor.Instance;
     }
 
     public HttpRequestMessage Build(WorkflowStageDefinition stage, string baseUrl, TemplateContext context)
@@ -65,6 +67,7 @@ internal sealed class HttpRequestBuilder
         if (!string.IsNullOrWhiteSpace(bodyTemplate))
         {
             var body = _templateResolver.ResolveTemplate(bodyTemplate, context);
+            body = _requestBodyContractProcessor.Process(stage, body);
             var content = new StringContent(body, Encoding.UTF8);
             content.Headers.ContentType = contentType ?? new MediaTypeHeaderValue("application/json");
             request.Content = content;
