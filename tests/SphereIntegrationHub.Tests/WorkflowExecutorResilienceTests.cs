@@ -205,13 +205,9 @@ public sealed class WorkflowExecutorResilienceTests
         var catalogVersion = new ApiCatalogVersion
         {
             Version = "1.0",
-            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["dev"] = server.Url!
-            },
             Definitions = new List<ApiDefinition>
             {
-                new ApiDefinition { Name = "accounts", SwaggerUrl = "http://unused" }
+                new ApiDefinition { Name = "accounts", SwaggerUrl = "http://unused", BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["dev"] = server.Url! } }
             }
         };
 
@@ -321,13 +317,9 @@ public sealed class WorkflowExecutorResilienceTests
         var catalogVersion = new ApiCatalogVersion
         {
             Version = "1.0",
-            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["dev"] = server.Url!
-            },
             Definitions = new List<ApiDefinition>
             {
-                new ApiDefinition { Name = "accounts", SwaggerUrl = "http://unused" }
+                new ApiDefinition { Name = "accounts", SwaggerUrl = "http://unused", BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["dev"] = server.Url! } }
             }
         };
 
@@ -383,13 +375,9 @@ public sealed class WorkflowExecutorResilienceTests
         return new ApiCatalogVersion
         {
             Version = "1.0",
-            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["dev"] = "http://example.test"
-            },
             Definitions = new List<ApiDefinition>
             {
-                new ApiDefinition { Name = "accounts", SwaggerUrl = "http://unused" }
+                new ApiDefinition { Name = "accounts", SwaggerUrl = "http://unused", BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["dev"] = "http://example.test" } }
             }
         };
     }

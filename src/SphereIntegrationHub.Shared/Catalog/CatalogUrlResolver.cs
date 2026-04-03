@@ -20,12 +20,7 @@ public static class CatalogUrlResolver
             return true;
         }
 
-        if (TryResolveFromMap(version.BaseUrl, environment, out baseUrl))
-        {
-            baseUrl = ApplyPort(baseUrl!, definition.Port);
-            return true;
-        }
-
+        baseUrl = null;
         return false;
     }
 
@@ -123,13 +118,6 @@ public static class CatalogUrlResolver
                 return hasExplicitPortToken
                     ? definitionBaseUrl!
                     : ApplyPort(definitionBaseUrl!, definition.Port);
-            }
-
-            if (TryResolveFromMap(version.BaseUrl, requestedEnvironment, out var versionBaseUrl))
-            {
-                return hasExplicitPortToken
-                    ? versionBaseUrl!
-                    : ApplyPort(versionBaseUrl!, definition.Port);
             }
 
             return resolvedBaseUrl;

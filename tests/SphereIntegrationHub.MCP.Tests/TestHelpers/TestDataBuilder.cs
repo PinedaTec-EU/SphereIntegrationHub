@@ -262,59 +262,74 @@ public static class TestDataBuilder
             new
             {
                 Version = "3.10",
-                BaseUrl = new Dictionary<string, string>
-                {
-                    ["local"] = "http://localhost",
-                    ["pre"] = "https://pre.api.example.com"
-                },
                 Definitions = new[]
                 {
                     new
                     {
                         Name = "AccountsAPI",
                         BasePath = "/api/accounts",
-                        SwaggerUrl = "https://api.example.com/swagger/accounts.json",
-                        HealthCheck = (string?)"/health/accounts"
+                        SwaggerUrl = "/swagger/accounts.json",
+                        HealthCheck = (string?)"/health/accounts",
+                        BaseUrl = new Dictionary<string, string>
+                        {
+                            ["local"] = "http://localhost",
+                            ["pre"] = "https://pre.api.example.com"
+                        }
                     },
                     new
                     {
                         Name = "UsersAPI",
                         BasePath = "/api/users",
-                        SwaggerUrl = "https://api.example.com/swagger/users.json",
-                        HealthCheck = (string?)null
+                        SwaggerUrl = "/swagger/users.json",
+                        HealthCheck = (string?)null,
+                        BaseUrl = new Dictionary<string, string>
+                        {
+                            ["local"] = "http://localhost",
+                            ["pre"] = "https://pre.api.example.com"
+                        }
                     }
                 }
             },
             new
             {
                 Version = "3.11",
-                BaseUrl = new Dictionary<string, string>
-                {
-                    ["local"] = "http://localhost",
-                    ["pre"] = "https://pre.api.example.com"
-                },
                 Definitions = new[]
                 {
                     new
                     {
                         Name = "AccountsAPI",
                         BasePath = "/api/accounts",
-                        SwaggerUrl = "https://api.example.com/swagger/accounts.json",
-                        HealthCheck = (string?)"/health/accounts"
+                        SwaggerUrl = "/swagger/accounts.json",
+                        HealthCheck = (string?)"/health/accounts",
+                        BaseUrl = new Dictionary<string, string>
+                        {
+                            ["local"] = "http://localhost",
+                            ["pre"] = "https://pre.api.example.com"
+                        }
                     },
                     new
                     {
                         Name = "UsersAPI",
                         BasePath = "/api/users",
-                        SwaggerUrl = "https://api.example.com/swagger/users.json",
-                        HealthCheck = (string?)null
+                        SwaggerUrl = "/swagger/users.json",
+                        HealthCheck = (string?)null,
+                        BaseUrl = new Dictionary<string, string>
+                        {
+                            ["local"] = "http://localhost",
+                            ["pre"] = "https://pre.api.example.com"
+                        }
                     },
                     new
                     {
                         Name = "ProductsAPI",
                         BasePath = "/api/products",
-                        SwaggerUrl = "https://api.example.com/swagger/products.json",
-                        HealthCheck = (string?)null
+                        SwaggerUrl = "/swagger/products.json",
+                        HealthCheck = (string?)null,
+                        BaseUrl = new Dictionary<string, string>
+                        {
+                            ["local"] = "http://localhost",
+                            ["pre"] = "https://pre.api.example.com"
+                        }
                     }
                 }
             }

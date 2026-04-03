@@ -275,14 +275,7 @@ internal sealed class CliPipeline : ICliPipeline
 
     private void EmitBaseUrlInfo(ApiCatalogVersion selectedVersion, string environment, List<CliRunMessage> messages)
     {
-        if (ApiBaseUrlResolver.TryResolveBaseUrl(selectedVersion.BaseUrl, environment, out var defaultBaseUrl))
-        {
-            AddInfo(messages, $"Base url: {defaultBaseUrl}");
-        }
-        else
-        {
-            AddInfo(messages, "Base url: [per-definition overrides]");
-        }
+        AddInfo(messages, $"Base url: [per-definition, env={environment}]");
     }
 
     private async Task EmitApiHealthChecksAsync(

@@ -13,6 +13,8 @@ This document summarizes the current MCP surface implemented in `src/SphereInteg
 ## Key Generation Tools
 
 Catalog authoring notes for agents:
+- Each definition provides its own `baseUrl` map (environment → absolute base URL). There is no version-level `baseUrl`.
+- `swaggerUrl` must be a relative path (e.g. `/swagger/v1/swagger.json`). It is resolved against `baseUrl[env]` at runtime.
 - API definitions may include optional `healthCheck`
 - `healthCheck` can be an absolute URL or a relative path such as `/health`
 - when present, runtime probes it before swagger caching and workflow execution and reports failures without aborting the run

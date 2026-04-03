@@ -65,13 +65,9 @@ public sealed class WorkflowExecutorRequestTests
         var catalogVersion = new ApiCatalogVersion
         {
             Version = "test",
-            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["test"] = server.Url!
-            },
             Definitions = new List<ApiDefinition>
             {
-                new ApiDefinition { Name = "accounts", SwaggerUrl = "http://unused" }
+                new ApiDefinition { Name = "accounts", SwaggerUrl = "http://unused", BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["test"] = server.Url! } }
             }
         };
 
@@ -169,13 +165,9 @@ public sealed class WorkflowExecutorRequestTests
             var catalogVersion = new ApiCatalogVersion
             {
                 Version = "test",
-                BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["test"] = server.Url!
-                },
                 Definitions = new List<ApiDefinition>
                 {
-                    new ApiDefinition { Name = "accounts", SwaggerUrl = "http://unused" }
+                    new ApiDefinition { Name = "accounts", SwaggerUrl = "http://unused", BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["test"] = server.Url! } }
                 }
             };
 
@@ -275,13 +267,9 @@ public sealed class WorkflowExecutorRequestTests
         var catalogVersion = new ApiCatalogVersion
         {
             Version = "test",
-            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["test"] = server.Url!
-            },
             Definitions = new List<ApiDefinition>
             {
-                new ApiDefinition { Name = "licensing", SwaggerUrl = "http://unused" }
+                new ApiDefinition { Name = "licensing", SwaggerUrl = "http://unused", BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["test"] = server.Url! } }
             }
         };
 
@@ -483,13 +471,9 @@ public sealed class WorkflowExecutorRequestTests
         return new ApiCatalogVersion
         {
             Version = "test",
-            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["test"] = baseUrl
-            },
             Definitions = new List<ApiDefinition>
             {
-                new ApiDefinition { Name = "accounts", SwaggerUrl = "http://unused" }
+                new ApiDefinition { Name = "accounts", SwaggerUrl = "http://unused", BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["test"] = baseUrl } }
             }
         };
     }
