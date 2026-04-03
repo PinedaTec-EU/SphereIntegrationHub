@@ -33,7 +33,10 @@ public static class CatalogUrlResolver
         }
 
         var expandedSwaggerUrl = ExpandSwaggerUrlTemplate(definition.SwaggerUrl, version, definition, environment, baseUrl!);
-        if (Uri.TryCreate(expandedSwaggerUrl, UriKind.Absolute, out var absolute))
+        if (Uri.TryCreate(expandedSwaggerUrl, UriKind.Absolute, out var absolute)
+            && (absolute.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+                || absolute.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+                || absolute.IsFile && expandedSwaggerUrl.StartsWith("file://", StringComparison.OrdinalIgnoreCase)))
         {
             return absolute;
         }
