@@ -323,6 +323,9 @@ internal sealed class CliPipeline : ICliPipeline
         try
         {
             var cacheRoot = Path.Combine(_pathResolver.ResolveDefaultCacheRoot(parseResult.WorkflowPath), selectedVersion.Version);
+            AddInfo(messages, parseResult.RefreshCache
+                ? "Swagger definitions: (refreshing from source)"
+                : "Swagger definitions: (analyzing cache)");
             using var httpClient = _serviceFactory.CreateHttpClient();
             var cacheService = _serviceFactory.CreateApiSwaggerCacheService(httpClient);
             await cacheService.CacheSwaggerAsync(selectedVersion, workflowDocument.Definition, parseResult.Environment!, cacheRoot, parseResult.RefreshCache, parseResult.Verbose, cancellationToken);
