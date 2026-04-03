@@ -7,9 +7,11 @@
 </p>
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/PinedaTec-EU/SphereIntegrationHub)
-
 [![License MIT](https://img.shields.io/badge/MIT_license-blue)](https://opensource.org/licenses/MIT)
 [![DotNet 10](https://img.shields.io/badge/dotnet_10-green)](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
+![MCP](https://img.shields.io/badge/MCP-yellow)
+![CLI](https://img.shields.io/badge/CLI-blue)
+![IaC](https://img.shields.io/badge/IaC-red)
 
 CLI tool to orchestrate API calls using versioned Swagger catalogs and YAML workflows. Workflows can reference other workflows, share context (like JWTs), validate endpoints against cached Swagger specs, and run in dry-run mode for validation.
 
