@@ -1,0 +1,2 @@
+# MCP tool to invoke in the call-tool stage
+toolName: "get_plugin_capabilities"

@@ -12,6 +12,13 @@
           "pre": "https://pre.api.example.com",
           "prod": "https://api.example.com"
         }
+      },
+      {
+        "name": "mcp",
+        "basePath": "/",
+        "baseUrl": {
+          "local": "http://localhost:5100"
+        }
       }
     ]
   }
