@@ -41,7 +41,6 @@ public sealed class WorkflowExecutorDelayTests
         var catalogVersion = new ApiCatalogVersion
         {
             Version = "test",
-            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
             Definitions = new List<ApiDefinition>()
         };
 
@@ -97,7 +96,6 @@ public sealed class WorkflowExecutorDelayTests
         var catalogVersion = new ApiCatalogVersion
         {
             Version = "test",
-            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
             Definitions = new List<ApiDefinition>()
         };
 
@@ -152,7 +150,6 @@ public sealed class WorkflowExecutorDelayTests
         var catalogVersion = new ApiCatalogVersion
         {
             Version = "test",
-            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
             Definitions = new List<ApiDefinition>()
         };
 

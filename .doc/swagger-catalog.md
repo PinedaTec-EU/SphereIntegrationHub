@@ -1,6 +1,6 @@
 # Swagger Catalog
 
-The API catalog is a JSON array describing versions, environment base URLs, and Swagger definitions.
+The API catalog is a JSON array describing versions and their Swagger definitions. Each definition provides its own environment base URLs.
 
 Location:
 
@@ -12,18 +12,15 @@ Example:
 [
   {
     "version": "3.10",
-    "baseUrl": {
-      "dev": "https://dev.api.example.com",
-      "pre": "https://pre.api.example.com",
-      "prod": "https://api.example.com"
-    },
     "definitions": [
       {
         "name": "example-service",
         "swaggerUrl": "/example/swagger/v1.0/swagger.json",
         "healthCheck": "/health",
         "baseUrl": {
-          "local": "http://localhost:8081"
+          "local": "http://localhost:8081",
+          "pre": "https://pre.api.example.com",
+          "prod": "https://api.example.com"
         },
         "basePath": "/ocapi"
       }
@@ -35,9 +32,9 @@ Example:
 Notes:
 
 - `version` matches the workflow `version`.
-- `swaggerUrl` can be absolute or relative. Relative URLs are resolved against `definitions[].baseUrl[env]` when defined, otherwise `baseUrl[env]`.
-- `healthCheck` is optional. When present, SIH performs an HTTP `GET` before swagger caching and workflow execution. It can be an absolute URL or a relative path resolved against the definition/version base URL.
-- `definitions[].baseUrl` is optional. When present, it overrides `baseUrl` for that definition and environment.
+- `swaggerUrl` must be a relative path. It is resolved against `definitions[].baseUrl[env]` for the active environment.
+- `definitions[].baseUrl` is required. It maps environment names to base URLs for that definition.
+- `healthCheck` is optional. When present, SIH performs an HTTP `GET` before swagger caching and workflow execution. It can be an absolute URL or a relative path resolved against the definition base URL.
 - `definitions[].basePath` is optional. When present, it is appended between the resolved base URL and the endpoint path.
 - Swagger files are cached per version:
   - `src/resources/cache/{version}/{definition}.json`

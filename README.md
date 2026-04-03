@@ -36,15 +36,13 @@ If you use SphereIntegrationHub in your company or project, we'd love to hear ab
 
 ## Catalog
 
-The API catalog is a fixed JSON file with versions, environment base URLs, and optional per-definition overrides such as `healthCheck`:
+The API catalog is a fixed JSON file with versions and API definitions. Each definition provides its own environment base URLs and a relative swagger path. An optional `healthCheck` probes the API before swagger caching and workflow execution:
 
 `src/resources/api-catalog.json`
 
 Swagger definitions are cached per version in:
 
 `src/resources/cache/{version}/{definition}.json`
-
-If a definition includes `healthCheck`, the CLI performs an HTTP precheck before swagger caching and workflow execution, reports any failures, and continues.
 
 ## Workflow overview
 
@@ -189,6 +187,7 @@ The repository includes reference workflows under `samples/`:
 - `sample-bootstrap.workflow`: `expectedStatuses`, `onStatus`, `ensure`, `bodyFile`, `dataFile`, and `forEach` for seed/bootstrap scenarios.
 - `sample-parent.wfvars`: companion input example for the parent/child sample.
 - `payloads/bootstrap-account.json` and `seed/accounts.json`: file-backed request and collection samples used by `sample-bootstrap.workflow`.
+- `api-catalog.json`: reference catalog for the sample workflows — defines the `accounts` API with per-environment base URLs and a relative swagger path.
 
 Use these files directly when authoring new workflows or when prompting MCP-based generation.
 
@@ -343,16 +342,16 @@ Manage multiple API versions and environments in a single catalog:
 ```json
 {
   "version": "3.11",
-  "baseUrl": {
-    "dev": "https://dev.api.com",
-    "pre": "https://pre.api.com",
-    "prod": "https://api.com"
-  },
   "definitions": [
     {
       "name": "example-service",
       "swaggerUrl": "/example/swagger/v1.0/swagger.json",
-      "basePath": "/ocapi"
+      "basePath": "/ocapi",
+      "baseUrl": {
+        "dev": "https://dev.api.com",
+        "pre": "https://pre.api.com",
+        "prod": "https://api.com"
+      }
     }
   ]
 }

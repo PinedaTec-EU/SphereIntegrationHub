@@ -36,13 +36,9 @@ public sealed class ApiEndpointValidatorLoggerTests
         var catalog = new ApiCatalogVersion
         {
             Version = "v1",
-            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["test"] = "https://example.test"
-            },
             Definitions = new List<ApiDefinition>
             {
-                new ApiDefinition { Name = "accounts", SwaggerUrl = "swagger.json" }
+                new ApiDefinition { Name = "accounts", SwaggerUrl = "swagger.json", BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["test"] = "https://example.test" } }
             }
         };
 
@@ -96,17 +92,14 @@ public sealed class ApiEndpointValidatorLoggerTests
         var catalog = new ApiCatalogVersion
         {
             Version = "v1",
-            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["local"] = "https://localhost"
-            },
             Definitions = new List<ApiDefinition>
             {
                 new ApiDefinition
                 {
                     Name = "licensing",
                     SwaggerUrl = "swagger.json",
-                    BasePath = "/api"
+                    BasePath = "/api",
+                    BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["local"] = "https://localhost" }
                 }
             }
         };
