@@ -80,7 +80,7 @@ public sealed class ApiSwaggerCacheService
                     }
 
                     throw new FileNotFoundException(
-                        $"Swagger source file was not found. Expected cache at '{ToRelativePath(cachePath)}'.",
+                        $"Swagger source file was not found at '{localPath}'.",
                         localPath);
                 }
 
