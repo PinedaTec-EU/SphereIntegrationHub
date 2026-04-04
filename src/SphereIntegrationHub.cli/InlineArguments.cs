@@ -18,7 +18,11 @@ internal sealed record InlineArguments(
     Dictionary<string, string>? Inputs = null,
     bool ShowHelp = false,
     bool ShowVersion = false,
-    string? Error = null)
+    string? Error = null,
+    bool IsReportCommand = false,
+    string? ExecutionReportPath = null,
+    string? ReportOutputPath = null,
+    bool OpenAfterGenerate = true)
 {
     public Dictionary<string, string> Inputs { get; init; } =
         Inputs ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

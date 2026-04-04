@@ -71,6 +71,12 @@ internal sealed class CliApp
             return 0;
         }
 
+        if (parseResult.IsReportCommand)
+        {
+            var generator = new SphereIntegrationHub.Services.ExecutionReportGenerator(_output);
+            return await generator.GenerateAndOpenAsync(parseResult, CancellationToken.None);
+        }
+
         if (string.IsNullOrWhiteSpace(parseResult.WorkflowPath) || string.IsNullOrWhiteSpace(parseResult.Environment))
         {
             _output.Error.WriteLine("Missing required parameters.");
