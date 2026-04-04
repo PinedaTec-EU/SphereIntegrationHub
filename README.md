@@ -419,7 +419,8 @@ SphereIntegrationHub is now strong as a local-first API orchestration runtime an
 - ✅ `bodyFile`, `dataFile`, and `forEach` for large payloads and collection bootstraps
 - ✅ Aggregated `forEach` workflow result state via `foreach_results`, `foreach_success_count`, and `foreach_failed_count`
 - ✅ Post-execution observability with JSON/HTML reports, stage timelines, and summary output
-- ✅ MCP server that exposes these runtime authoring capabilities to AI agents
+- ✅ Interactive HTML trace report (`sih report`) — Jaeger-style timeline with per-stage drill-down, HTTP details, and file picker to load prior executions; generated as a standalone command from any `.workflow.report.json` artifact
+- ✅ MCP server that exposes these runtime authoring capabilities to AI agents, including `list_execution_reports` and `read_execution_report` tools for agent-driven run inspection
 
 ### Near-Term Priorities
 
@@ -434,8 +435,8 @@ SphereIntegrationHub is now strong as a local-first API orchestration runtime an
 
 ### Mid-Term Roadmap
 
-1. **GUI/Dashboard**
-   Optional web interface for execution history, outputs, logs, reports, and diagnostics.
+1. **Full Web Dashboard**
+   Optional persistent web interface with execution history across runs, search, filtering, and team-level diagnostics. The per-run interactive HTML trace report (`sih report`) covers local and CI diagnostics; this item targets a hosted, multi-run experience.
 2. **Visual Workflow Editor**
    Web-based workflow builder for teams that want graphical authoring on top of the YAML runtime.
 3. **Higher-Level Runtime Primitives**
