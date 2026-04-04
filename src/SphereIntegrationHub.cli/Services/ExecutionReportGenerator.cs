@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using System.Text.Json;
 
 using SphereIntegrationHub.cli;
@@ -48,7 +49,12 @@ internal sealed class ExecutionReportGenerator
             baseName = baseName[..^".workflow.report".Length];
         var htmlPath = Path.Combine(outputDir, $"{baseName}.workflow.report.html");
 
-        var html = BuildHtml(rawJson);
+        var appVersion = typeof(ExecutionReportGenerator).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+            ?.InformationalVersion?.Split('+')[0]
+            ?? typeof(ExecutionReportGenerator).Assembly.GetName().Version?.ToString()
+            ?? string.Empty;
+        var html = BuildHtml(rawJson, appVersion);
         await File.WriteAllTextAsync(htmlPath, html, cancellationToken);
 
         _output.Out.WriteLine($"Report: {htmlPath}");
@@ -68,7 +74,7 @@ internal sealed class ExecutionReportGenerator
         return 0;
     }
 
-    private static string BuildHtml(string reportJson)
+    private static string BuildHtml(string reportJson, string appVersion)
     {
         return $$"""
 <!doctype html>
@@ -120,6 +126,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .banner{background:var(--banner-bg);color:var(--banner-text);padding:10px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0}
 .banner-brand{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--banner-muted);white-space:nowrap;flex-shrink:0}
 .banner-sep{color:#334155;flex-shrink:0;font-size:16px;line-height:1}
+.banner-version{font-size:11px;font-weight:600;color:#4ade80;background:rgba(74,222,128,.12);border:1px solid rgba(74,222,128,.25);border-radius:4px;padding:1px 7px;white-space:nowrap;flex-shrink:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.02em}
 .banner-title{margin:0;font-size:14px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .result-ok{color:#4ade80}.result-error{color:#f87171}.result-running{color:#60a5fa}
 .btn{background:var(--btn-bg);color:var(--btn-c);border:1px solid var(--btn-border);padding:5px 11px;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap;transition:background .15s,color .15s;display:inline-flex;align-items:center;gap:5px}
@@ -159,9 +166,10 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .trace-left{width:380px;min-width:380px;padding:4px 8px;display:flex;flex-direction:column;justify-content:center;gap:1px;overflow:hidden;border-right:1px solid var(--border)}
 .trace-left-top{display:flex;align-items:center;gap:5px;overflow:hidden;width:100%}
 /* expand chevron */
-.expand-btn{width:16px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--expand-c);font-size:9px;transition:transform .18s;line-height:1;border-radius:3px}
+.expand-btn{width:18px;min-width:18px;height:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--expand-c);font-size:11px;font-weight:700;transition:transform .18s;line-height:1;border-radius:3px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.22)}
+.expand-btn:hover{background:rgba(99,102,241,.22)}
 .expand-btn.open{transform:rotate(90deg)}
-.expand-placeholder{width:16px;min-width:16px;flex-shrink:0}
+.expand-placeholder{width:18px;min-width:18px;flex-shrink:0}
 /* wf-tag, method badges */
 .wf-tag{font-size:10px;color:var(--text-subtle);background:var(--header-bg);border:1px solid var(--border);border-radius:4px;padding:1px 4px;white-space:nowrap;flex-shrink:0;max-width:80px;overflow:hidden;text-overflow:ellipsis;transition:background .2s}
 .http-badge{font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;flex-shrink:0;letter-spacing:.02em}
@@ -237,6 +245,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 <div class="banner">
   <span class="banner-brand">Sphere</span>
   <span class="banner-sep">·</span>
+  <span class="banner-version" id="banner-version">v{{appVersion}}</span>
   <h1 class="banner-title" id="banner-title">Loading&hellip;</h1>
   <label for="file-input" class="btn">&#128193; Load</label>
   <input type="file" id="file-input" accept=".json">
@@ -461,6 +470,8 @@ function buildRow(node, totalMs, startTs) {
   // expand/collapse button or placeholder
   if (hasChildren) {
     html += `<span class="expand-btn${isOpen?' open':''}">&#9654;</span>`;
+  } else if (isWf) {
+    html += `<span class="expand-btn" style="opacity:.4;cursor:default">&#9654;</span>`;
   } else {
     html += `<span class="expand-placeholder"></span>`;
   }
@@ -494,31 +505,32 @@ function buildRow(node, totalMs, startTs) {
   return html;
 }
 
-/* ── Row click: expand workflow or show detail ───────────────────── */
+/* ── Row click: expand workflow or show/hide detail ─────────────── */
 function rowClick(idx) {
   if (!_report) return;
   const node = findNode(_tree, idx);
   if (!node) return;
 
+  // If already selected → deselect and close detail (toggle off)
+  if (_selected === idx) {
+    closeDetail();
+    return;
+  }
+
   if (node.children.length > 0) {
-    // Toggle expand
+    // Toggle expand children
     const wasOpen = _expanded.has(idx);
     if (wasOpen) _expanded.delete(idx); else _expanded.add(idx);
-    // toggle children-group visibility
     const cg = document.getElementById('cg-' + idx);
     if (cg) cg.classList.toggle('open', !wasOpen);
-    // toggle chevron
-    const row = document.querySelector(`.trace-row[data-idx="${idx}"]`);
-    if (row) {
-      const btn = row.querySelector('.expand-btn');
+    const domRow = document.querySelector(`.trace-row[data-idx="${idx}"]`);
+    if (domRow) {
+      const btn = domRow.querySelector('.expand-btn');
       if (btn) btn.classList.toggle('open', !wasOpen);
     }
-    // Show detail for workflow stage too
-    showDetail(idx);
-  } else {
-    // endpoint stage: just show detail
-    showDetail(idx);
   }
+
+  showDetail(idx);
 }
 
 function findNode(nodes, idx) {
