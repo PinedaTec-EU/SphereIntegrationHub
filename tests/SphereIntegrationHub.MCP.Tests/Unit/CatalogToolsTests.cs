@@ -181,12 +181,12 @@ public class CatalogToolsTests : IDisposable
 [
   {
     "version": "1.0",
-    "baseUrl": { "local": "http://localhost" },
     "definitions": [
       {
         "name": "AdminApi",
         "basePath": "/api/admin",
-        "swaggerUrl": "__SWAGGER__"
+        "swaggerUrl": "__SWAGGER__",
+        "baseUrl": { "local": "http://localhost" }
       }
     ]
   }
