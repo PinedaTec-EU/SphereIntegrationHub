@@ -1122,23 +1122,27 @@ endStage:
             new
             {
                 Version = "4.00",
-                BaseUrl = new Dictionary<string, string>
-                {
-                    ["pre"] = "https://pre.example.com"
-                },
                 Definitions = new[]
                 {
                     new
                     {
                         Name = "AccountsAPI",
                         BasePath = "/api/accounts",
-                        SwaggerUrl = new Uri(swaggerAPath).AbsoluteUri
+                        SwaggerUrl = new Uri(swaggerAPath).AbsoluteUri,
+                        BaseUrl = new Dictionary<string, string>
+                        {
+                            ["pre"] = "https://pre.example.com"
+                        }
                     },
                     new
                     {
                         Name = "UsersAPI",
                         BasePath = "/api/users",
-                        SwaggerUrl = new Uri(swaggerBPath).AbsoluteUri
+                        SwaggerUrl = new Uri(swaggerBPath).AbsoluteUri,
+                        BaseUrl = new Dictionary<string, string>
+                        {
+                            ["pre"] = "https://pre.example.com"
+                        }
                     }
                 }
             }
@@ -1362,7 +1366,8 @@ endStage:
             {
                 Name = spec.GenericName,
                 BasePath = $"/{spec.GenericName}",
-                SwaggerUrl = new Uri(htmlPath).AbsoluteUri
+                SwaggerUrl = new Uri(htmlPath).AbsoluteUri,
+                BaseUrl = new Dictionary<string, string> { ["pre"] = "https://pre.example.com" }
             });
         }
 
@@ -1371,7 +1376,6 @@ endStage:
             new
             {
                 Version = "0.1",
-                BaseUrl = new Dictionary<string, string> { ["pre"] = "https://pre.example.com" },
                 Definitions = definitions
             }
         };
@@ -1431,14 +1435,14 @@ endStage:
             new
             {
                 Version = "0.1",
-                BaseUrl = new Dictionary<string, string> { ["local"] = "https://localhost" },
                 Definitions = new[]
                 {
                     new
                     {
                         Name = "QuickRefreshApi",
                         BasePath = "/api",
-                        SwaggerUrl = new Uri(jsonPath).AbsoluteUri
+                        SwaggerUrl = new Uri(jsonPath).AbsoluteUri,
+                        BaseUrl = new Dictionary<string, string> { ["local"] = "https://localhost" }
                     }
                 }
             }
