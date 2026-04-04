@@ -147,6 +147,21 @@ public class CatalogToolsTests : IDisposable
     }
 
     [Fact]
+    public async Task GetApiEndpoints_WithUnknownApi_ThrowsException()
+    {
+        // Arrange
+        var tool = new GetApiEndpointsTool(_adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["version"] = "3.10",
+            ["apiName"] = "UnknownApi"
+        };
+
+        // Act & Assert
+        await Assert.ThrowsAnyAsync<Exception>(() => tool.ExecuteAsync(args));
+    }
+
+    [Fact]
     public async Task GetApiEndpoints_WithoutCachedSwagger_AutoLoadsFromHtmlSwaggerUrlFallback()
     {
         var adapter = new SihServicesAdapter(new SihPathOptions
@@ -251,6 +266,28 @@ public class CatalogToolsTests : IDisposable
 
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentException>(() => tool.ExecuteAsync(args));
+    }
+
+    [Fact]
+    public async Task GetEndpointSchema_WithLowercaseHttpVerb_Works()
+    {
+        // Arrange
+        var tool = new GetEndpointSchemaTool(_adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["version"] = "3.10",
+            ["apiName"] = "AccountsAPI",
+            ["endpoint"] = "/api/accounts",
+            ["httpVerb"] = "get"
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.TryGetProperty("httpVerb", out var verbEl).Should().BeTrue();
+        verbEl.GetString().Should().Be("GET");
     }
 
     [Fact]

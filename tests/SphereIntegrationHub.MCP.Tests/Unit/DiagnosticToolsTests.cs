@@ -153,6 +153,28 @@ public class DiagnosticToolsTests : IDisposable
     }
 
     [Fact]
+    public async Task ExplainValidationError_WithUnknownCategory_ReturnsFallbackExplanation()
+    {
+        // Arrange
+        var tool = new ExplainValidationErrorTool(_adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["errorCategory"] = "Custom",
+            ["errorMessage"] = "unexpected token"
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.TryGetProperty("category", out var category).Should().BeTrue();
+        json.TryGetProperty("explanation", out var explanation).Should().BeTrue();
+        category.GetString().Should().Be("Custom");
+        explanation.GetString().Should().Contain("Custom");
+    }
+
+    [Fact]
     public async Task GetPluginCapabilities_WithoutFilter_ReturnsAllStageTypes()
     {
         // Arrange
@@ -245,6 +267,21 @@ public class DiagnosticToolsTests : IDisposable
             .Select(item => item.GetProperty("feature").GetString())
             .Should()
             .Contain("Execution Reporting");
+    }
+
+    [Fact]
+    public async Task GetPluginCapabilities_WithUnknownPluginType_ReturnsGlobalCapabilities()
+    {
+        // Arrange
+        var tool = new GetPluginCapabilitiesTool(_adapter);
+
+        // Act
+        var result = await tool.ExecuteAsync(new Dictionary<string, object> { ["pluginType"] = "unknown-plugin" });
+        var json = ToJson(result);
+
+        // Assert
+        json.TryGetProperty("stageTypes", out var stageTypes).Should().BeTrue();
+        stageTypes.GetArrayLength().Should().BeGreaterThan(0);
     }
 
     [Fact]
