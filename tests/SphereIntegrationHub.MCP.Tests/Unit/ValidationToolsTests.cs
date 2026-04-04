@@ -160,6 +160,16 @@ description: [this is malformed
     }
 
     [Fact]
+    public async Task ValidateWorkflow_WithoutPathAndYaml_ThrowsException()
+    {
+        // Arrange
+        var tool = new ValidateWorkflowTool(_adapter);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(() => tool.ExecuteAsync(new Dictionary<string, object>()));
+    }
+
+    [Fact]
     public void ValidateStage_WithValidStage_ReturnsSuccess()
     {
         // Arrange
@@ -232,6 +242,16 @@ description: [this is malformed
     }
 
     [Fact]
+    public async Task ValidateStage_WithMissingStageDefinition_ThrowsException()
+    {
+        // Arrange
+        var tool = new ValidateStageTool(_adapter);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(() => tool.ExecuteAsync(new Dictionary<string, object>()));
+    }
+
+    [Fact]
     public async Task PlanWorkflowExecution_WithValidWorkflow_ReturnsExecutionPlan()
     {
         // Arrange
@@ -266,6 +286,25 @@ description: [this is malformed
         var args = new Dictionary<string, object>
         {
             ["workflowPath"] = "deps-test.workflow"
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.TryGetProperty("executionOrder", out var execOrderEl).Should().BeTrue();
+        execOrderEl.GetArrayLength().Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task PlanWorkflowExecution_WithInlineYaml_ReturnsExecutionPlan()
+    {
+        // Arrange
+        var tool = new PlanWorkflowExecutionTool(_adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["workflowYaml"] = TestDataBuilder.CreateSampleWorkflow()
         };
 
         // Act
