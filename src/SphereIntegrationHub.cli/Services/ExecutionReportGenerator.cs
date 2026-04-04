@@ -213,6 +213,46 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .http-req-uri{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--text-muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:80px}
 .http-req-status-pill{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;font-weight:700;white-space:nowrap;padding:2px 8px;border-radius:5px}
 .http-req-duration{font-size:11px;color:var(--text-subtle);white-space:nowrap}
+/* ── Tabs ────────────────────────────────────────────────────────── */
+.tabs{display:flex;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;padding:0 16px;transition:background .2s}
+.tab{padding:8px 14px;font-size:12px;font-weight:600;border:none;background:none;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;font-family:inherit;display:inline-flex;align-items:center;gap:5px}
+.tab:hover{color:var(--text)}.tab.active{color:#3b82f6;border-bottom-color:#3b82f6}
+[data-theme="dark"] .tab.active{color:#60a5fa;border-bottom-color:#60a5fa}
+.tab-count{background:var(--header-bg);color:var(--text-subtle);border-radius:999px;padding:1px 6px;font-size:10px;font-weight:700;transition:background .2s}
+/* ── View panes ──────────────────────────────────────────────────── */
+.view-pane{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.view-pane.hidden{display:none}
+/* ── Calls view ──────────────────────────────────────────────────── */
+.calls-pane{flex:1;overflow-y:auto;overflow-x:hidden}
+.calls-pane::-webkit-scrollbar{width:6px}.calls-pane::-webkit-scrollbar-track{background:transparent}.calls-pane::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:3px}
+.call-item{border-bottom:1px solid var(--row-border)}
+.call-summary{display:flex;align-items:center;gap:8px;padding:9px 16px;cursor:pointer;transition:background .1s;user-select:none}
+.call-summary:hover{background:var(--row-hover)}
+.call-num{font-size:10px;color:var(--text-subtle);width:22px;text-align:right;flex-shrink:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.call-stage{font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;flex-shrink:0}
+.call-uri{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--text-muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.call-status-col{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.call-dur{font-size:11px;color:var(--text-subtle);white-space:nowrap;flex-shrink:0;min-width:44px;text-align:right}
+.call-chevron{font-size:10px;color:var(--text-subtle);width:14px;text-align:center;flex-shrink:0;transition:transform .15s;line-height:1}
+.call-item.open .call-chevron{transform:rotate(90deg)}
+.call-detail{display:none;padding:4px 16px 14px;background:var(--header-bg);transition:background .2s}
+.call-item.open .call-detail{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.call-detail-fw{grid-column:1/-1}
+.call-detail h4{margin:8px 0 5px;font-size:10px;text-transform:uppercase;color:var(--text-subtle);letter-spacing:.5px;font-weight:700;border-bottom:1px solid var(--border);padding-bottom:3px}
+.call-output-grid{display:flex;flex-direction:column;gap:3px}
+.call-output-row{display:flex;gap:10px;font-size:11.5px}
+.call-output-k{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--text-muted);min-width:120px;flex-shrink:0}
+.call-output-v{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--text);word-break:break-all}
+/* ── Output view ─────────────────────────────────────────────────── */
+.output-pane{flex:1;overflow-y:auto;padding:16px}
+.output-pane::-webkit-scrollbar{width:6px}.output-pane::-webkit-scrollbar-track{background:transparent}.output-pane::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:3px}
+.output-stage{margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;transition:background .2s}
+.output-stage-hdr{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--header-bg);border-bottom:1px solid var(--border);flex-wrap:wrap;transition:background .2s}
+.output-stage-name{font-weight:700;font-size:12.5px;color:var(--text);flex:1}
+.output-stage-uri{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--text-subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:360px}
+.output-vars{display:grid;grid-template-columns:auto 1fr;gap:5px 16px;padding:10px 14px;font-size:12px}
+.output-k{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--text-muted);white-space:nowrap}
+.output-v{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--text);word-break:break-all}
 </style>
 </head>
 <body>
@@ -228,24 +268,39 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 <div class="meta-bar" id="meta-bar"></div>
 <div class="chips" id="chips"></div>
 
-<div class="trace-container">
-  <div class="trace-header">
-    <div class="trace-left-header">Service &amp; Operation</div>
-    <div class="trace-status-header">Status</div>
-    <div class="trace-right-header">
-      <div class="ruler" id="ruler"></div>
-    </div>
-  </div>
-  <div class="trace-rows" id="trace-rows"></div>
+<div class="tabs">
+  <button class="tab active" id="tab-timeline" onclick="switchTab('timeline')">Timeline</button>
+  <button class="tab" id="tab-calls" onclick="switchTab('calls')">Calls <span class="tab-count" id="tc-calls">0</span></button>
+  <button class="tab" id="tab-output" onclick="switchTab('output')">Output <span class="tab-count" id="tc-output">0</span></button>
 </div>
 
-<div class="detail-panel hidden" id="detail-panel">
-  <div class="detail-header">
-    <span class="detail-title" id="detail-title"></span>
-    <span class="detail-meta" id="detail-meta"></span>
-    <span class="detail-close" onclick="closeDetail()" title="Close">&#10005;</span>
+<div class="view-pane" id="view-timeline">
+  <div class="trace-container">
+    <div class="trace-header">
+      <div class="trace-left-header">Service &amp; Operation</div>
+      <div class="trace-status-header">Status</div>
+      <div class="trace-right-header">
+        <div class="ruler" id="ruler"></div>
+      </div>
+    </div>
+    <div class="trace-rows" id="trace-rows"></div>
   </div>
-  <div class="detail-body" id="detail-body"></div>
+  <div class="detail-panel hidden" id="detail-panel">
+    <div class="detail-header">
+      <span class="detail-title" id="detail-title"></span>
+      <span class="detail-meta" id="detail-meta"></span>
+      <span class="detail-close" onclick="closeDetail()" title="Close">&#10005;</span>
+    </div>
+    <div class="detail-body" id="detail-body"></div>
+  </div>
+</div>
+
+<div class="view-pane hidden" id="view-calls">
+  <div class="calls-pane" id="calls-list"></div>
+</div>
+
+<div class="view-pane hidden" id="view-output">
+  <div class="output-pane" id="output-list"></div>
 </div>
 
 <script>
@@ -268,6 +323,14 @@ function toggleTheme() {
   const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
   applyTheme(saved ? saved === 'dark' : prefersDark);
 })();
+
+/* ── Tabs ──────────────────────────────────────────────────────── */
+function switchTab(name) {
+  ['timeline','calls','output'].forEach(t => {
+    document.getElementById('tab-' + t).classList.toggle('active', t === name);
+    document.getElementById('view-' + t).classList.toggle('hidden', t !== name);
+  });
+}
 
 /* ── Utilities ─────────────────────────────────────────────────── */
 function fmtMs(ms) {
@@ -321,8 +384,14 @@ function uriPath(uri) {
   try { const u = new URL(uri); return u.pathname + (u.search || ''); }
   catch { return uri.length > 55 ? uri.slice(0, 55) + '…' : uri; }
 }
+function fmtOutputVal(v) {
+  if (v == null) return '—';
+  if (typeof v === 'object') { const s = JSON.stringify(v); return s.length > 140 ? s.slice(0,140)+'…' : s; }
+  const s = String(v);
+  return s.length > 140 ? s.slice(0,140)+'…' : s;
+}
 
-/* ── Render ────────────────────────────────────────────────────── */
+/* ── Main render ────────────────────────────────────────────────── */
 function render(report) {
   _report = report;
   _selectedIdx = -1;
@@ -362,13 +431,18 @@ function render(report) {
   if (m.HttpStages)    chips += `<span class="chip chip-total">HTTP: ${m.HttpStages}</span>`;
   document.getElementById('chips').innerHTML = chips;
 
-  // Ruler (6 ticks)
+  renderTimeline(totalMs, startTs, stages);
+  renderCalls(stages);
+  renderOutput(stages);
+}
+
+/* ── Timeline tab ───────────────────────────────────────────────── */
+function renderTimeline(totalMs, startTs, stages) {
   const ticks = 6;
   let ruler = '';
   for (let i = 0; i <= ticks; i++) ruler += `<span>${fmtMs(totalMs * i / ticks)}</span>`;
   document.getElementById('ruler').innerHTML = ruler;
 
-  // Rows
   if (stages.length === 0) {
     document.getElementById('trace-rows').innerHTML = '<div class="empty">No stages recorded.</div>';
     return;
@@ -376,9 +450,9 @@ function render(report) {
 
   let rows = '';
   stages.forEach((stage, i) => {
-    const stageTs  = new Date(stage.StartedAtUtc).getTime();
-    const offsetMs = Math.max(0, stageTs - startTs);
-    const durMs    = stage.DurationMs || 0;
+    const stageTs   = new Date(stage.StartedAtUtc).getTime();
+    const offsetMs  = Math.max(0, stageTs - startTs);
+    const durMs     = stage.DurationMs || 0;
     const offsetPct = Math.min((offsetMs / totalMs) * 100, 99.7).toFixed(2);
     const widthPct  = Math.max((durMs / totalMs) * 100, 0.25).toFixed(2);
     const indent    = (stage.Depth || 0) * 18;
@@ -399,9 +473,7 @@ function render(report) {
           (path ? `<span class="stage-uri" title="${esc(stage.RequestUri)}">${esc(path)}</span>` : '')+
         `</div>`+
         `<div class="trace-status">`+
-          (stage.HttpStatusCode != null
-            ? `<span class="http-status ${sCls}">${stage.HttpStatusCode}</span>`
-            : '')+
+          (stage.HttpStatusCode != null ? `<span class="http-status ${sCls}">${stage.HttpStatusCode}</span>` : '')+
         `</div>`+
         `<div class="trace-right">`+
           `<div class="span-bar ${bCls}" style="left:${offsetPct}%;width:${widthPct}%">`+
@@ -410,11 +482,99 @@ function render(report) {
         `</div>`+
       `</div>`;
   });
-
   document.getElementById('trace-rows').innerHTML = rows;
 }
 
-/* ── Stage detail ──────────────────────────────────────────────── */
+/* ── Calls tab ──────────────────────────────────────────────────── */
+function renderCalls(stages) {
+  document.getElementById('tc-calls').textContent = stages.length;
+  if (stages.length === 0) {
+    document.getElementById('calls-list').innerHTML = '<div class="empty">No stages recorded.</div>';
+    return;
+  }
+  let html = '';
+  stages.forEach((stage, i) => {
+    const method = stage.HttpMethod || '';
+    const sCls   = statusRangeCls(stage.HttpStatusCode);
+    const hasReq = !!(stage.RequestHeaders || stage.RequestBody);
+    const hasRes = !!(stage.ResponseHeaders || stage.ResponseBody);
+    const hasOut = !!(stage.Output && Object.keys(stage.Output).length > 0);
+    const hasAny = hasReq || hasRes || hasOut;
+    const indent = (stage.Depth || 0) * 20;
+
+    html += `<div class="call-item" id="ci-${i}">`;
+    html += `<div class="call-summary" style="padding-left:${16+indent}px" onclick="toggleCall(${i})">`;
+    html += `<span class="call-num">${i+1}</span>`;
+    html += `<span class="wf-tag" title="${esc(stage.WorkflowName)}">${esc(stage.WorkflowName)}</span>`;
+    if (method) html += `<span class="http-badge ${methodCls(method)}">${esc(method)}</span>`;
+    html += `<span class="call-stage">${esc(stage.StageName)}</span>`;
+    if (stage.RequestUri) html += `<span class="call-uri" title="${esc(stage.RequestUri)}">${esc(stage.RequestUri)}</span>`;
+    html += `<div class="call-status-col">`;
+    if (stage.HttpStatusCode != null) html += `<span class="http-status ${sCls}">${stage.HttpStatusCode}</span>`;
+    html += `<span class="${badgeCls(stage.Status)}">${esc(stage.Status)}</span>`;
+    if (stage.Mocked) html += `<span class="badge b-mocked">mock</span>`;
+    html += `</div><span class="call-dur">${fmtMs(stage.DurationMs)}</span>`;
+    html += `<span class="call-chevron"${hasAny ? '' : ' style="visibility:hidden"'}>&#9654;</span>`;
+    html += `</div>`;
+
+    html += `<div class="call-detail" id="cd-${i}">`;
+    if (hasReq) {
+      html += `<div><h4>Request Headers</h4><div class="code-block">${esc(stage.RequestHeaders ? JSON.stringify(stage.RequestHeaders, null, 2) : '—')}</div></div>`;
+      html += `<div><h4>Request Body</h4><div class="code-block">${esc(tryPrettyJson(stage.RequestBody) || '—')}</div></div>`;
+    }
+    if (hasRes) {
+      html += `<div><h4>Response Headers</h4><div class="code-block">${esc(stage.ResponseHeaders ? JSON.stringify(stage.ResponseHeaders, null, 2) : '—')}</div></div>`;
+      html += `<div><h4>Response Body</h4><div class="code-block">${esc(tryPrettyJson(stage.ResponseBody) || '—')}</div></div>`;
+    }
+    if (hasOut) {
+      html += `<div class="call-detail-fw"><h4>Stage Output</h4><div class="call-output-grid">`;
+      Object.entries(stage.Output).forEach(([k,v]) => {
+        html += `<div class="call-output-row"><span class="call-output-k">${esc(k)}</span><span class="call-output-v">${esc(fmtOutputVal(v))}</span></div>`;
+      });
+      html += `</div></div>`;
+    }
+    html += `</div></div>`;
+  });
+  document.getElementById('calls-list').innerHTML = html;
+}
+
+function toggleCall(i) {
+  const item   = document.getElementById('ci-' + i);
+  const detail = document.getElementById('cd-' + i);
+  if (!item || !detail || !detail.children.length) return;
+  item.classList.toggle('open');
+}
+
+/* ── Output tab ─────────────────────────────────────────────────── */
+function renderOutput(stages) {
+  const withOut = stages.filter(s => s.Output && Object.keys(s.Output).length > 0);
+  document.getElementById('tc-output').textContent = withOut.length;
+  if (withOut.length === 0) {
+    document.getElementById('output-list').innerHTML = '<div class="empty">No stage output captured.</div>';
+    return;
+  }
+  let html = '';
+  withOut.forEach(stage => {
+    const method = stage.HttpMethod || '';
+    const sCls   = statusRangeCls(stage.HttpStatusCode);
+    html += `<div class="output-stage">`;
+    html += `<div class="output-stage-hdr">`;
+    html += `<span class="wf-tag" title="${esc(stage.WorkflowName)}">${esc(stage.WorkflowName)}</span>`;
+    if (method) html += `<span class="http-badge ${methodCls(method)}">${esc(method)}</span>`;
+    if (stage.HttpStatusCode != null) html += `<span class="http-status ${sCls}">${stage.HttpStatusCode}</span>`;
+    html += `<span class="output-stage-name">${esc(stage.StageName)}</span>`;
+    if (stage.RequestUri) html += `<span class="output-stage-uri" title="${esc(stage.RequestUri)}">${esc(uriPath(stage.RequestUri))}</span>`;
+    html += `<span class="call-dur" style="margin-left:auto">${fmtMs(stage.DurationMs)}</span>`;
+    html += `</div><div class="output-vars">`;
+    Object.entries(stage.Output).forEach(([k,v]) => {
+      html += `<span class="output-k">${esc(k)}</span><span class="output-v">${esc(fmtOutputVal(v))}</span>`;
+    });
+    html += `</div></div>`;
+  });
+  document.getElementById('output-list').innerHTML = html;
+}
+
+/* ── Stage detail (Timeline click) ─────────────────────────────── */
 function selectStage(idx) {
   if (!_report) return;
   const stage = (_report.Stages || [])[idx];
@@ -431,9 +591,10 @@ function selectStage(idx) {
 
   document.getElementById('detail-title').textContent = stage.StageName;
   document.getElementById('detail-meta').innerHTML =
-    `Service: <strong>${esc(stage.WorkflowName)}</strong> &nbsp;|&nbsp; `+
+    `<span class="${badgeCls(stage.Status)}">${esc(stage.Status)}</span> &nbsp;`+
+    `Workflow: <strong>${esc(stage.WorkflowName)}</strong> &nbsp;|&nbsp; `+
     `Duration: <strong>${fmtMs(stage.DurationMs)}</strong> &nbsp;|&nbsp; `+
-    `Start&nbsp;offset: <strong>${fmtMs(offsetMs)}</strong>`;
+    `Offset: <strong>${fmtMs(offsetMs)}</strong>`;
 
   const hasHttp      = !!(stage.RequestUri || stage.HttpMethod || stage.HttpStatusCode != null);
   const hasReqDetail = !!(stage.RequestHeaders || stage.RequestBody);
@@ -510,11 +671,11 @@ function selectStage(idx) {
   }
 
   if (hasOutput) {
-    body +=
-      `<div class="detail-section full-width">`+
-        `<h3>Stage Output</h3>`+
-        `<div class="code-block">${esc(JSON.stringify(stage.Output, null, 2))}</div>`+
-      `</div>`;
+    body += `<div class="detail-section full-width"><h3>Stage Output</h3><div class="call-output-grid">`;
+    Object.entries(stage.Output).forEach(([k,v]) => {
+      body += `<div class="call-output-row"><span class="call-output-k">${esc(k)}</span><span class="call-output-v">${esc(fmtOutputVal(v))}</span></div>`;
+    });
+    body += `</div></div>`;
   }
 
   document.getElementById('detail-body').innerHTML = body;
