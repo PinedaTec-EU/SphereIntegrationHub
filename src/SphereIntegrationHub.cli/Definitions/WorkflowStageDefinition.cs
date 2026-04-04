@@ -18,7 +18,7 @@ public sealed class WorkflowStageDefinition
     public string? ItemName { get; set; }
     public string? IndexName { get; set; }
     public string? WorkflowRef { get; set; }
-    public Dictionary<string, string>? Inputs { get; set; }
+    public Dictionary<string, object?>? Inputs { get; set; }
     public Dictionary<string, string>? Debug { get; set; }
     public string? Message { get; set; }
     public Dictionary<string, string>? Output { get; set; }
