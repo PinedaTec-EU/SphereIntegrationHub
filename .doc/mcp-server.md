@@ -962,15 +962,17 @@ public class IntentAnalyzer
 
 ---
 
-### Phase 5: Next MCP Priorities
+### Phase 5: Execution Report Tools
 
 **Goal:** Move from schema-aware generation to operationally useful AI assistance.
 
-**Planned Deliverables:**
+**Deliverables:**
 
+- ✅ `list_execution_reports` — lists `.workflow.report.json` artifacts in the `output/` directory, ordered by most recent, with lightweight metadata per run
+- ✅ `read_execution_report` — reads and parses a specific artifact, returning full execution metadata, metrics, and per-stage details (HTTP, retries, jump targets, outputs)
+- ✅ `sih report` CLI command — standalone command that generates a self-contained interactive Jaeger-style HTML trace report from any `.workflow.report.json` artifact and opens it in the browser
 - Improved workflow repair/upgrade suggestions for new runtime primitives
 - Better generation of bootstrap/seed workflows using `ensure`, `bodyFile`, and `forEach`
-- Higher-level diagnostic tools that consume execution reports for idempotency, snapshot strategy, and post-run observability
 - Optional dedicated generation helpers for semantic patterns such as ensure/create-if-missing
 
 ---
