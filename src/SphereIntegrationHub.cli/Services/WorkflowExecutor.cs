@@ -537,9 +537,10 @@ public sealed class WorkflowExecutor
         var hasStageInputs = stageInputs is { Count: > 0 };
         if (stageInputs is { Count: > 0 })
         {
+            var templateContext = context.BuildTemplateContext();
             foreach (var pair in stageInputs)
             {
-                var resolved = _templateResolver.ResolveTemplate(pair.Value, context.BuildTemplateContext());
+                var resolved = WorkflowStageInputValueHelper.ResolveToInputString(pair.Value, _templateResolver, templateContext);
                 nestedInputs[pair.Key] = resolved;
             }
         }

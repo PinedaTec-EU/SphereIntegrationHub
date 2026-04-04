@@ -589,7 +589,9 @@ public sealed class WorkflowValidator
                 {
                     foreach (var input in stage.Inputs.Values)
                     {
-                        ValidateTemplate(input, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' input", errors);
+                        WorkflowStageInputValueHelper.ValidateTemplates(
+                            input,
+                            template => ValidateTemplate(template, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' input", errors));
                     }
                 }
 
