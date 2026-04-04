@@ -370,8 +370,10 @@ New runtime authoring features exposed through MCP:
 | `explain_validation_error` | `errorMessage: string` | `ErrorExplanation` | Detailed explanation with fix suggestions |
 | `get_plugin_capabilities` | `stageKind: string` | `PluginCapabilities` | Returns supported features (mocking, retry, etc.) |
 | `suggest_resilience_config` | `endpoint: string`<br>`expectedLoad: "low"\|"medium"\|"high"` | `ResilienceConfig` | Suggests retry/circuit breaker settings |
+| `list_execution_reports` | `workflowPath?: string`<br>`outputDir?: string`<br>`limit?: int` | `ExecutionReportList` | Lists available `.workflow.report.json` artifacts ordered by most recent |
+| `read_execution_report` | `reportPath: string`<br>`includeHttpBodies?: bool` | `ExecutionReportSummary` | Reads an execution artifact and returns metadata, metrics, and per-stage details |
 
-**Total L1 Tools: 18**
+**Total L1 Tools: 29**
 
 ---
 

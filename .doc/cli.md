@@ -111,3 +111,43 @@ The report contains:
 - retry counts and ensure status
 - HTTP request/response summary according to `captureHttp`
 - output values as resolved at the end of the run
+
+## Interactive trace report (`sih report`)
+
+`sih report` is a standalone command that reads a `.workflow.report.json` artifact and generates a self-contained interactive HTML trace report, then opens it in the browser automatically.
+
+```bash
+sih report <path-to-json> [--output <dir>] [--no-open]
+```
+
+Options:
+
+- `<path>`: path to the `.workflow.report.json` artifact (positional).
+- `-x, --execution <path>`: alternative flag for the JSON path.
+- `-o, --output <dir>`: output directory for the HTML file (defaults to same directory as the JSON).
+- `--no-open`: generate the HTML but do not open the browser.
+
+Examples:
+
+Generate and open immediately:
+
+```bash
+sih report ./output/create-account.01J....workflow.report.json
+```
+
+Generate into a different directory, no browser:
+
+```bash
+sih report ./output/create-account.01J....workflow.report.json \
+  --output ./reports \
+  --no-open
+```
+
+The generated `*.workflow.report.html` is fully self-contained (no CDN dependencies) and includes:
+
+- **Header**: workflow name, execution ID, result status, and environment.
+- **Meta bar**: start time, total duration, version, stage count, and nesting depth.
+- **Metrics chips**: total, executed, failed, skipped, mocked, and retry counts.
+- **Jaeger-style timeline**: each stage is rendered as a horizontal bar positioned at its real start offset and sized proportionally to its duration. Bars are color-coded (green = ok, red = error, grey = skipped, purple = mocked) and include the HTTP method badge and workflow nesting indent.
+- **Stage detail panel**: clicking any bar shows the stage's full metadata — kind, status, HTTP method/URI/status code, request and response headers and body, ensure config, jump target, and stage output values.
+- **Load another execution**: the HTML includes a file picker to load any other `.workflow.report.json` and re-render the trace without generating a new file.
