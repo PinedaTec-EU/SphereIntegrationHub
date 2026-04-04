@@ -4,8 +4,8 @@ This document summarizes the current MCP surface implemented in `src/SphereInteg
 
 ## Tool Count
 
-- Total tools: `35`
-- L1: `27`
+- Total tools: `37`
+- L1: `29`
 - L2: `5`
 - L3: `1`
 - L4: `2`
@@ -121,6 +121,33 @@ Defaults:
 - `refresh`: `true`
 
 Use when user says "regenerate cache" and catalog already exists.
+
+## Execution Report Tools
+
+### `list_execution_reports`
+
+Lists `.workflow.report.json` artifacts in the `output/` directory next to a workflow, ordered by most recent first.
+
+Input options:
+
+- `workflowPath` (string): path to the workflow file or its parent directory; SIH resolves the sibling `output/` folder automatically.
+- `outputDir` (string): explicit path to the output directory (alternative to `workflowPath`).
+- `limit` (integer): maximum entries to return (default: 10).
+
+Use this to discover available execution artifacts before reading one.
+
+### `read_execution_report`
+
+Reads a `.workflow.report.json` artifact and returns execution metadata, metrics, and per-stage details.
+
+Input options:
+
+- `reportPath` (string, required): path to the `.workflow.report.json` file.
+- `includeHttpBodies` (boolean): include request/response bodies in stage details (default: false — they can be large).
+
+Output includes: `executionId`, `workflowName`, `result`, `durationMs`, `metrics`, `output`, and a `stages` array with per-stage status, HTTP details, retry count, jump target, and stage outputs.
+
+Use this when the user asks why a workflow failed, what a stage returned, or what the result of a specific execution was.
 
 ## Validation Tools
 
