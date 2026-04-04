@@ -78,12 +78,13 @@ internal sealed class ExecutionReportGenerator
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Workflow Trace</title>
 <style>
-/* ── CSS Variables ─────────────────────────────────────────────── */
+/* ── Variables ───────────────────────────────────────────────────── */
 :root {
   --bg:#f5f7fa;--surface:#ffffff;--border:#e2e8f0;--border-strong:#cbd5e1;
   --text:#1e293b;--text-muted:#64748b;--text-subtle:#94a3b8;
-  --banner-bg:#0f172a;--banner-text:#f1f5f9;--banner-muted:#475569;--banner-sep:#334155;
+  --banner-bg:#0f172a;--banner-text:#f1f5f9;--banner-muted:#475569;
   --header-bg:#f8fafc;--row-hover:#f0f9ff;--row-selected:#dbeafe;--row-border:#f1f5f9;
+  --wf-row-bg:#f0f4ff;--wf-row-hover:#e0ebff;--wf-row-selected:#c7d9ff;
   --detail-bg:#eff6ff;--detail-border:#bfdbfe;
   --code-bg:#f8fafc;--code-border:#e2e8f0;--code-text:#475569;
   --btn-bg:#1e293b;--btn-c:#94a3b8;--btn-border:#334155;--btn-hover-bg:#334155;--btn-hover-c:#f1f5f9;
@@ -93,12 +94,14 @@ internal sealed class ExecutionReportGenerator
   --chip-skip-bg:#fefce8;--chip-skip-c:#a16207;--chip-skip-b:#fef08a;
   --chip-mock-bg:#faf5ff;--chip-mock-c:#7c3aed;--chip-mock-b:#ddd6fe;
   --chip-retry-bg:#fff7ed;--chip-retry-c:#c2410c;--chip-retry-b:#fed7aa;
+  --expand-c:#3b82f6;
 }
 [data-theme="dark"] {
   --bg:#0f172a;--surface:#1e293b;--border:#334155;--border-strong:#475569;
   --text:#f1f5f9;--text-muted:#94a3b8;--text-subtle:#64748b;
-  --banner-bg:#020617;--banner-text:#f1f5f9;--banner-muted:#64748b;--banner-sep:#1e293b;
+  --banner-bg:#020617;--banner-text:#f1f5f9;--banner-muted:#64748b;
   --header-bg:#1e293b;--row-hover:#172554;--row-selected:#1e3a5f;--row-border:#1e293b;
+  --wf-row-bg:#1a2540;--wf-row-hover:#1e3060;--wf-row-selected:#1e3a6e;
   --detail-bg:#172554;--detail-border:#1e40af;
   --code-bg:#0f172a;--code-border:#334155;--code-text:#94a3b8;
   --btn-bg:#334155;--btn-c:#94a3b8;--btn-border:#475569;--btn-hover-bg:#475569;--btn-hover-c:#f1f5f9;
@@ -108,26 +111,24 @@ internal sealed class ExecutionReportGenerator
   --chip-skip-bg:#422006;--chip-skip-c:#fcd34d;--chip-skip-b:#713f12;
   --chip-mock-bg:#2e1065;--chip-mock-c:#c4b5fd;--chip-mock-b:#4c1d95;
   --chip-retry-bg:#431407;--chip-retry-c:#fdba74;--chip-retry-b:#7c2d12;
+  --expand-c:#60a5fa;
 }
-/* ── Reset ─────────────────────────────────────────────────────── */
+/* ── Reset ───────────────────────────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box}
 body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:13px;background:var(--bg);color:var(--text);display:flex;flex-direction:column;height:100vh;overflow:hidden;transition:background .2s,color .2s}
-/* ── Banner ─────────────────────────────────────────────────────── */
+/* ── Banner ──────────────────────────────────────────────────────── */
 .banner{background:var(--banner-bg);color:var(--banner-text);padding:10px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0}
 .banner-brand{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--banner-muted);white-space:nowrap;flex-shrink:0}
-.banner-sep{color:var(--banner-sep);flex-shrink:0;font-size:16px;line-height:1}
+.banner-sep{color:#334155;flex-shrink:0;font-size:16px;line-height:1}
 .banner-title{margin:0;font-size:14px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.result-ok{color:#4ade80}
-.result-error{color:#f87171}
-.result-running{color:#60a5fa}
+.result-ok{color:#4ade80}.result-error{color:#f87171}.result-running{color:#60a5fa}
 .btn{background:var(--btn-bg);color:var(--btn-c);border:1px solid var(--btn-border);padding:5px 11px;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap;transition:background .15s,color .15s;display:inline-flex;align-items:center;gap:5px}
 .btn:hover{background:var(--btn-hover-bg);color:var(--btn-hover-c)}
 .btn-icon{padding:5px 9px;font-size:14px}
 #file-input{display:none}
-/* ── Meta bar ────────────────────────────────────────────────────── */
+/* ── Meta / chips ────────────────────────────────────────────────── */
 .meta-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:6px 16px;display:flex;gap:16px;align-items:center;flex-shrink:0;font-size:11.5px;color:var(--text-muted);flex-wrap:wrap;transition:background .2s}
 .meta-bar strong{color:var(--text);font-weight:600}
-/* ── Chips ───────────────────────────────────────────────────────── */
 .chips{display:flex;gap:5px;padding:7px 16px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;transition:background .2s}
 .chip{padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid}
 .chip-total{background:var(--chip-total-bg);color:var(--chip-total-c);border-color:var(--chip-total-b)}
@@ -136,32 +137,33 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .chip-skipped{background:var(--chip-skip-bg);color:var(--chip-skip-c);border-color:var(--chip-skip-b)}
 .chip-mocked{background:var(--chip-mock-bg);color:var(--chip-mock-c);border-color:var(--chip-mock-b)}
 .chip-retries{background:var(--chip-retry-bg);color:var(--chip-retry-c);border-color:var(--chip-retry-b)}
-/* ── Trace ───────────────────────────────────────────────────────── */
+/* ── Trace layout ────────────────────────────────────────────────── */
 .trace-container{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0}
 .trace-header{display:flex;background:var(--header-bg);border-bottom:1px solid var(--border-strong);flex-shrink:0;transition:background .2s}
-.trace-left-header{width:320px;min-width:320px;padding:6px 12px;font-weight:700;border-right:1px solid var(--border-strong);font-size:10.5px;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.5px}
+.trace-left-header{width:380px;min-width:380px;padding:6px 12px;font-weight:700;border-right:1px solid var(--border-strong);font-size:10.5px;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.5px}
+.trace-status-header{width:64px;min-width:64px;padding:6px 8px;font-weight:700;border-right:1px solid var(--border-strong);font-size:10.5px;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.5px;text-align:center;flex-shrink:0}
 .trace-right-header{flex:1;position:relative;padding:6px 0}
 .ruler{display:flex;justify-content:space-between;padding:0 8px;font-size:10.5px;color:var(--text-subtle)}
 .trace-rows{flex:1;overflow-y:auto;overflow-x:hidden}
 .trace-rows::-webkit-scrollbar{width:6px}
 .trace-rows::-webkit-scrollbar-track{background:transparent}
 .trace-rows::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:3px}
-/* ── Status column ───────────────────────────────────────────────── */
-.trace-status-header{width:64px;min-width:64px;padding:6px 8px;font-weight:700;border-right:1px solid var(--border-strong);font-size:10.5px;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.5px;text-align:center;flex-shrink:0}
-.trace-status{width:64px;min-width:64px;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--border);flex-shrink:0}
-.http-status{font-size:11px;font-weight:700;padding:2px 6px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.03em}
-.s-2xx{background:var(--chip-ok-bg);color:var(--chip-ok-c)}
-.s-3xx{background:var(--chip-total-bg);color:var(--chip-total-c)}
-.s-4xx{background:var(--chip-err-bg);color:var(--chip-err-c)}
-.s-5xx{background:#fef2f2;color:#991b1b}
-[data-theme="dark"] .s-5xx{background:#4a0d0d;color:#fca5a5}
 /* ── Rows ────────────────────────────────────────────────────────── */
 .trace-row{display:flex;height:44px;border-bottom:1px solid var(--row-border);cursor:pointer;transition:background .1s}
 .trace-row:hover{background:var(--row-hover)}
 .trace-row.selected{background:var(--row-selected)}
-.trace-left{width:320px;min-width:320px;padding:4px 8px;display:flex;flex-direction:column;justify-content:center;gap:1px;overflow:hidden;border-right:1px solid var(--border)}
+.trace-row.wf-row{background:var(--wf-row-bg)}
+.trace-row.wf-row:hover{background:var(--wf-row-hover)}
+.trace-row.wf-row.selected{background:var(--wf-row-selected)}
+/* left cell */
+.trace-left{width:380px;min-width:380px;padding:4px 8px;display:flex;flex-direction:column;justify-content:center;gap:1px;overflow:hidden;border-right:1px solid var(--border)}
 .trace-left-top{display:flex;align-items:center;gap:5px;overflow:hidden;width:100%}
-.wf-tag{font-size:10px;color:var(--text-subtle);background:var(--header-bg);border:1px solid var(--border);border-radius:4px;padding:1px 4px;white-space:nowrap;flex-shrink:0;max-width:70px;overflow:hidden;text-overflow:ellipsis;transition:background .2s}
+/* expand chevron */
+.expand-btn{width:16px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--expand-c);font-size:9px;transition:transform .18s;line-height:1;border-radius:3px}
+.expand-btn.open{transform:rotate(90deg)}
+.expand-placeholder{width:16px;min-width:16px;flex-shrink:0}
+/* wf-tag, method badges */
+.wf-tag{font-size:10px;color:var(--text-subtle);background:var(--header-bg);border:1px solid var(--border);border-radius:4px;padding:1px 4px;white-space:nowrap;flex-shrink:0;max-width:80px;overflow:hidden;text-overflow:ellipsis;transition:background .2s}
 .http-badge{font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;flex-shrink:0;letter-spacing:.02em}
 .m-get{background:#dcfce7;color:#15803d}
 .m-post{background:#dbeafe;color:#1d4ed8}
@@ -173,86 +175,61 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 [data-theme="dark"] .m-put{background:#7c2d12;color:#fdba74}
 [data-theme="dark"] .m-patch{background:#4c1d95;color:#c4b5fd}
 [data-theme="dark"] .m-delete{background:#881337;color:#fda4af}
-.stage-lbl{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;color:var(--text)}
+.wf-kind-badge{font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;flex-shrink:0;background:var(--chip-total-bg);color:var(--chip-total-c);letter-spacing:.02em}
+/* labels */
+.stage-lbl{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;color:var(--text);font-weight:500}
 .stage-lbl.s-error{color:#ef4444}
 .stage-lbl.s-skipped{color:var(--text-subtle)}
-.stage-uri{font-size:10px;color:var(--text-subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.stage-uri{font-size:10.5px;color:var(--text-subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;padding-left:22px}
+/* status column */
+.trace-status{width:64px;min-width:64px;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--border);flex-shrink:0}
+.http-status{font-size:11px;font-weight:700;padding:2px 6px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.s-2xx{background:var(--chip-ok-bg);color:var(--chip-ok-c)}
+.s-3xx{background:var(--chip-total-bg);color:var(--chip-total-c)}
+.s-4xx{background:var(--chip-err-bg);color:var(--chip-err-c)}
+.s-5xx{background:#fef2f2;color:#991b1b}
+[data-theme="dark"] .s-5xx{background:#4a0d0d;color:#fca5a5}
+/* timeline bar */
 .trace-right{flex:1;position:relative;overflow:hidden}
 .span-bar{position:absolute;height:18px;top:13px;border-radius:4px;min-width:3px;display:flex;align-items:center;padding:0 5px;font-size:10px;color:rgba(255,255,255,.9);white-space:nowrap;overflow:hidden;cursor:pointer;transition:filter .1s}
 .span-bar:hover{filter:brightness(1.12)}
-.bar-ok{background:#22c55e}
-.bar-error{background:#ef4444}
+.bar-ok{background:#22c55e}.bar-error{background:#ef4444}
 .bar-skipped{background:#94a3b8;color:var(--text-muted)}
-.bar-running{background:#3b82f6}
-.bar-mocked{background:#8b5cf6}
+.bar-running{background:#3b82f6}.bar-mocked{background:#8b5cf6}
+.bar-workflow{background:linear-gradient(90deg,#6366f1,#8b5cf6)}
+/* children group */
+.children-group{display:none;border-left:2px solid var(--expand-c);margin-left:0}
+.children-group.open{display:block}
 /* ── Detail panel ────────────────────────────────────────────────── */
-.detail-panel{border-top:2px solid #3b82f6;background:var(--surface);overflow-y:auto;flex-shrink:0;transition:background .2s}
+.detail-panel{border-top:2px solid #3b82f6;background:var(--surface);overflow-y:auto;flex-shrink:0;max-height:340px;transition:background .2s}
 .detail-panel.hidden{display:none}
-.detail-header{background:var(--detail-bg);padding:8px 16px;display:flex;gap:16px;align-items:baseline;border-bottom:1px solid var(--detail-border);flex-wrap:wrap;transition:background .2s}
-.detail-title{font-weight:700;font-size:14px;color:var(--text)}
-.detail-meta{color:var(--text-muted);font-size:12px}
-.detail-close{margin-left:auto;cursor:pointer;color:var(--text-subtle);font-size:18px;line-height:1;padding:0 4px;flex-shrink:0;transition:color .1s}
+.detail-header{background:var(--detail-bg);padding:8px 16px;display:flex;gap:12px;align-items:center;border-bottom:1px solid var(--detail-border);flex-wrap:wrap;transition:background .2s}
+.detail-title{font-weight:700;font-size:14px;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.detail-meta{color:var(--text-muted);font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.detail-close{cursor:pointer;color:var(--text-subtle);font-size:18px;line-height:1;padding:0 4px;flex-shrink:0;transition:color .1s}
 .detail-close:hover{color:var(--text)}
-.detail-body{padding:12px 16px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.detail-body{padding:12px 16px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .detail-section h3{margin:0 0 6px;font-size:10px;text-transform:uppercase;color:var(--text-subtle);letter-spacing:.6px;border-bottom:1px solid var(--border);padding-bottom:4px;font-weight:700}
 .kv{display:flex;flex-direction:column;gap:3px}
 .kv-row{display:flex;gap:8px;align-items:baseline}
-.kv-k{color:var(--text-muted);min-width:110px;flex-shrink:0;font-size:11px}
+.kv-k{color:var(--text-muted);min-width:100px;flex-shrink:0;font-size:11px}
 .kv-v{color:var(--text);word-break:break-all;font-size:12px}
-.code-block{background:var(--code-bg);border:1px solid var(--code-border);border-radius:6px;padding:7px 10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--code-text);white-space:pre-wrap;word-break:break-word;max-height:130px;overflow-y:auto;margin-top:2px;transition:background .2s,border-color .2s}
+.code-block{background:var(--code-bg);border:1px solid var(--code-border);border-radius:6px;padding:7px 10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--code-text);white-space:pre-wrap;word-break:break-word;max-height:140px;overflow-y:auto;margin-top:2px;transition:background .2s,border-color .2s}
 .full-width{grid-column:1/-1}
+.http-req-bar{display:flex;align-items:center;gap:10px;background:var(--code-bg);border:1px solid var(--code-border);border-radius:8px;padding:9px 14px;flex-wrap:wrap;transition:background .2s,border-color .2s}
+.http-req-uri{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--text-muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:80px}
+.http-req-status-pill{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;font-weight:700;white-space:nowrap;padding:2px 8px;border-radius:5px}
+.http-req-dur{font-size:11px;color:var(--text-subtle);white-space:nowrap}
 .badge{padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.02em}
 .b-ok{background:var(--chip-ok-bg);color:var(--chip-ok-c)}
 .b-error{background:var(--chip-err-bg);color:var(--chip-err-c)}
 .b-skipped{background:var(--header-bg);color:var(--text-subtle);border:1px solid var(--border)}
 .b-running{background:var(--chip-total-bg);color:var(--chip-total-c)}
 .b-mocked{background:var(--chip-mock-bg);color:var(--chip-mock-c)}
+.output-kv{display:grid;grid-template-columns:auto 1fr;gap:4px 16px}
+.out-k{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--text-muted);white-space:nowrap}
+.out-v{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--text);word-break:break-all}
 .empty{color:var(--text-subtle);padding:40px;text-align:center;font-size:14px}
-/* ── HTTP request bar (detail panel) ────────────────────────────── */
-.http-req-bar{display:flex;align-items:center;gap:10px;background:var(--code-bg);border:1px solid var(--code-border);border-radius:8px;padding:9px 14px;flex-wrap:wrap;transition:background .2s,border-color .2s}
-.http-req-uri{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--text-muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:80px}
-.http-req-status-pill{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;font-weight:700;white-space:nowrap;padding:2px 8px;border-radius:5px}
-.http-req-duration{font-size:11px;color:var(--text-subtle);white-space:nowrap}
-/* ── Tabs ────────────────────────────────────────────────────────── */
-.tabs{display:flex;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;padding:0 16px;transition:background .2s}
-.tab{padding:8px 14px;font-size:12px;font-weight:600;border:none;background:none;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;font-family:inherit;display:inline-flex;align-items:center;gap:5px}
-.tab:hover{color:var(--text)}.tab.active{color:#3b82f6;border-bottom-color:#3b82f6}
-[data-theme="dark"] .tab.active{color:#60a5fa;border-bottom-color:#60a5fa}
-.tab-count{background:var(--header-bg);color:var(--text-subtle);border-radius:999px;padding:1px 6px;font-size:10px;font-weight:700;transition:background .2s}
-/* ── View panes ──────────────────────────────────────────────────── */
-.view-pane{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0}
-.view-pane.hidden{display:none}
-/* ── Calls view ──────────────────────────────────────────────────── */
-.calls-pane{flex:1;overflow-y:auto;overflow-x:hidden}
-.calls-pane::-webkit-scrollbar{width:6px}.calls-pane::-webkit-scrollbar-track{background:transparent}.calls-pane::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:3px}
-.call-item{border-bottom:1px solid var(--row-border)}
-.call-summary{display:flex;align-items:center;gap:8px;padding:9px 16px;cursor:pointer;transition:background .1s;user-select:none}
-.call-summary:hover{background:var(--row-hover)}
-.call-num{font-size:10px;color:var(--text-subtle);width:22px;text-align:right;flex-shrink:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-.call-stage{font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;flex-shrink:0}
-.call-uri{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--text-muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.call-status-col{display:flex;align-items:center;gap:5px;flex-shrink:0}
-.call-dur{font-size:11px;color:var(--text-subtle);white-space:nowrap;flex-shrink:0;min-width:44px;text-align:right}
-.call-chevron{font-size:10px;color:var(--text-subtle);width:14px;text-align:center;flex-shrink:0;transition:transform .15s;line-height:1}
-.call-item.open .call-chevron{transform:rotate(90deg)}
-.call-detail{display:none;padding:4px 16px 14px;background:var(--header-bg);transition:background .2s}
-.call-item.open .call-detail{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.call-detail-fw{grid-column:1/-1}
-.call-detail h4{margin:8px 0 5px;font-size:10px;text-transform:uppercase;color:var(--text-subtle);letter-spacing:.5px;font-weight:700;border-bottom:1px solid var(--border);padding-bottom:3px}
-.call-output-grid{display:flex;flex-direction:column;gap:3px}
-.call-output-row{display:flex;gap:10px;font-size:11.5px}
-.call-output-k{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--text-muted);min-width:120px;flex-shrink:0}
-.call-output-v{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--text);word-break:break-all}
-/* ── Output view ─────────────────────────────────────────────────── */
-.output-pane{flex:1;overflow-y:auto;padding:16px}
-.output-pane::-webkit-scrollbar{width:6px}.output-pane::-webkit-scrollbar-track{background:transparent}.output-pane::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:3px}
-.output-stage{margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;transition:background .2s}
-.output-stage-hdr{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--header-bg);border-bottom:1px solid var(--border);flex-wrap:wrap;transition:background .2s}
-.output-stage-name{font-weight:700;font-size:12.5px;color:var(--text);flex:1}
-.output-stage-uri{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--text-subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:360px}
-.output-vars{display:grid;grid-template-columns:auto 1fr;gap:5px 16px;padding:10px 14px;font-size:12px}
-.output-k{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--text-muted);white-space:nowrap}
-.output-v{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--text);word-break:break-all}
 </style>
 </head>
 <body>
@@ -268,47 +245,32 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 <div class="meta-bar" id="meta-bar"></div>
 <div class="chips" id="chips"></div>
 
-<div class="tabs">
-  <button class="tab active" id="tab-timeline" onclick="switchTab('timeline')">Timeline</button>
-  <button class="tab" id="tab-calls" onclick="switchTab('calls')">Calls <span class="tab-count" id="tc-calls">0</span></button>
-  <button class="tab" id="tab-output" onclick="switchTab('output')">Output <span class="tab-count" id="tc-output">0</span></button>
-</div>
-
-<div class="view-pane" id="view-timeline">
-  <div class="trace-container">
-    <div class="trace-header">
-      <div class="trace-left-header">Service &amp; Operation</div>
-      <div class="trace-status-header">Status</div>
-      <div class="trace-right-header">
-        <div class="ruler" id="ruler"></div>
-      </div>
-    </div>
-    <div class="trace-rows" id="trace-rows"></div>
+<div class="trace-container">
+  <div class="trace-header">
+    <div class="trace-left-header">Workflow · Stage</div>
+    <div class="trace-status-header">HTTP</div>
+    <div class="trace-right-header"><div class="ruler" id="ruler"></div></div>
   </div>
-  <div class="detail-panel hidden" id="detail-panel">
-    <div class="detail-header">
-      <span class="detail-title" id="detail-title"></span>
-      <span class="detail-meta" id="detail-meta"></span>
-      <span class="detail-close" onclick="closeDetail()" title="Close">&#10005;</span>
-    </div>
-    <div class="detail-body" id="detail-body"></div>
+  <div class="trace-rows" id="trace-rows"></div>
+</div>
+
+<div class="detail-panel hidden" id="detail-panel">
+  <div class="detail-header">
+    <span class="detail-title" id="detail-title"></span>
+    <span class="detail-meta" id="detail-meta"></span>
+    <span class="detail-close" onclick="closeDetail()" title="Close">&#10005;</span>
   </div>
-</div>
-
-<div class="view-pane hidden" id="view-calls">
-  <div class="calls-pane" id="calls-list"></div>
-</div>
-
-<div class="view-pane hidden" id="view-output">
-  <div class="output-pane" id="output-list"></div>
+  <div class="detail-body" id="detail-body"></div>
 </div>
 
 <script>
 const _initialData = {{reportJson}};
-let _report = null;
-let _selectedIdx = -1;
+let _report   = null;
+let _tree     = null;   // root nodes
+let _expanded = new Set();  // indices of expanded workflow rows
+let _selected = -1;
 
-/* ── Theme ─────────────────────────────────────────────────────── */
+/* ── Theme ───────────────────────────────────────────────────────── */
 function applyTheme(dark) {
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
   document.getElementById('theme-toggle').textContent = dark ? '☀️' : '🌙';
@@ -318,21 +280,13 @@ function toggleTheme() {
   localStorage.setItem('sphere-theme', dark ? 'dark' : 'light');
   applyTheme(dark);
 }
-(function initTheme() {
+(function() {
   const saved = localStorage.getItem('sphere-theme');
   const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
   applyTheme(saved ? saved === 'dark' : prefersDark);
 })();
 
-/* ── Tabs ──────────────────────────────────────────────────────── */
-function switchTab(name) {
-  ['timeline','calls','output'].forEach(t => {
-    document.getElementById('tab-' + t).classList.toggle('active', t === name);
-    document.getElementById('view-' + t).classList.toggle('hidden', t !== name);
-  });
-}
-
-/* ── Utilities ─────────────────────────────────────────────────── */
+/* ── Utilities ───────────────────────────────────────────────────── */
 function fmtMs(ms) {
   if (ms == null) return '';
   if (ms >= 1000) return (ms / 1000).toFixed(2) + 's';
@@ -348,30 +302,13 @@ function esc(s) {
 }
 function statusCls(s) {
   switch ((s||'').toLowerCase()) {
-    case 'ok': return 'ok';
-    case 'error': return 'error';
-    case 'skipped': return 'skipped';
-    default: return 'running';
+    case 'ok': return 'ok'; case 'error': return 'error';
+    case 'skipped': return 'skipped'; default: return 'running';
   }
 }
-function barCls(stage) {
-  if (stage.Mocked) return 'bar-mocked';
-  return 'bar-' + statusCls(stage.Status);
-}
 function badgeCls(s) { return 'badge b-' + statusCls(s); }
-function methodCls(m) {
-  if (!m) return '';
-  return 'm-' + m.toLowerCase();
-}
-function kv(k, v) {
-  if (!v && v !== 0) return '';
-  return `<div class="kv-row"><span class="kv-k">${k}</span><span class="kv-v">${v}</span></div>`;
-}
-function tryPrettyJson(s) {
-  if (!s) return '';
-  try { return JSON.stringify(JSON.parse(s), null, 2); } catch { return s; }
-}
-function statusRangeCls(code) {
+function methodCls(m) { return m ? 'm-' + m.toLowerCase() : ''; }
+function httpRangeCls(code) {
   if (code == null) return '';
   if (code >= 200 && code < 300) return 's-2xx';
   if (code >= 300 && code < 400) return 's-3xx';
@@ -379,28 +316,59 @@ function statusRangeCls(code) {
   if (code >= 500) return 's-5xx';
   return '';
 }
+function barCls(stage) {
+  if (isWfKind(stage)) return 'bar-workflow';
+  if (stage.Mocked) return 'bar-mocked';
+  return 'bar-' + statusCls(stage.Status);
+}
+function isWfKind(stage) {
+  return (stage.StageKind || '').toLowerCase().includes('workflow');
+}
 function uriPath(uri) {
   if (!uri) return '';
   try { const u = new URL(uri); return u.pathname + (u.search || ''); }
-  catch { return uri.length > 55 ? uri.slice(0, 55) + '…' : uri; }
+  catch { return uri.length > 60 ? uri.slice(0,60)+'…' : uri; }
 }
-function fmtOutputVal(v) {
+function tryPrettyJson(s) {
+  if (!s) return '';
+  try { return JSON.stringify(JSON.parse(s), null, 2); } catch { return s; }
+}
+function fmtVal(v) {
   if (v == null) return '—';
-  if (typeof v === 'object') { const s = JSON.stringify(v); return s.length > 140 ? s.slice(0,140)+'…' : s; }
-  const s = String(v);
-  return s.length > 140 ? s.slice(0,140)+'…' : s;
+  if (typeof v === 'object') { const s = JSON.stringify(v); return s.length > 160 ? s.slice(0,160)+'…' : s; }
+  const s = String(v); return s.length > 160 ? s.slice(0,160)+'…' : s;
+}
+function kv(k, v) {
+  if (!v && v !== 0) return '';
+  return `<div class="kv-row"><span class="kv-k">${k}</span><span class="kv-v">${v}</span></div>`;
 }
 
-/* ── Main render ────────────────────────────────────────────────── */
+/* ── Tree builder ────────────────────────────────────────────────── */
+// A stage's parent is the nearest preceding stage with lower Depth.
+function buildTree(stages) {
+  const nodes = stages.map((stage, idx) => ({ stage, idx, children: [] }));
+  const roots = [];
+  for (let i = 0; i < nodes.length; i++) {
+    const d = nodes[i].stage.Depth || 0;
+    if (d === 0) { roots.push(nodes[i]); continue; }
+    for (let j = i - 1; j >= 0; j--) {
+      if ((nodes[j].stage.Depth || 0) < d) { nodes[j].children.push(nodes[i]); break; }
+    }
+  }
+  return roots;
+}
+
+/* ── Render ──────────────────────────────────────────────────────── */
 function render(report) {
-  _report = report;
-  _selectedIdx = -1;
+  _report   = report;
+  _tree     = null;
+  _expanded = new Set();
+  _selected = -1;
   closeDetail();
 
-  const totalMs = Math.max(report.DurationMs || 1, 1);
-  const startTs = new Date(report.StartedAtUtc).getTime();
   const stages  = report.Stages || [];
   const m       = report.Metrics || {};
+  const totalMs = Math.max(report.DurationMs || 1, 1);
 
   // Banner
   const rCls = 'result-' + statusCls(report.Result);
@@ -410,7 +378,7 @@ function render(report) {
   document.title = `${report.WorkflowName} — ${report.ExecutionId}`;
 
   // Meta bar
-  const maxDepth = stages.reduce((d, s) => Math.max(d, s.Depth || 0), 0);
+  const maxDepth = stages.reduce((d,s) => Math.max(d, s.Depth||0), 0);
   document.getElementById('meta-bar').innerHTML =
     `<span>Start: <strong>${fmtDate(report.StartedAtUtc)}</strong></span>`+
     `<span>Duration: <strong>${fmtMs(totalMs)}</strong></span>`+
@@ -431,249 +399,212 @@ function render(report) {
   if (m.HttpStages)    chips += `<span class="chip chip-total">HTTP: ${m.HttpStages}</span>`;
   document.getElementById('chips').innerHTML = chips;
 
-  renderTimeline(totalMs, startTs, stages);
-  renderCalls(stages);
-  renderOutput(stages);
-}
-
-/* ── Timeline tab ───────────────────────────────────────────────── */
-function renderTimeline(totalMs, startTs, stages) {
+  // Ruler
   const ticks = 6;
   let ruler = '';
   for (let i = 0; i <= ticks; i++) ruler += `<span>${fmtMs(totalMs * i / ticks)}</span>`;
   document.getElementById('ruler').innerHTML = ruler;
 
-  if (stages.length === 0) {
+  // Build tree and render
+  const startTs = new Date(report.StartedAtUtc).getTime();
+  _tree = buildTree(stages);
+  renderTree(_tree, totalMs, startTs);
+}
+
+/* ── Tree renderer ───────────────────────────────────────────────── */
+function renderTree(roots, totalMs, startTs) {
+  if (!roots || roots.length === 0) {
     document.getElementById('trace-rows').innerHTML = '<div class="empty">No stages recorded.</div>';
     return;
   }
-
-  let rows = '';
-  stages.forEach((stage, i) => {
-    const stageTs   = new Date(stage.StartedAtUtc).getTime();
-    const offsetMs  = Math.max(0, stageTs - startTs);
-    const durMs     = stage.DurationMs || 0;
-    const offsetPct = Math.min((offsetMs / totalMs) * 100, 99.7).toFixed(2);
-    const widthPct  = Math.max((durMs / totalMs) * 100, 0.25).toFixed(2);
-    const indent    = (stage.Depth || 0) * 18;
-    const method    = stage.HttpMethod || '';
-    const lbl       = stage.Status === 'Error' ? 's-error' : stage.Status === 'Skipped' ? 's-skipped' : '';
-    const bCls      = barCls(stage);
-    const path      = uriPath(stage.RequestUri);
-    const sCls      = statusRangeCls(stage.HttpStatusCode);
-
-    rows +=
-      `<div class="trace-row" data-idx="${i}" onclick="selectStage(${i})">`+
-        `<div class="trace-left" style="padding-left:${8+indent}px">`+
-          `<div class="trace-left-top">`+
-            `<span class="wf-tag" title="${esc(stage.WorkflowName)}">${esc(stage.WorkflowName)}</span>`+
-            (method ? `<span class="http-badge ${methodCls(method)}">${esc(method)}</span>` : '')+
-            `<span class="stage-lbl ${lbl}" title="${esc(stage.StageName)}">${esc(stage.StageName)}</span>`+
-          `</div>`+
-          (path ? `<span class="stage-uri" title="${esc(stage.RequestUri)}">${esc(path)}</span>` : '')+
-        `</div>`+
-        `<div class="trace-status">`+
-          (stage.HttpStatusCode != null ? `<span class="http-status ${sCls}">${stage.HttpStatusCode}</span>` : '')+
-        `</div>`+
-        `<div class="trace-right">`+
-          `<div class="span-bar ${bCls}" style="left:${offsetPct}%;width:${widthPct}%">`+
-            (durMs >= 8 ? fmtMs(durMs) : '')+
-          `</div>`+
-        `</div>`+
-      `</div>`;
-  });
-  document.getElementById('trace-rows').innerHTML = rows;
+  document.getElementById('trace-rows').innerHTML = buildRows(roots, totalMs, startTs);
 }
 
-/* ── Calls tab ──────────────────────────────────────────────────── */
-function renderCalls(stages) {
-  document.getElementById('tc-calls').textContent = stages.length;
-  if (stages.length === 0) {
-    document.getElementById('calls-list').innerHTML = '<div class="empty">No stages recorded.</div>';
-    return;
-  }
+function buildRows(nodes, totalMs, startTs) {
   let html = '';
-  stages.forEach((stage, i) => {
-    const method = stage.HttpMethod || '';
-    const sCls   = statusRangeCls(stage.HttpStatusCode);
-    const hasReq = !!(stage.RequestHeaders || stage.RequestBody);
-    const hasRes = !!(stage.ResponseHeaders || stage.ResponseBody);
-    const hasOut = !!(stage.Output && Object.keys(stage.Output).length > 0);
-    const hasAny = hasReq || hasRes || hasOut;
-    const indent = (stage.Depth || 0) * 20;
-
-    html += `<div class="call-item" id="ci-${i}">`;
-    html += `<div class="call-summary" style="padding-left:${16+indent}px" onclick="toggleCall(${i})">`;
-    html += `<span class="call-num">${i+1}</span>`;
-    html += `<span class="wf-tag" title="${esc(stage.WorkflowName)}">${esc(stage.WorkflowName)}</span>`;
-    if (method) html += `<span class="http-badge ${methodCls(method)}">${esc(method)}</span>`;
-    html += `<span class="call-stage">${esc(stage.StageName)}</span>`;
-    if (stage.RequestUri) html += `<span class="call-uri" title="${esc(stage.RequestUri)}">${esc(stage.RequestUri)}</span>`;
-    html += `<div class="call-status-col">`;
-    if (stage.HttpStatusCode != null) html += `<span class="http-status ${sCls}">${stage.HttpStatusCode}</span>`;
-    html += `<span class="${badgeCls(stage.Status)}">${esc(stage.Status)}</span>`;
-    if (stage.Mocked) html += `<span class="badge b-mocked">mock</span>`;
-    html += `</div><span class="call-dur">${fmtMs(stage.DurationMs)}</span>`;
-    html += `<span class="call-chevron"${hasAny ? '' : ' style="visibility:hidden"'}>&#9654;</span>`;
-    html += `</div>`;
-
-    html += `<div class="call-detail" id="cd-${i}">`;
-    if (hasReq) {
-      html += `<div><h4>Request Headers</h4><div class="code-block">${esc(stage.RequestHeaders ? JSON.stringify(stage.RequestHeaders, null, 2) : '—')}</div></div>`;
-      html += `<div><h4>Request Body</h4><div class="code-block">${esc(tryPrettyJson(stage.RequestBody) || '—')}</div></div>`;
+  nodes.forEach(node => {
+    html += buildRow(node, totalMs, startTs);
+    if (node.children.length > 0) {
+      const open = _expanded.has(node.idx);
+      html += `<div class="children-group${open?' open':''}" id="cg-${node.idx}">`;
+      html += buildRows(node.children, totalMs, startTs);
+      html += `</div>`;
     }
-    if (hasRes) {
-      html += `<div><h4>Response Headers</h4><div class="code-block">${esc(stage.ResponseHeaders ? JSON.stringify(stage.ResponseHeaders, null, 2) : '—')}</div></div>`;
-      html += `<div><h4>Response Body</h4><div class="code-block">${esc(tryPrettyJson(stage.ResponseBody) || '—')}</div></div>`;
-    }
-    if (hasOut) {
-      html += `<div class="call-detail-fw"><h4>Stage Output</h4><div class="call-output-grid">`;
-      Object.entries(stage.Output).forEach(([k,v]) => {
-        html += `<div class="call-output-row"><span class="call-output-k">${esc(k)}</span><span class="call-output-v">${esc(fmtOutputVal(v))}</span></div>`;
-      });
-      html += `</div></div>`;
-    }
-    html += `</div></div>`;
   });
-  document.getElementById('calls-list').innerHTML = html;
+  return html;
 }
 
-function toggleCall(i) {
-  const item   = document.getElementById('ci-' + i);
-  const detail = document.getElementById('cd-' + i);
-  if (!item || !detail || !detail.children.length) return;
-  item.classList.toggle('open');
-}
+function buildRow(node, totalMs, startTs) {
+  const { stage, idx } = node;
+  const hasChildren = node.children.length > 0;
+  const isWf        = isWfKind(stage);
+  const isOpen      = _expanded.has(idx);
 
-/* ── Output tab ─────────────────────────────────────────────────── */
-function renderOutput(stages) {
-  const withOut = stages.filter(s => s.Output && Object.keys(s.Output).length > 0);
-  document.getElementById('tc-output').textContent = withOut.length;
-  if (withOut.length === 0) {
-    document.getElementById('output-list').innerHTML = '<div class="empty">No stage output captured.</div>';
-    return;
+  const stageTs   = new Date(stage.StartedAtUtc).getTime();
+  const offsetMs  = Math.max(0, stageTs - startTs);
+  const durMs     = stage.DurationMs || 0;
+  const offsetPct = Math.min((offsetMs / totalMs) * 100, 99.5).toFixed(2);
+  const widthPct  = Math.max((durMs   / totalMs) * 100, 0.25).toFixed(2);
+  const method    = stage.HttpMethod || '';
+  const path      = uriPath(stage.RequestUri);
+  const sCls      = httpRangeCls(stage.HttpStatusCode);
+  const lbl       = stage.Status === 'Error' ? 's-error' : stage.Status === 'Skipped' ? 's-skipped' : '';
+  const bCls      = barCls(stage);
+  const wfCls     = isWf ? ' wf-row' : '';
+  const selCls    = _selected === idx ? ' selected' : '';
+
+  let html = `<div class="trace-row${wfCls}${selCls}" data-idx="${idx}" onclick="rowClick(${idx})">`;
+
+  // Left cell
+  html += `<div class="trace-left">`;
+  html += `<div class="trace-left-top">`;
+  // expand/collapse button or placeholder
+  if (hasChildren) {
+    html += `<span class="expand-btn${isOpen?' open':''}">&#9654;</span>`;
+  } else {
+    html += `<span class="expand-placeholder"></span>`;
   }
-  let html = '';
-  withOut.forEach(stage => {
-    const method = stage.HttpMethod || '';
-    const sCls   = statusRangeCls(stage.HttpStatusCode);
-    html += `<div class="output-stage">`;
-    html += `<div class="output-stage-hdr">`;
-    html += `<span class="wf-tag" title="${esc(stage.WorkflowName)}">${esc(stage.WorkflowName)}</span>`;
-    if (method) html += `<span class="http-badge ${methodCls(method)}">${esc(method)}</span>`;
-    if (stage.HttpStatusCode != null) html += `<span class="http-status ${sCls}">${stage.HttpStatusCode}</span>`;
-    html += `<span class="output-stage-name">${esc(stage.StageName)}</span>`;
-    if (stage.RequestUri) html += `<span class="output-stage-uri" title="${esc(stage.RequestUri)}">${esc(uriPath(stage.RequestUri))}</span>`;
-    html += `<span class="call-dur" style="margin-left:auto">${fmtMs(stage.DurationMs)}</span>`;
-    html += `</div><div class="output-vars">`;
-    Object.entries(stage.Output).forEach(([k,v]) => {
-      html += `<span class="output-k">${esc(k)}</span><span class="output-v">${esc(fmtOutputVal(v))}</span>`;
-    });
-    html += `</div></div>`;
-  });
-  document.getElementById('output-list').innerHTML = html;
+  html += `<span class="wf-tag" title="${esc(stage.WorkflowName)}">${esc(stage.WorkflowName)}</span>`;
+  if (isWf) {
+    html += `<span class="wf-kind-badge">WF</span>`;
+  } else if (method) {
+    html += `<span class="http-badge ${methodCls(method)}">${esc(method)}</span>`;
+  }
+  html += `<span class="stage-lbl ${lbl}" title="${esc(stage.StageName)}">${esc(stage.StageName)}</span>`;
+  html += `</div>`;
+  if (path) html += `<span class="stage-uri" title="${esc(stage.RequestUri)}">${esc(path)}</span>`;
+  html += `</div>`;
+
+  // Status cell
+  html += `<div class="trace-status">`;
+  if (stage.HttpStatusCode != null) {
+    html += `<span class="http-status ${sCls}">${stage.HttpStatusCode}</span>`;
+  } else if (isWf) {
+    html += `<span class="${badgeCls(stage.Status)}" style="font-size:9px">${esc(stage.Status)}</span>`;
+  }
+  html += `</div>`;
+
+  // Timeline bar
+  html += `<div class="trace-right">`;
+  html += `<div class="span-bar ${bCls}" style="left:${offsetPct}%;width:${widthPct}%">`;
+  if (durMs >= 8) html += fmtMs(durMs);
+  html += `</div></div>`;
+
+  html += `</div>`;
+  return html;
 }
 
-/* ── Stage detail (Timeline click) ─────────────────────────────── */
-function selectStage(idx) {
+/* ── Row click: expand workflow or show detail ───────────────────── */
+function rowClick(idx) {
   if (!_report) return;
+  const node = findNode(_tree, idx);
+  if (!node) return;
+
+  if (node.children.length > 0) {
+    // Toggle expand
+    const wasOpen = _expanded.has(idx);
+    if (wasOpen) _expanded.delete(idx); else _expanded.add(idx);
+    // toggle children-group visibility
+    const cg = document.getElementById('cg-' + idx);
+    if (cg) cg.classList.toggle('open', !wasOpen);
+    // toggle chevron
+    const row = document.querySelector(`.trace-row[data-idx="${idx}"]`);
+    if (row) {
+      const btn = row.querySelector('.expand-btn');
+      if (btn) btn.classList.toggle('open', !wasOpen);
+    }
+    // Show detail for workflow stage too
+    showDetail(idx);
+  } else {
+    // endpoint stage: just show detail
+    showDetail(idx);
+  }
+}
+
+function findNode(nodes, idx) {
+  for (const n of nodes) {
+    if (n.idx === idx) return n;
+    const found = findNode(n.children, idx);
+    if (found) return found;
+  }
+  return null;
+}
+
+/* ── Detail panel ────────────────────────────────────────────────── */
+function showDetail(idx) {
   const stage = (_report.Stages || [])[idx];
   if (!stage) return;
 
+  // Highlight selected row
   document.querySelectorAll('.trace-row').forEach(r => r.classList.remove('selected'));
   const row = document.querySelector(`.trace-row[data-idx="${idx}"]`);
   if (row) { row.classList.add('selected'); row.scrollIntoView({block:'nearest'}); }
-  _selectedIdx = idx;
+  _selected = idx;
 
   const startTs  = new Date(_report.StartedAtUtc).getTime();
   const stageTs  = new Date(stage.StartedAtUtc).getTime();
   const offsetMs = Math.max(0, stageTs - startTs);
+  const sCls     = httpRangeCls(stage.HttpStatusCode);
+  const method   = stage.HttpMethod || '';
 
   document.getElementById('detail-title').textContent = stage.StageName;
-  document.getElementById('detail-meta').innerHTML =
-    `<span class="${badgeCls(stage.Status)}">${esc(stage.Status)}</span> &nbsp;`+
-    `Workflow: <strong>${esc(stage.WorkflowName)}</strong> &nbsp;|&nbsp; `+
-    `Duration: <strong>${fmtMs(stage.DurationMs)}</strong> &nbsp;|&nbsp; `+
-    `Offset: <strong>${fmtMs(offsetMs)}</strong>`;
+  // Meta line
+  let meta = `<span class="${badgeCls(stage.Status)}">${esc(stage.Status)}</span>`;
+  meta += ` <span style="color:var(--text-subtle)">·</span> <strong>${esc(stage.WorkflowName)}</strong>`;
+  meta += ` <span style="color:var(--text-subtle)">·</span> ${fmtMs(stage.DurationMs)}`;
+  if (stage.RetryCount) meta += ` <span style="color:var(--chip-retry-c)">↺ ${stage.RetryCount}</span>`;
+  if (stage.Mocked) meta += ` <span class="badge b-mocked">mock</span>`;
+  document.getElementById('detail-meta').innerHTML = meta;
 
-  const hasHttp      = !!(stage.RequestUri || stage.HttpMethod || stage.HttpStatusCode != null);
-  const hasReqDetail = !!(stage.RequestHeaders || stage.RequestBody);
-  const hasResDetail = !!(stage.ResponseHeaders || stage.ResponseBody);
-  const hasOutput    = !!(stage.Output && Object.keys(stage.Output).length > 0);
-  const sCls         = statusRangeCls(stage.HttpStatusCode);
+  const hasHttp   = !!(stage.RequestUri || stage.HttpMethod || stage.HttpStatusCode != null);
+  const hasReq    = !!(stage.RequestHeaders || stage.RequestBody);
+  const hasRes    = !!(stage.ResponseHeaders || stage.ResponseBody);
+  const hasOutput = !!(stage.Output && Object.keys(stage.Output).length > 0);
 
   let body = '';
 
-  // ── Full-width HTTP request bar ──────────────────────────────────
+  // HTTP request bar (full width)
   if (hasHttp) {
-    body +=
-      `<div class="detail-section full-width">`+
-        `<h3>HTTP Request</h3>`+
-        `<div class="http-req-bar">`+
-          (stage.HttpMethod ? `<span class="http-badge ${methodCls(stage.HttpMethod)}">${esc(stage.HttpMethod)}</span>` : '')+
-          `<span class="http-req-uri" title="${esc(stage.RequestUri)}">${esc(stage.RequestUri || '—')}</span>`+
-          (stage.HttpStatusCode != null
-            ? `<span class="http-req-status-pill ${sCls}">${stage.HttpStatusCode}</span>`
-            : '')+
-          (stage.DurationMs ? `<span class="http-req-duration">${fmtMs(stage.DurationMs)}</span>` : '')+
-          (stage.EnsureMode ? `<span class="http-req-duration">ensure: ${esc(stage.EnsureMode)}${stage.EnsureStatus ? ' ' + esc(stage.EnsureStatus) : ''}</span>` : '')+
-        `</div>`+
-      `</div>`;
+    body += `<div class="detail-section full-width"><h3>HTTP Request</h3>`;
+    body += `<div class="http-req-bar">`;
+    if (method) body += `<span class="http-badge ${methodCls(method)}">${esc(method)}</span>`;
+    body += `<span class="http-req-uri" title="${esc(stage.RequestUri)}">${esc(stage.RequestUri||'—')}</span>`;
+    if (stage.HttpStatusCode != null) body += `<span class="http-req-status-pill ${sCls}">${stage.HttpStatusCode}</span>`;
+    if (stage.DurationMs) body += `<span class="http-req-dur">${fmtMs(stage.DurationMs)}</span>`;
+    if (stage.EnsureMode) body += `<span class="http-req-dur">ensure: ${esc(stage.EnsureMode)}${stage.EnsureStatus?' → '+esc(stage.EnsureStatus):''}</span>`;
+    body += `</div></div>`;
   }
 
-  // ── Stage metadata + Stage flags ────────────────────────────────
-  body +=
-    `<div class="detail-section">`+
-      `<h3>Stage</h3>`+
-      `<div class="kv">`+
-        kv('Status', `<span class="${badgeCls(stage.Status)}">${esc(stage.Status)}</span>`)+
-        kv('Kind', esc(stage.StageKind))+
-        kv('Workflow', esc(stage.WorkflowName))+
-        (stage.RunIf      ? kv('Run if',  esc(stage.RunIf)) : '')+
-        (stage.JumpTarget ? kv('Jump to', esc(stage.JumpTarget)) : '')+
-        (stage.DelaySeconds ? kv('Delay', stage.DelaySeconds + 's') : '')+
-      `</div>`+
-    `</div>`+
-    `<div class="detail-section">`+
-      `<h3>Execution</h3>`+
-      `<div class="kv">`+
-        kv('Start offset', fmtMs(offsetMs))+
-        kv('Duration', fmtMs(stage.DurationMs))+
-        (stage.RetryCount ? kv('Retries', stage.RetryCount) : '')+
-        (stage.Mocked ? kv('Mocked', '<span style="color:var(--chip-mock-c)">&#10003; yes</span>') : '')+
-        (stage.ErrorMessage ? kv('Error', `<span style="color:#ef4444">${esc(stage.ErrorMessage)}</span>`) : '')+
-      `</div>`+
-    `</div>`;
+  // Stage info + Execution side by side
+  body += `<div class="detail-section"><h3>Stage</h3><div class="kv">`;
+  body += kv('Kind', esc(stage.StageKind));
+  if (stage.RunIf)       body += kv('Run if',  esc(stage.RunIf));
+  if (stage.JumpTarget)  body += kv('Jump to', esc(stage.JumpTarget));
+  if (stage.DelaySeconds)body += kv('Delay',   stage.DelaySeconds+'s');
+  if (stage.ErrorMessage)body += kv('Error', `<span style="color:#ef4444">${esc(stage.ErrorMessage)}</span>`);
+  body += `</div></div>`;
 
-  // ── Request / Response ───────────────────────────────────────────
-  if (hasReqDetail) {
-    body +=
-      `<div class="detail-section">`+
-        `<h3>Request Headers</h3>`+
-        `<div class="code-block">${esc(stage.RequestHeaders ? JSON.stringify(stage.RequestHeaders, null, 2) : '')}</div>`+
-      `</div>`+
-      `<div class="detail-section">`+
-        `<h3>Request Body</h3>`+
-        `<div class="code-block">${esc(tryPrettyJson(stage.RequestBody))}</div>`+
-      `</div>`;
+  body += `<div class="detail-section"><h3>Execution</h3><div class="kv">`;
+  body += kv('Start offset', fmtMs(offsetMs));
+  body += kv('Duration', fmtMs(stage.DurationMs));
+  if (stage.RetryCount) body += kv('Retries', stage.RetryCount);
+  body += `</div></div>`;
+
+  // Request / Response
+  if (hasReq) {
+    body += `<div class="detail-section"><h3>Request Headers</h3><div class="code-block">${esc(stage.RequestHeaders ? JSON.stringify(stage.RequestHeaders,null,2):'')}</div></div>`;
+    body += `<div class="detail-section"><h3>Request Body</h3><div class="code-block">${esc(tryPrettyJson(stage.RequestBody))}</div></div>`;
+  }
+  if (hasRes) {
+    body += `<div class="detail-section"><h3>Response Headers</h3><div class="code-block">${esc(stage.ResponseHeaders ? JSON.stringify(stage.ResponseHeaders,null,2):'')}</div></div>`;
+    body += `<div class="detail-section"><h3>Response Body</h3><div class="code-block">${esc(tryPrettyJson(stage.ResponseBody))}</div></div>`;
   }
 
-  if (hasResDetail) {
-    body +=
-      `<div class="detail-section">`+
-        `<h3>Response Headers</h3>`+
-        `<div class="code-block">${esc(stage.ResponseHeaders ? JSON.stringify(stage.ResponseHeaders, null, 2) : '')}</div>`+
-      `</div>`+
-      `<div class="detail-section">`+
-        `<h3>Response Body</h3>`+
-        `<div class="code-block">${esc(tryPrettyJson(stage.ResponseBody))}</div>`+
-      `</div>`;
-  }
-
+  // Output (key-value, full width)
   if (hasOutput) {
-    body += `<div class="detail-section full-width"><h3>Stage Output</h3><div class="call-output-grid">`;
+    body += `<div class="detail-section full-width"><h3>Stage Output</h3><div class="output-kv">`;
     Object.entries(stage.Output).forEach(([k,v]) => {
-      body += `<div class="call-output-row"><span class="call-output-k">${esc(k)}</span><span class="call-output-v">${esc(fmtOutputVal(v))}</span></div>`;
+      body += `<span class="out-k">${esc(k)}</span><span class="out-v">${esc(fmtVal(v))}</span>`;
     });
     body += `</div></div>`;
   }
@@ -685,15 +616,15 @@ function selectStage(idx) {
 function closeDetail() {
   document.getElementById('detail-panel').classList.add('hidden');
   document.querySelectorAll('.trace-row').forEach(r => r.classList.remove('selected'));
-  _selectedIdx = -1;
+  _selected = -1;
 }
 
-/* ── Load another file ─────────────────────────────────────────── */
+/* ── Load file ───────────────────────────────────────────────────── */
 document.getElementById('file-input').addEventListener('change', function(e) {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = function(ev) {
+  reader.onload = ev => {
     try { render(JSON.parse(ev.target.result)); }
     catch(err) { alert('Invalid JSON: ' + err.message); }
   };
@@ -701,7 +632,7 @@ document.getElementById('file-input').addEventListener('change', function(e) {
   this.value = '';
 });
 
-/* ── Boot ──────────────────────────────────────────────────────── */
+/* ── Boot ────────────────────────────────────────────────────────── */
 render(_initialData);
 </script>
 </body>
@@ -709,4 +640,3 @@ render(_initialData);
 """;
     }
 }
-
