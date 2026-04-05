@@ -266,15 +266,14 @@ public sealed class CliPipelineTests
         [
           {
             "version": "{{catalogVersion}}",
-            "baseUrl": {
-              {{baseUrlEntries}}
-            },
             "definitions": [
               {
                 "name": "accounts",
                 "swaggerUrl": "{{swaggerUrl}}",
                 "healthCheck": {{(healthCheck is null ? "null" : $"\"{healthCheck}\"")}},
-                "baseUrl": null,
+                "baseUrl": {
+                  {{baseUrlEntries}}
+                },
                 "basePath": null
               }
             ]
