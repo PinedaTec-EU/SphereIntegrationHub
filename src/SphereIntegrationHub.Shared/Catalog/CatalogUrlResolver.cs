@@ -26,6 +26,16 @@ public static class CatalogUrlResolver
 
     public static Uri ResolveSwaggerUri(ApiCatalogVersion version, ApiDefinition definition, string environment)
     {
+        // If the swagger URL is already absolute with no template tokens, return it directly
+        if (!definition.SwaggerUrl.Contains("{{", StringComparison.Ordinal) &&
+            Uri.TryCreate(definition.SwaggerUrl, UriKind.Absolute, out var directUri) &&
+            (directUri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+             directUri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
+             directUri.IsFile))
+        {
+            return directUri;
+        }
+
         if (!TryResolveBaseUrl(version, definition, environment, out var baseUrl))
         {
             throw new InvalidOperationException(
