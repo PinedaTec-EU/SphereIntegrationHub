@@ -56,22 +56,22 @@ internal static class WorkflowPathResolver
         var aliases = new List<string>();
         var normalized = path.Trim();
 
-        if (normalized.EndsWith(".workflow.yaml", StringComparison.OrdinalIgnoreCase))
+        if (normalized.EndsWith(WorkflowConstants.ExtWorkflow + WorkflowConstants.ExtYaml, StringComparison.OrdinalIgnoreCase))
         {
-            aliases.Add(normalized[..^".yaml".Length]);
+            aliases.Add(normalized[..^WorkflowConstants.ExtYaml.Length]);
         }
-        else if (normalized.EndsWith(".workflow.yml", StringComparison.OrdinalIgnoreCase))
+        else if (normalized.EndsWith(WorkflowConstants.ExtWorkflow + WorkflowConstants.ExtYml, StringComparison.OrdinalIgnoreCase))
         {
-            aliases.Add(normalized[..^".yml".Length]);
+            aliases.Add(normalized[..^WorkflowConstants.ExtYml.Length]);
         }
-        else if (normalized.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase) ||
-                 normalized.EndsWith(".yml", StringComparison.OrdinalIgnoreCase))
+        else if (normalized.EndsWith(WorkflowConstants.ExtYaml, StringComparison.OrdinalIgnoreCase) ||
+                 normalized.EndsWith(WorkflowConstants.ExtYml, StringComparison.OrdinalIgnoreCase))
         {
-            aliases.Add(Path.ChangeExtension(normalized, ".workflow"));
+            aliases.Add(Path.ChangeExtension(normalized, WorkflowConstants.ExtWorkflow));
         }
         else if (string.IsNullOrWhiteSpace(Path.GetExtension(normalized)))
         {
-            aliases.Add($"{normalized}.workflow");
+            aliases.Add($"{normalized}{WorkflowConstants.ExtWorkflow}");
         }
 
         return aliases.Distinct(StringComparer.OrdinalIgnoreCase);

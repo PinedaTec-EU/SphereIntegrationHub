@@ -40,9 +40,9 @@ public sealed class ListAvailableWorkflowsTool : IMcpTool
             });
         }
 
-        var workflowFiles = Directory.GetFiles(_adapter.WorkflowsPath, "*.workflow", SearchOption.AllDirectories)
-            .Concat(Directory.GetFiles(_adapter.WorkflowsPath, "*.yaml", SearchOption.AllDirectories))
-            .Concat(Directory.GetFiles(_adapter.WorkflowsPath, "*.yml", SearchOption.AllDirectories))
+        var workflowFiles = Directory.GetFiles(_adapter.WorkflowsPath, WorkflowConstants.GlobWorkflow, SearchOption.AllDirectories)
+            .Concat(Directory.GetFiles(_adapter.WorkflowsPath, WorkflowConstants.GlobYaml, SearchOption.AllDirectories))
+            .Concat(Directory.GetFiles(_adapter.WorkflowsPath, WorkflowConstants.GlobYml, SearchOption.AllDirectories))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
