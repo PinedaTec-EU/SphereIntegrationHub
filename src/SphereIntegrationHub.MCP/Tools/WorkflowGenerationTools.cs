@@ -612,7 +612,7 @@ public sealed class WriteWorkflowArtifactsTool : IMcpTool
     private string ResolveWfvarsTargetPath(string? wfvarsPath, string resolvedWorkflowPath, List<string> warnings)
     {
         var resolved = string.IsNullOrWhiteSpace(wfvarsPath)
-            ? Path.ChangeExtension(resolvedWorkflowPath, ".wfvars")
+            ? Path.ChangeExtension(resolvedWorkflowPath, WorkflowConstants.ExtWfvars)
             : ResolveTargetPath(wfvarsPath);
         var normalized = NormalizeWfvarsFileExtension(resolved);
         if (!resolved.Equals(normalized, StringComparison.OrdinalIgnoreCase))
@@ -637,10 +637,10 @@ public sealed class WriteWorkflowArtifactsTool : IMcpTool
     {
         var extension = Path.GetExtension(path);
         if (string.IsNullOrWhiteSpace(extension) ||
-            extension.Equals(".yaml", StringComparison.OrdinalIgnoreCase) ||
-            extension.Equals(".yml", StringComparison.OrdinalIgnoreCase))
+            extension.Equals(WorkflowConstants.ExtYaml, StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(WorkflowConstants.ExtYml, StringComparison.OrdinalIgnoreCase))
         {
-            return Path.ChangeExtension(path, ".workflow");
+            return Path.ChangeExtension(path, WorkflowConstants.ExtWorkflow);
         }
 
         return path;
@@ -649,9 +649,9 @@ public sealed class WriteWorkflowArtifactsTool : IMcpTool
     private static string NormalizeWfvarsFileExtension(string path)
     {
         var extension = Path.GetExtension(path);
-        if (!extension.Equals(".wfvars", StringComparison.OrdinalIgnoreCase))
+        if (!extension.Equals(WorkflowConstants.ExtWfvars, StringComparison.OrdinalIgnoreCase))
         {
-            return Path.ChangeExtension(path, ".wfvars");
+            return Path.ChangeExtension(path, WorkflowConstants.ExtWfvars);
         }
 
         return path;
@@ -922,7 +922,7 @@ public sealed class RepairWorkflowArtifactsTool : IMcpTool
             return Path.GetFullPath(Path.Combine(Path.GetDirectoryName(workflowPath) ?? string.Empty, wfvarsPathArg));
         }
 
-        return Path.ChangeExtension(workflowPath, ".wfvars");
+        return Path.ChangeExtension(workflowPath, WorkflowConstants.ExtWfvars);
     }
 
     private static void EnsureDirectory(string filePath)

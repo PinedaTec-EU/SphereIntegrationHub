@@ -30,7 +30,7 @@ public sealed class SwaggerReader
             !await TryPopulateSwaggerCacheAsync(version, apiName))
         {
             throw new FileNotFoundException(
-                $"Swagger cache not found: {swaggerPath}. Run refresh_swagger_cache_from_catalog or quick_refresh_swagger_cache.");
+                $"Swagger cache not found: {swaggerPath}. Run refresh_swagger_cache_from_catalog.");
         }
 
         var json = await File.ReadAllTextAsync(swaggerPath);

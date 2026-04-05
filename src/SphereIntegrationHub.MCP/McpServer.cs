@@ -96,7 +96,6 @@ public sealed class McpServer
         RegisterTool(new GenerateApiCatalogFileTool(_servicesAdapter));
         RegisterTool(new UpsertApiCatalogAndCacheTool(_servicesAdapter));
         RegisterTool(new RefreshSwaggerCacheFromCatalogTool(_servicesAdapter));
-        RegisterTool(new QuickRefreshSwaggerCacheTool(_servicesAdapter));
     }
 
     private void RegisterTool(IMcpTool tool)

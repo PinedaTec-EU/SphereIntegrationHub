@@ -218,7 +218,7 @@ public sealed class AnalyzeSwaggerCoverageTool : IMcpTool
         // Scan workflows if directory exists
         if (Directory.Exists(workflowsPath))
         {
-            var workflowFiles = Directory.GetFiles(workflowsPath, "*.yaml", SearchOption.AllDirectories);
+            var workflowFiles = Directory.GetFiles(workflowsPath, WorkflowConstants.GlobYaml, SearchOption.AllDirectories);
 
             foreach (var workflowFile in workflowFiles)
             {

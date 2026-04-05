@@ -6,6 +6,16 @@ using System.Text;
 
 namespace SphereIntegrationHub.MCP.Tools;
 
+internal static class TempWorkflowHelper
+{
+    internal static string Write(string workflowYaml)
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), $"sih-mcp-{Guid.NewGuid():N}.workflow");
+        File.WriteAllText(tempPath, workflowYaml, Encoding.UTF8);
+        return tempPath;
+    }
+}
+
 /// <summary>
 /// Validates a complete workflow YAML file
 /// </summary>
@@ -57,7 +67,7 @@ public sealed class ValidateWorkflowTool : IMcpTool
         {
             if (!string.IsNullOrWhiteSpace(workflowYaml))
             {
-                tempPath = WriteTemporaryWorkflow(workflowYaml);
+                tempPath = TempWorkflowHelper.Write(workflowYaml);
                 workflowPath = tempPath;
             }
             else if (!Path.IsPathRooted(workflowPath!))
@@ -103,12 +113,6 @@ public sealed class ValidateWorkflowTool : IMcpTool
         }
     }
 
-    private static string WriteTemporaryWorkflow(string workflowYaml)
-    {
-        var tempPath = Path.Combine(Path.GetTempPath(), $"sih-mcp-{Guid.NewGuid():N}.workflow");
-        File.WriteAllText(tempPath, workflowYaml, Encoding.UTF8);
-        return tempPath;
-    }
 }
 
 /// <summary>
@@ -238,7 +242,7 @@ public sealed class PlanWorkflowExecutionTool : IMcpTool
         {
             if (!string.IsNullOrWhiteSpace(workflowYaml))
             {
-                tempPath = WriteTemporaryWorkflow(workflowYaml);
+                tempPath = TempWorkflowHelper.Write(workflowYaml);
                 workflowPath = tempPath;
             }
             else if (!Path.IsPathRooted(workflowPath!))
@@ -272,10 +276,4 @@ public sealed class PlanWorkflowExecutionTool : IMcpTool
         }
     }
 
-    private static string WriteTemporaryWorkflow(string workflowYaml)
-    {
-        var tempPath = Path.Combine(Path.GetTempPath(), $"sih-mcp-{Guid.NewGuid():N}.workflow");
-        File.WriteAllText(tempPath, workflowYaml, Encoding.UTF8);
-        return tempPath;
-    }
 }
