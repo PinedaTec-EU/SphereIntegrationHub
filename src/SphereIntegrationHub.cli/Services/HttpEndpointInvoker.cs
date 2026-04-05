@@ -11,10 +11,12 @@ public sealed class HttpEndpointInvoker : IEndpointInvoker
     private readonly HttpClient _httpClient;
     private readonly HttpRequestBuilder _requestBuilder;
 
-    public HttpEndpointInvoker(HttpClient httpClient, TemplateResolver templateResolver)
+    public HttpEndpointInvoker(HttpClient httpClient, TemplateResolver templateResolver, IRequestBodyContractProcessor? requestBodyContractProcessor = null)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
-        _requestBuilder = new HttpRequestBuilder(templateResolver ?? throw new ArgumentNullException(nameof(templateResolver)));
+        _requestBuilder = new HttpRequestBuilder(
+            templateResolver ?? throw new ArgumentNullException(nameof(templateResolver)),
+            requestBodyContractProcessor);
     }
 
     public async Task<EndpointInvocationResult> InvokeAsync(

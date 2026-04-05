@@ -57,7 +57,7 @@ stages:
 
   - name: "attach-tag"
     kind: "Endpoint"
-    runIf: "{{input.tag}} != null"
+    runIf: "!empty({{input.tag}}) && {{global:accountAppId}} != null"
     apiRef: "accounts"
     endpoint: "/api/accounts/{{global:organizationAppId}}/tag"
     httpVerb: "POST"

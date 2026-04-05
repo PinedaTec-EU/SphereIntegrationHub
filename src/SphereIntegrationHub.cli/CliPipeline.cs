@@ -87,6 +87,7 @@ internal sealed class CliPipeline : ICliPipeline
         }
 
         EmitBaseUrlInfo(selectedVersion, parseResult.Environment!, messages);
+        await EmitApiHealthChecksAsync(workflowDocument, selectedVersion, parseResult.Environment!, messages, cancellationToken);
 
         if (!await TryCacheSwaggerAndValidateEndpoints(parseResult, workflowDocument, selectedVersion, messages, cancellationToken))
         {
@@ -98,7 +99,8 @@ internal sealed class CliPipeline : ICliPipeline
             return BuildDryRunResult(workflowDocument, workflowLoader, parseResult, stopwatch, messages);
         }
 
-        return await ExecuteWorkflowAsync(parseResult, workflowDocument, selectedVersion, varsOverrideActive, reportOptions, messages, cancellationToken);
+        var cacheRoot = Path.Combine(_pathResolver.ResolveDefaultCacheRoot(parseResult.WorkflowPath), selectedVersion.Version);
+        return await ExecuteWorkflowAsync(parseResult, workflowDocument, selectedVersion, cacheRoot, varsOverrideActive, reportOptions, messages, cancellationToken);
     }
 
     private void EmitPreamble(InlineArguments parseResult, List<CliRunMessage> messages)
@@ -273,13 +275,41 @@ internal sealed class CliPipeline : ICliPipeline
 
     private void EmitBaseUrlInfo(ApiCatalogVersion selectedVersion, string environment, List<CliRunMessage> messages)
     {
-        if (ApiBaseUrlResolver.TryResolveBaseUrl(selectedVersion.BaseUrl, environment, out var defaultBaseUrl))
+        AddInfo(messages, $"Base url: [per-definition, env={environment}]");
+    }
+
+    private async Task EmitApiHealthChecksAsync(
+        WorkflowDocument workflowDocument,
+        ApiCatalogVersion selectedVersion,
+        string environment,
+        List<CliRunMessage> messages,
+        CancellationToken cancellationToken)
+    {
+        var referencedDefinitions = GetReferencedApiDefinitions(workflowDocument.Definition, selectedVersion);
+        if (referencedDefinitions.Count == 0)
         {
-            AddInfo(messages, $"Base url: {defaultBaseUrl}");
+            return;
         }
-        else
+
+        using var httpClient = _serviceFactory.CreateHttpClient();
+        var healthCheckProbe = _serviceFactory.CreateApiHealthCheckProbe();
+        var results = await healthCheckProbe.ProbeAsync(httpClient, selectedVersion, referencedDefinitions, environment, cancellationToken);
+        if (results.Count == 0)
         {
-            AddInfo(messages, "Base url: [per-definition overrides]");
+            return;
+        }
+
+        AddInfo(messages, "API health checks:");
+        foreach (var result in results)
+        {
+            var target = result.ResolvedUrl ?? result.ConfiguredHealthCheck ?? "(unresolved)";
+            if (result.IsHealthy)
+            {
+                AddInfo(messages, $"  OK {result.DefinitionName} -> {target}");
+                continue;
+            }
+
+            AddInfo(messages, $"  Warning {result.DefinitionName} -> {target}. {result.Message}");
         }
     }
 
@@ -293,6 +323,9 @@ internal sealed class CliPipeline : ICliPipeline
         try
         {
             var cacheRoot = Path.Combine(_pathResolver.ResolveDefaultCacheRoot(parseResult.WorkflowPath), selectedVersion.Version);
+            AddInfo(messages, parseResult.RefreshCache
+                ? "Swagger definitions: (refreshing from source)"
+                : "Swagger definitions: (analyzing cache)");
             using var httpClient = _serviceFactory.CreateHttpClient();
             var cacheService = _serviceFactory.CreateApiSwaggerCacheService(httpClient);
             await cacheService.CacheSwaggerAsync(selectedVersion, workflowDocument.Definition, parseResult.Environment!, cacheRoot, parseResult.RefreshCache, parseResult.Verbose, cancellationToken);
@@ -318,6 +351,8 @@ internal sealed class CliPipeline : ICliPipeline
         catch (Exception ex)
         {
             AddError(messages, $"Failed to cache swagger definitions: {ex.Message}");
+            AddInfo(messages, "");
+            AddError(messages, "Workflow aborted!");
             return false;
         }
     }
@@ -389,6 +424,7 @@ internal sealed class CliPipeline : ICliPipeline
         InlineArguments parseResult,
         WorkflowDocument workflowDocument,
         ApiCatalogVersion selectedVersion,
+        string cacheRoot,
         bool varsOverrideActive,
         WorkflowExecutionReportOptions reportOptions,
         List<CliRunMessage> messages,
@@ -399,7 +435,14 @@ internal sealed class CliPipeline : ICliPipeline
             using var httpClient = _serviceFactory.CreateHttpClient();
             var systemTimeProvider = _serviceFactory.CreateSystemTimeProvider();
             var dynamicValueService = _serviceFactory.CreateDynamicValueService(systemTimeProvider);
-            var executor = _serviceFactory.CreateWorkflowExecutor(httpClient, dynamicValueService, systemTimeProvider, reportOptions);
+            var requestBodyContractProcessor = new RequestBodyContractProcessor(
+                RequestContractRegistry.Load(workflowDocument.Definition, selectedVersion, cacheRoot));
+            var executor = _serviceFactory.CreateWorkflowExecutor(
+                httpClient,
+                dynamicValueService,
+                systemTimeProvider,
+                reportOptions,
+                requestBodyContractProcessor);
             var result = await executor.ExecuteAsync(
                 workflowDocument,
                 selectedVersion,
@@ -478,6 +521,26 @@ internal sealed class CliPipeline : ICliPipeline
 
     private static void AddError(List<CliRunMessage> messages, string text)
         => messages.Add(new CliRunMessage(CliRunMessageKind.Error, text));
+
+    private static IReadOnlyList<ApiDefinition> GetReferencedApiDefinitions(
+        WorkflowDefinition workflowDefinition,
+        ApiCatalogVersion catalogVersion)
+    {
+        if (workflowDefinition.References?.Apis is not { Count: > 0 })
+        {
+            return Array.Empty<ApiDefinition>();
+        }
+
+        var definitionNames = workflowDefinition.References.Apis
+            .Select(item => item.Definition)
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return catalogVersion.Definitions
+            .Where(item => definitionNames.Contains(item.Name))
+            .ToList();
+    }
 
     private static void EmitVarsSources(VarsFileResolution resolution, List<CliRunMessage> messages)
     {

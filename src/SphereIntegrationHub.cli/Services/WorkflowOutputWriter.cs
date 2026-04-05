@@ -10,6 +10,7 @@ public sealed class WorkflowOutputWriter : IWorkflowOutputWriter
     public async Task<string?> WriteOutputAsync(
         WorkflowDefinition definition,
         WorkflowDocument document,
+        string executionId,
         IReadOnlyDictionary<string, string> outputs,
         CancellationToken cancellationToken)
     {
@@ -24,8 +25,7 @@ public sealed class WorkflowOutputWriter : IWorkflowOutputWriter
         var safeName = definition.Name.Replace(' ', '-');
         var outputDirectory = Path.Combine(baseDirectory, "output");
         Directory.CreateDirectory(outputDirectory);
-        var suffix = Ulid.NewUlid().ToString();
-        var fileName = $"{safeName}.{definition.Id}.{suffix}.workflow.output";
+        var fileName = $"{safeName}.{executionId}.workflow.output";
         var outputFilePath = Path.Combine(outputDirectory, fileName);
 
         var outputPayload = BuildOutputPayload(outputs, definition.EndStage?.OutputJson ?? true);

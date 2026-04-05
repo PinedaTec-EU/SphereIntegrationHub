@@ -1,0 +1,14 @@
+{
+  "accounts": [
+    {
+      "login": "seed.user.001",
+      "password": "P@ssw0rd-001",
+      "organizationAppId": "MTCW"
+    },
+    {
+      "login": "seed.user.002",
+      "password": "P@ssw0rd-002",
+      "organizationAppId": "MTCW"
+    }
+  ]
+}

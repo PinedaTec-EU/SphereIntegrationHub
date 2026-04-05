@@ -49,6 +49,14 @@ public class McpServerIntegrationTests : IDisposable
         response.Id.Should().Be(1);
         response.Error.Should().BeNull();
         response.Result.Should().NotBeNull();
+
+        var resultJson = ToJson(response.Result!);
+        resultJson.TryGetProperty("protocolVersion", out var protocolVersion).Should().BeTrue();
+        resultJson.TryGetProperty("capabilities", out var capabilities).Should().BeTrue();
+        resultJson.TryGetProperty("serverInfo", out var serverInfo).Should().BeTrue();
+        protocolVersion.GetString().Should().Be("2024-11-05");
+        serverInfo.TryGetProperty("name", out var serverName).Should().BeTrue();
+        serverName.GetString().Should().Be("SphereIntegrationHub.MCP");
     }
 
     [Fact]
@@ -70,6 +78,18 @@ public class McpServerIntegrationTests : IDisposable
         response.Should().NotBeNull();
         response.Error.Should().BeNull();
         response.Result.Should().NotBeNull();
+
+        var resultJson = ToJson(response.Result!);
+        resultJson.TryGetProperty("tools", out var tools).Should().BeTrue();
+        tools.ValueKind.Should().Be(JsonValueKind.Array);
+        tools.GetArrayLength().Should().BeGreaterThan(10);
+
+        var toolNames = tools.EnumerateArray().Select(item => item.GetProperty("name").GetString()).ToList();
+        toolNames.Should().Contain("list_api_catalog_versions");
+        toolNames.Should().Contain("validate_workflow");
+        toolNames.Should().Contain("generate_workflow_skeleton");
+
+        tools.EnumerateArray().All(item => item.TryGetProperty("inputSchema", out _)).Should().BeTrue();
     }
 
     [Fact]
@@ -95,6 +115,20 @@ public class McpServerIntegrationTests : IDisposable
         response.Should().NotBeNull();
         response.Error.Should().BeNull();
         response.Result.Should().NotBeNull();
+
+        var resultJson = ToJson(response.Result!);
+        resultJson.TryGetProperty("content", out var content).Should().BeTrue();
+        content.ValueKind.Should().Be(JsonValueKind.Array);
+        content.GetArrayLength().Should().Be(1);
+
+        var firstContent = content[0];
+        firstContent.GetProperty("type").GetString().Should().Be("text");
+        var text = firstContent.GetProperty("text").GetString();
+        text.Should().NotBeNullOrWhiteSpace();
+
+        var toolPayload = JsonDocument.Parse(text!).RootElement;
+        toolPayload.TryGetProperty("versions", out var versions).Should().BeTrue();
+        versions.GetArrayLength().Should().BeGreaterThan(0);
     }
 
     [Fact]
@@ -440,7 +474,7 @@ public class McpServerIntegrationTests : IDisposable
         responses.Should().HaveCount(1);
         responses[0].Error.Should().NotBeNull();
         responses[0].Error!.Code.Should().Be(McpErrorCodes.InvalidRequest);
-        responses[0].Error.Message.Should().Contain("too large");
+        responses[0].Error!.Message.Should().Contain("too large");
     }
 
     private List<McpResponse> ReadResponses(MemoryStream output)
@@ -462,6 +496,12 @@ public class McpServerIntegrationTests : IDisposable
         }
 
         return responses;
+    }
+
+    private JsonElement ToJson(object value)
+    {
+        var json = JsonSerializer.Serialize(value, _jsonOptions);
+        return JsonDocument.Parse(json).RootElement;
     }
 
     public void Dispose()

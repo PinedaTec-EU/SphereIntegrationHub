@@ -106,6 +106,7 @@ public sealed class CliAppTests
     {
         public TextWriter Out { get; } = new StringWriter();
         public TextWriter Error { get; } = new StringWriter();
+        public bool UseColors => false;
     }
 
     private sealed class ThrowingServiceFactory : ICliServiceFactory
@@ -117,6 +118,7 @@ public sealed class CliAppTests
         public VarsFileLoader CreateVarsFileLoader() => throw new InvalidOperationException("Unexpected factory call");
         public WorkflowValidator CreateWorkflowValidator(WorkflowLoader workflowLoader) => throw new InvalidOperationException("Unexpected factory call");
         public ApiCatalogReader CreateApiCatalogReader() => throw new InvalidOperationException("Unexpected factory call");
+        public ApiHealthCheckProbe CreateApiHealthCheckProbe() => throw new InvalidOperationException("Unexpected factory call");
         public ApiSwaggerCacheService CreateApiSwaggerCacheService(HttpClient httpClient) => throw new InvalidOperationException("Unexpected factory call");
         public ApiEndpointValidator CreateApiEndpointValidator() => throw new InvalidOperationException("Unexpected factory call");
         public WorkflowPlanner CreateWorkflowPlanner(WorkflowLoader workflowLoader) => throw new InvalidOperationException("Unexpected factory call");
@@ -124,7 +126,8 @@ public sealed class CliAppTests
             HttpClient httpClient,
             DynamicValueService dynamicValueService,
             ISystemTimeProvider systemTimeProvider,
-            WorkflowExecutionReportOptions reportOptions)
+            WorkflowExecutionReportOptions reportOptions,
+            IRequestBodyContractProcessor? requestBodyContractProcessor = null)
             => throw new InvalidOperationException("Unexpected factory call");
     }
 }

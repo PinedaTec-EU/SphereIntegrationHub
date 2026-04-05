@@ -340,10 +340,13 @@ runIf: "{{context.tokenId}} == null"
 ```
 
 Supported operators include `==`, `!=`, `>`, `>=`, `<`, `<=`, `in`, `not in`, `&&`, `||`, and `!`.
+Parentheses are supported, and comparisons against unresolved tokens are safe: missing tokens behave like `null` instead of failing the stage condition.
 
 Supported helper functions:
 
 - `exists(value)`
+- `empty(value)`
+- `coalesce(value, fallback, ...)`
 - `isEmptyJson(value)`
 - `jsonLength(value)`
 - `first(value)`
@@ -358,4 +361,6 @@ runIf: "{{stage:create-account.output.http_status}} in [500, 502, 503]"
 runIf: "{{stage:create-account.output.http_status}} not in [500, 502, 503]"
 runIf: "jsonLength({{input.items}}) > 0"
 runIf: "exists(first({{input.items}})) && !isEmptyJson({{response.body}})"
+runIf: "coalesce({{stage:create-account.output.accountId}}, {{context.accountId}}, 'pending') != 'pending'"
+runIf: "empty({{stage:create-account.output.accountId}}) || ({{stage:create-account.output.http_status}} == 200 && {{context.tokenId}} == null)"
 ```

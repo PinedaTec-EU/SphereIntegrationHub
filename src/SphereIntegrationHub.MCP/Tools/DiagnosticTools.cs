@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 using SphereIntegrationHub.MCP.Core;
 using SphereIntegrationHub.MCP.Services;
 using SphereIntegrationHub.MCP.Services.Integration;
@@ -339,5 +341,219 @@ stages:
     resilience-ref: standard_api_policy
     # ... rest of stage config"
         };
+    }
+}
+
+/// <summary>
+/// Lists execution report artifacts for a workflow
+/// </summary>
+[McpTool("list_execution_reports", "Lists available execution report artifacts (.workflow.report.json) for a workflow or directory", Category = "Diagnostic", Level = "L1")]
+public sealed class ListExecutionReportsTool : IMcpTool
+{
+    public ListExecutionReportsTool(SihServicesAdapter adapter) { }
+
+    public string Name => "list_execution_reports";
+    public string Description => "Lists available execution report artifacts (.workflow.report.json) in a workflow output directory, ordered by most recent first";
+
+    public object InputSchema => new
+    {
+        type = "object",
+        properties = new
+        {
+            workflowPath = new
+            {
+                type = "string",
+                description = "Path to the workflow file or its parent directory. SIH looks for reports in the sibling 'output/' folder."
+            },
+            outputDir = new
+            {
+                type = "string",
+                description = "Explicit path to the output directory (alternative to workflowPath)."
+            },
+            limit = new
+            {
+                type = "integer",
+                description = "Maximum number of reports to return (default: 10)."
+            }
+        },
+        required = Array.Empty<string>()
+    };
+
+    public Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
+    {
+        var workflowPath = arguments?.GetValueOrDefault("workflowPath")?.ToString();
+        var outputDir    = arguments?.GetValueOrDefault("outputDir")?.ToString();
+        var limit        = int.TryParse(arguments?.GetValueOrDefault("limit")?.ToString(), out var l) ? l : 10;
+
+        string resolvedOutputDir;
+        if (!string.IsNullOrWhiteSpace(outputDir))
+        {
+            resolvedOutputDir = outputDir;
+        }
+        else if (!string.IsNullOrWhiteSpace(workflowPath))
+        {
+            var baseDir = File.Exists(workflowPath)
+                ? Path.GetDirectoryName(Path.GetFullPath(workflowPath))!
+                : Path.GetFullPath(workflowPath);
+            resolvedOutputDir = Path.Combine(baseDir, "output");
+        }
+        else
+        {
+            return Task.FromResult<object>(new { error = "Provide workflowPath or outputDir." });
+        }
+
+        if (!Directory.Exists(resolvedOutputDir))
+        {
+            return Task.FromResult<object>(new
+            {
+                outputDir = resolvedOutputDir,
+                reports = Array.Empty<object>(),
+                message = "Output directory does not exist. Run the workflow first with --report-format json."
+            });
+        }
+
+        var files = Directory.GetFiles(resolvedOutputDir, "*.workflow.report.json")
+            .Select(f => new FileInfo(f))
+            .OrderByDescending(f => f.LastWriteTimeUtc)
+            .Take(limit)
+            .ToArray();
+
+        var reports = files.Select(f =>
+        {
+            try
+            {
+                using var stream = f.OpenRead();
+                using var doc = JsonDocument.Parse(stream);
+                var root = doc.RootElement;
+                return (object)new
+                {
+                    path           = f.FullName,
+                    fileName       = f.Name,
+                    executionId    = root.TryGetProperty("ExecutionId",    out var eid)  ? eid.GetString()  : null,
+                    workflowName   = root.TryGetProperty("WorkflowName",   out var wn)   ? wn.GetString()   : null,
+                    result         = root.TryGetProperty("Result",         out var res)  ? res.GetString()  : null,
+                    durationMs     = root.TryGetProperty("DurationMs",     out var dur)  ? dur.GetInt64()   : (long?)null,
+                    startedAtUtc   = root.TryGetProperty("StartedAtUtc",   out var sat)  ? sat.GetString()  : null,
+                    environment    = root.TryGetProperty("Environment",    out var env)  ? env.GetString()  : null,
+                    lastModifiedUtc = f.LastWriteTimeUtc.ToString("o")
+                };
+            }
+            catch
+            {
+                return (object)new { path = f.FullName, fileName = f.Name, error = "Could not parse file." };
+            }
+        }).ToArray();
+
+        return Task.FromResult<object>(new
+        {
+            outputDir = resolvedOutputDir,
+            total     = files.Length,
+            reports
+        });
+    }
+}
+
+/// <summary>
+/// Reads and summarises a single execution report artifact
+/// </summary>
+[McpTool("read_execution_report", "Reads a workflow execution report JSON artifact and returns its full content with a structured summary", Category = "Diagnostic", Level = "L1")]
+public sealed class ReadExecutionReportTool : IMcpTool
+{
+    public ReadExecutionReportTool(SihServicesAdapter adapter) { }
+
+    public string Name => "read_execution_report";
+    public string Description => "Reads a .workflow.report.json artifact and returns execution metadata, metrics, and per-stage details";
+
+    public object InputSchema => new
+    {
+        type = "object",
+        properties = new
+        {
+            reportPath = new
+            {
+                type = "string",
+                description = "Absolute or relative path to the .workflow.report.json file."
+            },
+            includeHttpBodies = new
+            {
+                type = "boolean",
+                description = "Whether to include request/response bodies in stage details (default: false, they can be large)."
+            }
+        },
+        required = new[] { "reportPath" }
+    };
+
+    public Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
+    {
+        var reportPath = arguments?.GetValueOrDefault("reportPath")?.ToString()
+            ?? throw new ArgumentException("reportPath is required");
+        var includeHttpBodies = arguments?.GetValueOrDefault("includeHttpBodies")?.ToString()?.ToLowerInvariant() == "true";
+
+        if (!File.Exists(reportPath))
+        {
+            return Task.FromResult<object>(new { error = $"File not found: {reportPath}" });
+        }
+
+        try
+        {
+            using var stream = File.OpenRead(reportPath);
+            using var doc    = JsonDocument.Parse(stream);
+            var root = doc.RootElement;
+
+            // Build stage summaries
+            var stages = root.TryGetProperty("Stages", out var stagesEl)
+                ? stagesEl.EnumerateArray().Select(s =>
+                {
+                    var detail = new Dictionary<string, object?>
+                    {
+                        ["stageName"]     = s.TryGetProperty("StageName",     out var sn)  ? sn.GetString()     : null,
+                        ["workflowName"]  = s.TryGetProperty("WorkflowName",  out var wn)  ? wn.GetString()     : null,
+                        ["stageKind"]     = s.TryGetProperty("StageKind",     out var sk)  ? sk.GetString()     : null,
+                        ["depth"]         = s.TryGetProperty("Depth",         out var dp)  ? dp.GetInt32()      : 0,
+                        ["status"]        = s.TryGetProperty("Status",        out var st)  ? st.GetString()     : null,
+                        ["durationMs"]    = s.TryGetProperty("DurationMs",    out var dur) ? dur.GetInt64()     : (long?)null,
+                        ["httpMethod"]    = s.TryGetProperty("HttpMethod",    out var hm)  ? hm.GetString()     : null,
+                        ["requestUri"]    = s.TryGetProperty("RequestUri",    out var ru)  ? ru.GetString()     : null,
+                        ["httpStatusCode"]= s.TryGetProperty("HttpStatusCode",out var hsc) ? hsc.GetInt32()     : (int?)null,
+                        ["retryCount"]    = s.TryGetProperty("RetryCount",    out var rc)  ? rc.GetInt32()      : 0,
+                        ["mocked"]        = s.TryGetProperty("Mocked",        out var mk)  ? mk.GetBoolean()    : false,
+                        ["errorMessage"]  = s.TryGetProperty("ErrorMessage",  out var em)  ? em.GetString()     : null,
+                        ["jumpTarget"]    = s.TryGetProperty("JumpTarget",    out var jt)  ? jt.GetString()     : null,
+                        ["output"]        = s.TryGetProperty("Output",        out var op)  ? JsonSerializer.Deserialize<object>(op.GetRawText()) : null,
+                    };
+
+                    if (includeHttpBodies)
+                    {
+                        detail["requestBody"]  = s.TryGetProperty("RequestBody",  out var rb)  ? rb.GetString() : null;
+                        detail["responseBody"] = s.TryGetProperty("ResponseBody", out var rsb) ? rsb.GetString() : null;
+                    }
+
+                    return (object)detail;
+                }).ToArray()
+                : Array.Empty<object>();
+
+            var summary = new
+            {
+                executionId   = root.TryGetProperty("ExecutionId",   out var eid) ? eid.GetString()  : null,
+                workflowName  = root.TryGetProperty("WorkflowName",  out var wn2) ? wn2.GetString()  : null,
+                workflowVersion = root.TryGetProperty("WorkflowVersion", out var wv) ? wv.GetString() : null,
+                environment   = root.TryGetProperty("Environment",   out var env) ? env.GetString()  : null,
+                result        = root.TryGetProperty("Result",        out var res) ? res.GetString()  : null,
+                durationMs    = root.TryGetProperty("DurationMs",    out var dur) ? dur.GetInt64()   : (long?)null,
+                startedAtUtc  = root.TryGetProperty("StartedAtUtc",  out var sat) ? sat.GetString()  : null,
+                finishedAtUtc = root.TryGetProperty("FinishedAtUtc", out var fat) ? fat.GetString()  : null,
+                errorMessage  = root.TryGetProperty("ErrorMessage",  out var em2) ? em2.GetString()  : null,
+                mocked        = root.TryGetProperty("Mocked",        out var mk2) && mk2.GetBoolean(),
+                metrics       = root.TryGetProperty("Metrics",       out var met) ? JsonSerializer.Deserialize<object>(met.GetRawText()) : null,
+                output        = root.TryGetProperty("Output",        out var outp) ? JsonSerializer.Deserialize<object>(outp.GetRawText()) : null,
+                stages
+            };
+
+            return Task.FromResult<object>(summary);
+        }
+        catch (Exception ex)
+        {
+            return Task.FromResult<object>(new { error = $"Failed to parse report: {ex.Message}" });
+        }
     }
 }

@@ -12,7 +12,7 @@ internal sealed class CliPathResolver : ICliPathResolver
         }
 
         var fullPath = Path.GetFullPath(path);
-        return Path.GetRelativePath(AppContext.BaseDirectory, fullPath);
+        return Path.GetRelativePath(Directory.GetCurrentDirectory(), fullPath);
     }
 
     public string? ResolveVarsFilePath(string? varsFilePath, string workflowPath, out string? message, out string? error)

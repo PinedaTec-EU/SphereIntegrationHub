@@ -30,13 +30,9 @@ public sealed class ApiSwaggerCacheServiceLoggerTests
         var catalog = new ApiCatalogVersion
         {
             Version = "v1",
-            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["test"] = "https://example.test"
-            },
             Definitions = new List<ApiDefinition>
             {
-                new ApiDefinition { Name = "accounts", SwaggerUrl = new Uri(sourcePath).AbsoluteUri }
+                new ApiDefinition { Name = "accounts", SwaggerUrl = new Uri(sourcePath).AbsoluteUri, BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["test"] = "https://example.test" } }
             }
         };
 

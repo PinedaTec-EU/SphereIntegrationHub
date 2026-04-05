@@ -91,6 +91,7 @@ public class CatalogToolsTests : IDisposable
         versionEl.GetString().Should().Be("3.10");
         apisEl.GetArrayLength().Should().BeGreaterThan(0);
         countEl.GetInt32().Should().BeGreaterThan(0);
+        apisEl[0].GetProperty("healthCheck").GetString().Should().Be("/health/accounts");
     }
 
     [Fact]
@@ -146,6 +147,21 @@ public class CatalogToolsTests : IDisposable
     }
 
     [Fact]
+    public async Task GetApiEndpoints_WithUnknownApi_ThrowsException()
+    {
+        // Arrange
+        var tool = new GetApiEndpointsTool(_adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["version"] = "3.10",
+            ["apiName"] = "UnknownApi"
+        };
+
+        // Act & Assert
+        await Assert.ThrowsAnyAsync<Exception>(() => tool.ExecuteAsync(args));
+    }
+
+    [Fact]
     public async Task GetApiEndpoints_WithoutCachedSwagger_AutoLoadsFromHtmlSwaggerUrlFallback()
     {
         var adapter = new SihServicesAdapter(new SihPathOptions
@@ -165,12 +181,12 @@ public class CatalogToolsTests : IDisposable
 [
   {
     "version": "1.0",
-    "baseUrl": { "local": "http://localhost" },
     "definitions": [
       {
         "name": "AdminApi",
         "basePath": "/api/admin",
-        "swaggerUrl": "__SWAGGER__"
+        "swaggerUrl": "__SWAGGER__",
+        "baseUrl": { "local": "http://localhost" }
       }
     ]
   }
@@ -250,6 +266,28 @@ public class CatalogToolsTests : IDisposable
 
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentException>(() => tool.ExecuteAsync(args));
+    }
+
+    [Fact]
+    public async Task GetEndpointSchema_WithLowercaseHttpVerb_Works()
+    {
+        // Arrange
+        var tool = new GetEndpointSchemaTool(_adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["version"] = "3.10",
+            ["apiName"] = "AccountsAPI",
+            ["endpoint"] = "/api/accounts",
+            ["httpVerb"] = "get"
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.TryGetProperty("httpVerb", out var verbEl).Should().BeTrue();
+        verbEl.GetString().Should().Be("GET");
     }
 
     [Fact]

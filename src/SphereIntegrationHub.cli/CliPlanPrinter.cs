@@ -70,7 +70,7 @@ internal sealed class CliPlanPrinter : ICliPlanPrinter
                         writer.WriteLine($"{prefix}    Inputs:");
                         foreach (var input in stage.Inputs)
                         {
-                            writer.WriteLine($"{prefix}      {input.Key}: {input.Value}");
+                            writer.WriteLine($"{prefix}      {input.Key}: {WorkflowStageInputValueHelper.ToDisplayString(input.Value)}");
                         }
                     }
                 }
