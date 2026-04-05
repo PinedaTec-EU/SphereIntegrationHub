@@ -3,6 +3,11 @@ using System.Text.Json;
 using SphereIntegrationHub.Definitions;
 using SphereIntegrationHub.Services.Interfaces;
 
+// path → (verb → operation)
+using SwaggerVerbMap = System.Collections.Generic.Dictionary<string, SphereIntegrationHub.Services.SwaggerOperation>;
+// apiName → SwaggerVerbMap per path
+using SwaggerPathMap = System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, SphereIntegrationHub.Services.SwaggerOperation>>;
+
 namespace SphereIntegrationHub.Services;
 
 public sealed class ApiEndpointValidator
@@ -157,13 +162,13 @@ public sealed class ApiEndpointValidator
         }
     }
 
-    private static Dictionary<string, Dictionary<string, Dictionary<string, SwaggerOperation>>> LoadSwaggerOperations(
+    private static Dictionary<string, SwaggerPathMap> LoadSwaggerOperations(
         ApiCatalogVersion catalogVersion,
         Dictionary<string, string> apiLookup,
         string cacheRoot,
         List<string> errors)
     {
-        var result = new Dictionary<string, Dictionary<string, Dictionary<string, SwaggerOperation>>>(StringComparer.OrdinalIgnoreCase);
+        var result = new Dictionary<string, SwaggerPathMap>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var definitionName in apiLookup.Values.Distinct(StringComparer.OrdinalIgnoreCase))
         {
@@ -320,9 +325,9 @@ public sealed class ApiEndpointValidator
     }
 
     private static bool TryFindByNormalizedPath(
-        Dictionary<string, Dictionary<string, SwaggerOperation>> paths,
+        SwaggerPathMap paths,
         string endpoint,
-        out Dictionary<string, SwaggerOperation> methods,
+        out SwaggerVerbMap methods,
         out string? matchedPath)
     {
         var normalizedEndpoint = NormalizePath(endpoint);
@@ -336,7 +341,7 @@ public sealed class ApiEndpointValidator
             }
         }
 
-        methods = new Dictionary<string, SwaggerOperation>(StringComparer.OrdinalIgnoreCase);
+        methods = new SwaggerVerbMap(StringComparer.OrdinalIgnoreCase);
         matchedPath = null;
         return false;
     }
@@ -366,10 +371,10 @@ public sealed class ApiEndpointValidator
     }
 
     private static bool TryFindEndpointMatch(
-        Dictionary<string, Dictionary<string, SwaggerOperation>> paths,
+        SwaggerPathMap paths,
         string endpoint,
         string? basePath,
-        out Dictionary<string, SwaggerOperation> methods,
+        out SwaggerVerbMap methods,
         out string? matchedPath)
     {
         if (paths.TryGetValue(endpoint, out var directMethods) && directMethods is not null)
@@ -387,7 +392,7 @@ public sealed class ApiEndpointValidator
         var endpointWithBasePath = CombinePath(basePath, endpoint);
         if (string.Equals(endpointWithBasePath, endpoint, StringComparison.OrdinalIgnoreCase))
         {
-            methods = new Dictionary<string, SwaggerOperation>(StringComparer.OrdinalIgnoreCase);
+            methods = new SwaggerVerbMap(StringComparer.OrdinalIgnoreCase);
             matchedPath = null;
             return false;
         }
@@ -441,7 +446,8 @@ public sealed class ApiEndpointValidator
         return count;
     }
 
-    private sealed record SwaggerOperation(List<SwaggerParameter> Parameters);
-
-    private sealed record SwaggerParameter(string Name, string Location, bool Required);
 }
+
+internal sealed record SwaggerOperation(List<SwaggerParameter> Parameters);
+
+internal sealed record SwaggerParameter(string Name, string Location, bool Required);

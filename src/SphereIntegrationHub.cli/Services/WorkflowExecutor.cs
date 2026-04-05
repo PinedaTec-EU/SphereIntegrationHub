@@ -362,7 +362,7 @@ public sealed class WorkflowExecutor
                                 _logger.Info($"{indent}{FormatStageTag(definition.Name, stage.Name)} jump target: {jumpTarget}.");
                             }
 
-                            if (string.Equals(jumpTarget, "endStage", StringComparison.OrdinalIgnoreCase))
+                            if (string.Equals(jumpTarget, WorkflowConstants.EndStage, StringComparison.OrdinalIgnoreCase))
                             {
                                 break;
                             }

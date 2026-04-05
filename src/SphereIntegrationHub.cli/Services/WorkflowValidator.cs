@@ -56,16 +56,7 @@ public sealed class WorkflowValidator
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var input in inputs)
         {
-            if (string.IsNullOrWhiteSpace(input.Name))
-            {
-                errors.Add("Input name is required.");
-                continue;
-            }
-
-            if (!names.Add(input.Name))
-            {
-                errors.Add($"Duplicate input name '{input.Name}'.");
-            }
+            CheckUniqueName(input.Name, names, "Input", errors);
         }
     }
 
@@ -79,15 +70,9 @@ public sealed class WorkflowValidator
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var variable in initStage.Variables)
         {
-            if (string.IsNullOrWhiteSpace(variable.Name))
+            if (!CheckUniqueName(variable.Name, names, "Init-stage variable", errors))
             {
-                errors.Add("Init-stage variable name is required.");
                 continue;
-            }
-
-            if (!names.Add(variable.Name))
-            {
-                errors.Add($"Duplicate init-stage variable name '{variable.Name}'.");
             }
 
             if (!string.IsNullOrWhiteSpace(variable.Value) && HasVariableRangeConfig(variable))
@@ -103,6 +88,23 @@ public sealed class WorkflowValidator
                 errors.Add($"Init-stage variable '{variable.Name}' must use type 'Fixed' when value is provided.");
             }
         }
+    }
+
+    private static bool CheckUniqueName(string? name, HashSet<string> seen, string label, List<string> errors)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            errors.Add($"{label} name is required.");
+            return false;
+        }
+
+        if (!seen.Add(name))
+        {
+            errors.Add($"Duplicate {label} name '{name}'.");
+            return false;
+        }
+
+        return true;
     }
 
     private static bool HasVariableRangeConfig(WorkflowVariableDefinition variable)
@@ -229,10 +231,10 @@ public sealed class WorkflowValidator
 
                 if (stage.Ensure is not null)
                 {
-                    if (!string.Equals(stage.Ensure.Mode, "CreateIfMissing", StringComparison.OrdinalIgnoreCase) &&
-                        !string.Equals(stage.Ensure.Mode, "Upsert", StringComparison.OrdinalIgnoreCase))
+                    if (!string.Equals(stage.Ensure.Mode, WorkflowConstants.EnsureModeCreateIfMissing, StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(stage.Ensure.Mode, WorkflowConstants.EnsureModeUpsert, StringComparison.OrdinalIgnoreCase))
                     {
-                        errors.Add($"Stage '{stage.Name}' ensure.mode must be CreateIfMissing or Upsert.");
+                        errors.Add($"Stage '{stage.Name}' ensure.mode must be {WorkflowConstants.EnsureModeCreateIfMissing} or {WorkflowConstants.EnsureModeUpsert}.");
                     }
 
                     if (stage.Ensure.ExistsOn is not null && stage.Ensure.ExistsOn.Any(status => status <= 0))
@@ -348,7 +350,7 @@ public sealed class WorkflowValidator
                     continue;
                 }
 
-                if (!string.Equals(target, "endStage", StringComparison.OrdinalIgnoreCase) &&
+                if (!string.Equals(target, WorkflowConstants.EndStage, StringComparison.OrdinalIgnoreCase) &&
                     !stageNames.Contains(target))
                 {
                     errors.Add($"Stage '{stage.Name}' jump target '{target}' does not exist.");
@@ -364,7 +366,7 @@ public sealed class WorkflowValidator
                         continue;
                     }
 
-                    if (!string.Equals(action.JumpTo, "endStage", StringComparison.OrdinalIgnoreCase) &&
+                    if (!string.Equals(action.JumpTo, WorkflowConstants.EndStage, StringComparison.OrdinalIgnoreCase) &&
                         !stageNames.Contains(action.JumpTo))
                     {
                         errors.Add($"Stage '{stage.Name}' onStatus jump target '{action.JumpTo}' does not exist.");
@@ -374,7 +376,7 @@ public sealed class WorkflowValidator
 
             if (stage.Ensure is not null &&
                 !string.IsNullOrWhiteSpace(stage.Ensure.JumpTo) &&
-                !string.Equals(stage.Ensure.JumpTo, "endStage", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(stage.Ensure.JumpTo, WorkflowConstants.EndStage, StringComparison.OrdinalIgnoreCase) &&
                 !stageNames.Contains(stage.Ensure.JumpTo))
             {
                 errors.Add($"Stage '{stage.Name}' ensure jump target '{stage.Ensure.JumpTo}' does not exist.");
