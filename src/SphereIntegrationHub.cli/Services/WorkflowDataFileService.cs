@@ -1,5 +1,6 @@
 using System.Text.Json;
 
+using SphereIntegrationHub.Definitions;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -31,8 +32,8 @@ public sealed class WorkflowDataFileService
     {
         var content = LoadText(path, workflowPath);
         var extension = Path.GetExtension(path);
-        if (extension.Equals(".yaml", StringComparison.OrdinalIgnoreCase) ||
-            extension.Equals(".yml", StringComparison.OrdinalIgnoreCase))
+        if (extension.Equals(WorkflowConstants.ExtYaml, StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(WorkflowConstants.ExtYml, StringComparison.OrdinalIgnoreCase))
         {
             var yamlObject = _yamlDeserializer.Deserialize<object>(content);
             return JsonSerializer.SerializeToElement(yamlObject);

@@ -1,3 +1,5 @@
+using SphereIntegrationHub.Definitions;
+
 namespace SphereIntegrationHub.cli;
 
 internal sealed class CliPathResolver : ICliPathResolver
@@ -92,6 +94,6 @@ internal sealed class CliPathResolver : ICliPathResolver
 
     private static bool HasWfvarsExtension(string path)
     {
-        return string.Equals(Path.GetExtension(path), ".wfvars", StringComparison.OrdinalIgnoreCase);
+        return string.Equals(Path.GetExtension(path), WorkflowConstants.ExtWfvars, StringComparison.OrdinalIgnoreCase);
     }
 }
