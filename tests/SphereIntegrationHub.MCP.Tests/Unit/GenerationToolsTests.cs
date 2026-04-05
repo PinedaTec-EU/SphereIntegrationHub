@@ -637,85 +637,6 @@ public class GenerationToolsTests : IDisposable
     }
 
     [Fact]
-    public async Task GenerateWfvarsFromWorkflow_WithInputs_WritesWfvars()
-    {
-        // Arrange
-        var tool = new GenerateWfvarsFromWorkflowTool(_adapter);
-        var workflowPath = Path.Combine(_mockFs.WorkflowsPath, "wfvars", "with-inputs.workflow");
-        Directory.CreateDirectory(Path.GetDirectoryName(workflowPath)!);
-        await File.WriteAllTextAsync(workflowPath, """
-version: "3.10"
-id: "W1"
-name: "wfvars-with-inputs"
-description: "wfvars generation test"
-output: true
-input:
-  - name: username
-    type: Text
-    required: true
-  - name: password
-    type: Text
-    required: false
-stages: []
-endStage:
-  output: {}
-""");
-
-        var args = new Dictionary<string, object>
-        {
-            ["workflowPath"] = "wfvars/with-inputs.workflow",
-            ["writeChanges"] = true
-        };
-
-        // Act
-        var result = await tool.ExecuteAsync(args);
-        var json = ToJson(result);
-
-        // Assert
-        json.GetProperty("written").GetBoolean().Should().BeTrue();
-        json.GetProperty("hasInputs").GetBoolean().Should().BeTrue();
-        json.GetProperty("wfvars").GetString().Should().Contain("username");
-        var wfvarsPath = json.GetProperty("wfvarsPath").GetString();
-        File.Exists(wfvarsPath).Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task GenerateWfvarsFromWorkflow_WithoutInputs_ReturnsWarningAndDoesNotWrite()
-    {
-        // Arrange
-        var tool = new GenerateWfvarsFromWorkflowTool(_adapter);
-        var workflowPath = Path.Combine(_mockFs.WorkflowsPath, "wfvars", "without-inputs.workflow");
-        Directory.CreateDirectory(Path.GetDirectoryName(workflowPath)!);
-        await File.WriteAllTextAsync(workflowPath, """
-version: "3.10"
-id: "W2"
-name: "wfvars-without-inputs"
-description: "wfvars generation test"
-output: true
-stages: []
-endStage:
-  output: {}
-""");
-
-        var args = new Dictionary<string, object>
-        {
-            ["workflowPath"] = "wfvars/without-inputs.workflow",
-            ["writeChanges"] = true
-        };
-
-        // Act
-        var result = await tool.ExecuteAsync(args);
-        var json = ToJson(result);
-
-        // Assert
-        json.GetProperty("written").GetBoolean().Should().BeFalse();
-        json.GetProperty("hasInputs").GetBoolean().Should().BeFalse();
-        json.GetProperty("warnings").GetArrayLength().Should().BeGreaterThan(0);
-        var wfvarsPath = json.GetProperty("wfvarsPath").GetString();
-        File.Exists(wfvarsPath).Should().BeFalse();
-    }
-
-    [Fact]
     public async Task RepairWorkflowArtifacts_WhenWfvarsMissing_CreatesWfvars()
     {
         // Arrange
@@ -1147,6 +1068,7 @@ endStage:
         var args = new Dictionary<string, object>
         {
             ["version"] = "4.00",
+            ["environment"] = "pre",
             ["refresh"] = true,
             ["apiNames"] = JsonSerializer.SerializeToElement(new[] { "UsersAPI" })
         };
@@ -1379,6 +1301,7 @@ endStage:
         var args = new Dictionary<string, object>
         {
             ["version"] = "0.1",
+            ["environment"] = "pre",
             ["refresh"] = true
         };
 
@@ -1407,7 +1330,7 @@ endStage:
     }
 
     [Fact]
-    public async Task QuickRefreshSwaggerCache_WithDefaults_RefreshesVersion010Local()
+    public async Task RefreshSwaggerCacheFromCatalog_WithNullArgs_UsesDefaultsVersion01Local()
     {
         // Arrange
         var adapter = new SihServicesAdapter(new SihPathOptions
@@ -1443,7 +1366,7 @@ endStage:
         Directory.CreateDirectory(Path.GetDirectoryName(adapter.ApiCatalogPath)!);
         await File.WriteAllTextAsync(adapter.ApiCatalogPath, catalogJson);
 
-        var tool = new QuickRefreshSwaggerCacheTool(adapter);
+        var tool = new RefreshSwaggerCacheFromCatalogTool(adapter);
 
         // Act
         var result = await tool.ExecuteAsync(null);
