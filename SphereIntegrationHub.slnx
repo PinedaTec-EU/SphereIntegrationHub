@@ -7,5 +7,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/SphereIntegrationHub.Tests/SphereIntegrationHub.Tests.csproj" />
+    <Project Path="tests/SphereIntegrationHub.MCP.Tests/SphereIntegrationHub.MCP.Tests.csproj" />
   </Folder>
 </Solution>
