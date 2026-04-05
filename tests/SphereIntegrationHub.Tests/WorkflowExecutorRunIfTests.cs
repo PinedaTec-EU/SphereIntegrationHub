@@ -161,6 +161,44 @@ public sealed class WorkflowExecutorRunIfTests
         Assert.Single(server.LogEntries);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_RunIfCompositeExpressionWithMissingOutput_ExecutesStage()
+    {
+        using WireMockServer server = WireMockServer.Start();
+        server
+            .Given(Request.Create().WithPath("/first").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200));
+        server
+            .Given(Request.Create().WithPath("/second").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(201));
+
+        var definition = BuildDefinition(
+            runIf: "coalesce({{stage:first.output.missing}}, 'fallback') == 'fallback' && ({{stage:first.output.http_status}} == 200 || {{stage:first.output.missing}} == null)");
+
+        var document = new WorkflowDocument(
+            definition,
+            "/tmp/test.workflow",
+            new Dictionary<string, string>());
+
+        var catalogVersion = BuildCatalogVersion(server);
+
+        using var httpClient = new HttpClient();
+        var executor = new WorkflowExecutor(httpClient, new DynamicValueService());
+
+        await executor.ExecuteAsync(
+            document,
+            catalogVersion,
+            "test",
+            new Dictionary<string, string>(),
+            varsOverrideActive: false,
+            mocked: false,
+            verbose: false,
+            debug: false,
+            cancellationToken: CancellationToken.None);
+
+        Assert.Equal(2, server.LogEntries.Count());
+    }
+
     private static WorkflowDefinition BuildDefinition(string runIf)
     {
         return new WorkflowDefinition
@@ -209,13 +247,9 @@ public sealed class WorkflowExecutorRunIfTests
         return new ApiCatalogVersion
         {
             Version = "test",
-            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["test"] = server.Url!
-            },
             Definitions = new List<ApiDefinition>
             {
-                new ApiDefinition { Name = "accounts", SwaggerUrl = "http://unused" }
+                new ApiDefinition { Name = "accounts", SwaggerUrl = "http://unused", BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["test"] = server.Url! } }
             }
         };
     }

@@ -71,6 +71,12 @@ internal sealed class CliApp
             return 0;
         }
 
+        if (parseResult.IsReportCommand)
+        {
+            var generator = new SphereIntegrationHub.Services.ExecutionReportGenerator(_output);
+            return await generator.GenerateAndOpenAsync(parseResult, CancellationToken.None);
+        }
+
         if (string.IsNullOrWhiteSpace(parseResult.WorkflowPath) || string.IsNullOrWhiteSpace(parseResult.Environment))
         {
             _output.Error.WriteLine("Missing required parameters.");
@@ -83,7 +89,10 @@ internal sealed class CliApp
         foreach (var resultMessage in runResult.Messages)
         {
             var writer = resultMessage.Kind == CliRunMessageKind.Error ? _output.Error : _output.Out;
-            writer.WriteLine(resultMessage.Text);
+            var text = resultMessage.Kind == CliRunMessageKind.Error
+                ? ConsoleMessageFormatter.FormatError(resultMessage.Text, _output.UseColors)
+                : ConsoleMessageFormatter.FormatInfo(resultMessage.Text, _output.UseColors);
+            writer.WriteLine(text);
         }
 
         // Allow the background ping up to 4 seconds to complete before process exits.

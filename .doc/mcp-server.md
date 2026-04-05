@@ -217,7 +217,7 @@ Currently, creating a complex workflow in SphereIntegrationHub requires:
 | Tool | Parameters | Returns | Purpose |
 |------|------------|---------|---------|
 | `list_api_catalog_versions` | - | `Array<string>` | Lists available catalog versions (3.10, 3.11, etc.) |
-| `get_api_definitions` | `version: string` | `Array<ApiDefinition>` | Returns APIs in catalog with basePath and swagger URLs |
+| `get_api_definitions` | `version: string` | `Array<ApiDefinition>` | Returns APIs in catalog with basePath, swagger URLs, and optional healthCheck |
 | `get_api_endpoints` | `version: string`<br>`apiName: string`<br>`httpVerb?: string` | `Array<EndpointInfo>` | Extracts endpoints from cached Swagger with schemas |
 | `get_endpoint_schema` | `version: string`<br>`apiName: string`<br>`endpoint: string`<br>`httpVerb: string` | `EndpointSchema` | Returns detailed schema (query, headers, body, responses) |
 
@@ -309,10 +309,13 @@ New runtime authoring features exposed through MCP:
 - `expectedStatuses` for multi-status acceptance
 - `onStatus` for idempotent branching with outputs
 - `ensure` as semantic sugar for idempotent create/bootstrap stages
-- JSON-aware `runIf` functions: `exists`, `isEmptyJson`, `jsonLength`, `first`, `any`
+- JSON-aware `runIf` functions: `exists`, `empty`, `coalesce`, `isEmptyJson`, `jsonLength`, `first`, `any`
+- Optional JSON path segments with `?` and safe missing-token comparisons inside `runIf`
 - `bodyFile` for large request bodies
 - `dataFile` plus `forEach` for array-driven bootstraps
 - `Object` and `Array` workflow inputs
+- Workflow-stage result/output tokens such as `stage:<name>.workflow.result.*` and `stage:<name>.workflow.output.*`
+- Execution artifacts named by workflow name plus execution id (`{name}.{executionId}.workflow.output`, reports in JSON/HTML)
 
 #### 1.4 Variable Analysis (3 tools)
 
@@ -367,8 +370,10 @@ New runtime authoring features exposed through MCP:
 | `explain_validation_error` | `errorMessage: string` | `ErrorExplanation` | Detailed explanation with fix suggestions |
 | `get_plugin_capabilities` | `stageKind: string` | `PluginCapabilities` | Returns supported features (mocking, retry, etc.) |
 | `suggest_resilience_config` | `endpoint: string`<br>`expectedLoad: "low"\|"medium"\|"high"` | `ResilienceConfig` | Suggests retry/circuit breaker settings |
+| `list_execution_reports` | `workflowPath?: string`<br>`outputDir?: string`<br>`limit?: int` | `ExecutionReportList` | Lists available `.workflow.report.json` artifacts ordered by most recent |
+| `read_execution_report` | `reportPath: string`<br>`includeHttpBodies?: bool` | `ExecutionReportSummary` | Reads an execution artifact and returns metadata, metrics, and per-stage details |
 
-**Total L1 Tools: 18**
+**Total L1 Tools: 29**
 
 ---
 
@@ -957,15 +962,17 @@ public class IntentAnalyzer
 
 ---
 
-### Phase 5: Next MCP Priorities
+### Phase 5: Execution Report Tools
 
 **Goal:** Move from schema-aware generation to operationally useful AI assistance.
 
-**Planned Deliverables:**
+**Deliverables:**
 
+- ✅ `list_execution_reports` — lists `.workflow.report.json` artifacts in the `output/` directory, ordered by most recent, with lightweight metadata per run
+- ✅ `read_execution_report` — reads and parses a specific artifact, returning full execution metadata, metrics, and per-stage details (HTTP, retries, jump targets, outputs)
+- ✅ `sih report` CLI command — standalone command that generates a self-contained interactive Jaeger-style HTML trace report from any `.workflow.report.json` artifact and opens it in the browser
 - Improved workflow repair/upgrade suggestions for new runtime primitives
 - Better generation of bootstrap/seed workflows using `ensure`, `bodyFile`, and `forEach`
-- Higher-level diagnostic tools that consume execution reports for idempotency, snapshot strategy, and post-run observability
 - Optional dedicated generation helpers for semantic patterns such as ensure/create-if-missing
 
 ---

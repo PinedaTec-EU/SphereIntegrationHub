@@ -11,7 +11,7 @@ internal sealed class CliServiceFactory : ICliServiceFactory
     public CliServiceFactory(ICliOutputProvider? outputProvider = null)
     {
         var output = outputProvider ?? new ConsoleOutputProvider();
-        _logger = new ConsoleExecutionLogger(output.Out, output.Error);
+        _logger = new ConsoleExecutionLogger(output.Out, output.Error, output.UseColors);
     }
 
     public HttpClient CreateHttpClient()
@@ -42,6 +42,8 @@ internal sealed class CliServiceFactory : ICliServiceFactory
 
     public ApiCatalogReader CreateApiCatalogReader() => new();
 
+    public ApiHealthCheckProbe CreateApiHealthCheckProbe() => new();
+
     public ApiSwaggerCacheService CreateApiSwaggerCacheService(HttpClient httpClient)
         => new(httpClient, _logger);
 
@@ -55,11 +57,13 @@ internal sealed class CliServiceFactory : ICliServiceFactory
         HttpClient httpClient,
         DynamicValueService dynamicValueService,
         ISystemTimeProvider systemTimeProvider,
-        WorkflowExecutionReportOptions reportOptions)
+        WorkflowExecutionReportOptions reportOptions,
+        IRequestBodyContractProcessor? requestBodyContractProcessor = null)
         => new(
             httpClient,
             dynamicValueService,
             systemProvider: systemTimeProvider,
+            requestBodyContractProcessor: requestBodyContractProcessor,
             logger: _logger,
             reportWriter: new WorkflowExecutionReportWriter(),
             reportOptions: reportOptions);

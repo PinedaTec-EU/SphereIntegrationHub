@@ -80,7 +80,7 @@ public sealed class ApiSwaggerCacheService
                     }
 
                     throw new FileNotFoundException(
-                        $"Swagger source file was not found. Expected cache at '{ToRelativePath(cachePath)}'.",
+                        $"Swagger source file was not found at '{localPath}'.",
                         localPath);
                 }
 
@@ -109,7 +109,7 @@ public sealed class ApiSwaggerCacheService
                         _logger.Info($"Swagger download failed: {swaggerUri}");
                     }
 
-                    throw new InvalidOperationException($"Failed to download swagger from '{swaggerUri}': {ex.Message}", ex);
+                    throw new InvalidOperationException($"Failed to download swagger for '{definition.Name}' from '{swaggerUri}': {ex.Message}", ex);
                 }
             }
         }

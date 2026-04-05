@@ -84,13 +84,9 @@ public sealed class WorkflowExecutorIdempotencyTests
         var catalogVersion = new ApiCatalogVersion
         {
             Version = "test",
-            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["test"] = server.Url!
-            },
             Definitions = new List<ApiDefinition>
             {
-                new ApiDefinition { Name = "accounts", SwaggerUrl = "http://unused" }
+                new ApiDefinition { Name = "accounts", SwaggerUrl = "http://unused", BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["test"] = server.Url! } }
             }
         };
 
@@ -194,13 +190,9 @@ public sealed class WorkflowExecutorIdempotencyTests
         var catalogVersion = new ApiCatalogVersion
         {
             Version = "test",
-            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["test"] = server.Url!
-            },
             Definitions = new List<ApiDefinition>
             {
-                new ApiDefinition { Name = "accounts", SwaggerUrl = "http://unused" }
+                new ApiDefinition { Name = "accounts", SwaggerUrl = "http://unused", BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["test"] = server.Url! } }
             }
         };
 

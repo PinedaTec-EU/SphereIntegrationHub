@@ -162,6 +162,25 @@ public class SemanticToolsTests : IDisposable
     }
 
     [Fact]
+    public async Task InferDataFlow_WithMissingVersion_ThrowsException()
+    {
+        // Arrange
+        var tool = new InferDataFlowTool(_adapter);
+        var endpoints = new[]
+        {
+            new { apiName = "AccountsAPI", endpoint = "/api/accounts", httpVerb = "GET" }
+        };
+
+        var args = new Dictionary<string, object>
+        {
+            ["endpoints"] = JsonSerializer.SerializeToElement(endpoints)
+        };
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(() => tool.ExecuteAsync(args));
+    }
+
+    [Fact]
     public async Task InferDataFlow_ReturnsExecutionOrder()
     {
         // Arrange
@@ -255,6 +274,28 @@ public class SemanticToolsTests : IDisposable
         }
 
         assumptionsList.Should().Contain(a => a.Contains("authentication", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task SuggestWorkflowFromGoal_WithIncludeAuthFalse_DoesNotAddAuthAssumption()
+    {
+        // Arrange
+        var tool = new SuggestWorkflowFromGoalTool(_adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["version"] = "3.10",
+            ["goal"] = "Get all accounts",
+            ["includeAuth"] = false
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.TryGetProperty("assumptions", out var assumptions).Should().BeTrue();
+        var assumptionsList = assumptions.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToList();
+        assumptionsList.Should().NotContain(a => a.Contains("authentication", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

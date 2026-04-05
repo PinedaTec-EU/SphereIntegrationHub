@@ -5,6 +5,7 @@
 		}
 	],
 	"settings": {
-		"dotnet.defaultSolution": "SphereIntegrationHub.slnx"
+		"dotnet.defaultSolution": "SphereIntegrationHub.slnx",
+		"editor.accessibilitySupport": "off"
 	}
 }

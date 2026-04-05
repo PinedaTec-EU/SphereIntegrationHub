@@ -98,19 +98,34 @@ internal static class PluginCapabilitiesRegistry
                         "{{input.userId}}",
                         "{{context:item.id}}",
                         "{{stage:create-account.output.dto}}",
-                        "{{response.body.id}}"
+                        "{{response.body.id}}",
+                        "{{stage:create-account.workflow.output.accountAppId}}",
+                        "{{stage:create-account.workflow.result.status}}"
                     }
                 },
                 new
                 {
                     feature = "Expressions",
-                    description = "runIf supports comparisons, boolean operators, and JSON helper functions",
+                    description = "runIf supports comparisons, compound boolean operators, safe missing-token checks, and JSON/control helper functions",
                     examples = new[]
                     {
                         "exists({{context:item}})",
+                        "empty({{stage:create.output.accountId}})",
+                        "coalesce({{stage:create.output.accountId}}, {{context:accountId}}, 'pending')",
                         "jsonLength({{input.items}}) > 0",
                         "!isEmptyJson({{response.body}})",
                         "{{stage:create.output.http_status}} in [200, 201, 409]"
+                    }
+                },
+                new
+                {
+                    feature = "Optional Paths",
+                    description = "JSON token paths may use ? suffixes so missing nested segments resolve safely",
+                    examples = new[]
+                    {
+                        "{{response.body.account.status?}}",
+                        "{{stage:create.output.dto.items.0.id?}}",
+                        "{{input.payload.customer.id?}}"
                     }
                 },
                 new
@@ -162,7 +177,8 @@ internal static class PluginCapabilitiesRegistry
                         "Use kind: Endpoint or kind: Workflow",
                         "Prefer ensure for create-if-missing bootstrap stages",
                         "Prefer expectedStatuses for idempotent create/bootstrap flows",
-                        "Prefer bodyFile/dataFile when payloads are large"
+                        "Prefer bodyFile/dataFile when payloads are large",
+                        "Use sample workflows under samples/ as runtime-aligned references"
                     }
                 },
                 new
@@ -174,7 +190,9 @@ internal static class PluginCapabilitiesRegistry
                         "--report-format both",
                         "--capture-http headers",
                         "--capture-http bodies",
-                        "reporting.summaryConsole = true"
+                        "reporting.summaryConsole = true",
+                        "{name}.{executionId}.workflow.output",
+                        "{name}.{executionId}.workflow.report.json"
                     }
                 }
             }

@@ -129,11 +129,6 @@ public sealed class SwaggerReader
             return definitionEnvironment;
         }
 
-        if (TryResolvePreferredEnvironment(versionEntry.BaseUrl, out var versionEnvironment))
-        {
-            return versionEnvironment;
-        }
-
         return "local";
     }
 

@@ -4,6 +4,12 @@ internal sealed class CliArgumentParser : ICliArgumentParser
 {
     public InlineArguments ParseArgs(string[] args)
     {
+        // Detect 'report' subcommand
+        if (args.Length > 0 && args[0] == "report")
+        {
+            return ParseReportArgs(args);
+        }
+
         string? workflowPath = null;
         string? environment = null;
         string? catalogPath = null;
@@ -127,6 +133,51 @@ internal sealed class CliArgumentParser : ICliArgumentParser
             null,
             showHelp,
             showVersion);
+    }
+
+    private static InlineArguments ParseReportArgs(string[] args)
+    {
+        string? execPath = null;
+        string? outputPath = null;
+        var openAfterGenerate = true;
+
+        for (var i = 1; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--help":
+                case "-h":
+                    return new InlineArguments(IsReportCommand: true, ShowHelp: true);
+                case "--execution":
+                case "-x":
+                    if (!TryReadValue(args, ref i, out execPath))
+                        return new InlineArguments(Error: "Missing value for --execution.");
+                    break;
+                case "--output":
+                case "-o":
+                    if (!TryReadValue(args, ref i, out outputPath))
+                        return new InlineArguments(Error: "Missing value for --output.");
+                    break;
+                case "--no-open":
+                    openAfterGenerate = false;
+                    break;
+                default:
+                    if (!args[i].StartsWith('-') && execPath is null)
+                        execPath = args[i];
+                    else
+                        return new InlineArguments(Error: $"Unknown report argument '{args[i]}'.");
+                    break;
+            }
+        }
+
+        if (execPath is null)
+            return new InlineArguments(Error: "Missing execution report path. Usage: sih report <path-to-json> [--output <dir>] [--no-open]");
+
+        return new InlineArguments(
+            IsReportCommand: true,
+            ExecutionReportPath: execPath,
+            ReportOutputPath: outputPath,
+            OpenAfterGenerate: openAfterGenerate);
     }
 
     private static bool TryReadValue(string[] args, ref int index, out string? value)

@@ -7,13 +7,14 @@ SphereIntegrationHub is a CLI tool that orchestrates API calls using a versioned
 - Context sharing between workflows
 - Dry-run validation (schema, references, swagger endpoints)
 - Swagger cache for offline validation and consistency
+- Execution report artifacts (JSON + interactive HTML trace)
 - OpenTelemetry support (disabled by default)
 
 Documentation index:
 
 - Workflow schema: `workflow-schema.md`
 - Swagger catalog: `swagger-catalog.md`
-- CLI usage: `cli.md`
+- CLI usage and report command: `cli.md`
 - Variables and context: `variables.md`
 - Dry-run validation: `dry-run.md`
 - OpenTelemetry: `telemetry.md`

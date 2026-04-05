@@ -1,0 +1,6 @@
+{
+  "login": "{{context:account.login}}",
+  "password": "{{context:account.password}}",
+  "organizationAppId": "{{context:account.organizationAppId}}",
+  "position": "{{context:accountIndex}}"
+}

@@ -79,9 +79,10 @@ public sealed class GetApiDefinitionsTool : IMcpTool
             version,
             apis = definitions.Select(d => new
             {
-                d.Name,
-                d.BasePath,
-                d.SwaggerUrl
+                name = d.Name,
+                basePath = d.BasePath,
+                swaggerUrl = d.SwaggerUrl,
+                healthCheck = d.HealthCheck
             }).ToList(),
             count = definitions.Count
         };

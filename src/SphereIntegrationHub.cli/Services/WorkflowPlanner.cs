@@ -144,7 +144,7 @@ public sealed record WorkflowStagePlan(
     IReadOnlyDictionary<string, string>? Query,
     string? Body,
     string? WorkflowRef,
-    IReadOnlyDictionary<string, string>? Inputs,
+    IReadOnlyDictionary<string, object?>? Inputs,
     IReadOnlyCollection<KeyValuePair<string, string>> Output,
     string? AllowVersion,
     IReadOnlyDictionary<string, string>? Context,

@@ -71,13 +71,9 @@ stages:
             var catalogVersion = new ApiCatalogVersion
             {
                 Version = "test",
-                BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["test"] = server.Url!
-                },
                 Definitions = new List<ApiDefinition>
                 {
-                    new ApiDefinition { Name = "accounts", SwaggerUrl = "http://unused" }
+                    new ApiDefinition { Name = "accounts", SwaggerUrl = "http://unused", BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["test"] = server.Url! } }
                 }
             };
 
@@ -152,7 +148,7 @@ endStage:
                         Kind = WorkflowStageKind.Workflow,
                         WorkflowRef = "child",
                         ForEach = "{{input.items}}",
-                        Inputs = new Dictionary<string, string>
+                        Inputs = new Dictionary<string, object?>
                         {
                             ["id"] = "{{context:item.id}}"
                         }
@@ -174,10 +170,6 @@ endStage:
             var catalogVersion = new ApiCatalogVersion
             {
                 Version = "test",
-                BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["test"] = "http://unused"
-                },
                 Definitions = new List<ApiDefinition>()
             };
 
@@ -202,6 +194,100 @@ endStage:
             Assert.Equal("2", result.Output["foreach_success_count"]);
             Assert.Equal("0", result.Output["foreach_failed_count"]);
             Assert.Contains("\"status\":\"Ok\"", result.Output["foreach_results"], StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, true);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_AllowsStructuredInlineWorkflowStageInputs()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"sih-structured-stage-inputs-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+        var parentPath = Path.Combine(tempRoot, "parent.workflow");
+        var childPath = Path.Combine(tempRoot, "child.workflow");
+
+        File.WriteAllText(childPath, """
+version: "1.0"
+id: "child"
+name: "child"
+output: true
+input:
+  - name: "targets"
+    type: "Array"
+    required: true
+  - name: "metadata"
+    type: "Object"
+    required: true
+endStage:
+  output:
+    firstTarget: "{{input.targets.0}}"
+    secondTarget: "{{input.targets.1}}"
+    source: "{{input.metadata.source}}"
+    nestedTag: "{{input.metadata.tags.1}}"
+""");
+
+        File.WriteAllText(parentPath, """
+version: "1.0"
+id: "parent"
+name: "parent"
+output: true
+input:
+  - name: "tenant"
+    type: "Text"
+    required: true
+references:
+  workflows:
+    - name: "child"
+      path: "./child.workflow"
+stages:
+  - name: "run-child"
+    kind: "Workflow"
+    workflowRef: "child"
+    inputs:
+      targets: ["TRG01", "{{input.tenant}}"]
+      metadata:
+        source: "seed"
+        tags: ["fixed", "{{input.tenant}}"]
+endStage:
+  output:
+    firstTarget: "{{workflow:run-child.output.firstTarget}}"
+    secondTarget: "{{workflow:run-child.output.secondTarget}}"
+    source: "{{workflow:run-child.output.source}}"
+    nestedTag: "{{workflow:run-child.output.nestedTag}}"
+""");
+
+        try
+        {
+            using var httpClient = new HttpClient();
+            var executor = new WorkflowExecutor(httpClient, new DynamicValueService());
+            var loader = new WorkflowLoader();
+            var document = loader.Load(parentPath);
+
+            var result = await executor.ExecuteAsync(
+                document,
+                new ApiCatalogVersion
+                {
+                    Version = "test",
+                    Definitions = new List<ApiDefinition>()
+                },
+                "test",
+                new Dictionary<string, string>
+                {
+                    ["tenant"] = "TEN01"
+                },
+                varsOverrideActive: false,
+                mocked: false,
+                verbose: false,
+                debug: false,
+                cancellationToken: CancellationToken.None);
+
+            Assert.Equal("TRG01", result.Output["firstTarget"]);
+            Assert.Equal("TEN01", result.Output["secondTarget"]);
+            Assert.Equal("seed", result.Output["source"]);
+            Assert.Equal("TEN01", result.Output["nestedTag"]);
         }
         finally
         {

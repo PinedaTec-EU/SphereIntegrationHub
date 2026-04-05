@@ -4,7 +4,7 @@ Model Context Protocol (MCP) server for SphereIntegrationHub providing AI-assist
 
 ## Overview
 
-This MCP server exposes 32 tools organized in 4 levels (L1-L4) that enable LLMs to:
+This MCP server exposes 35 tools organized in 4 levels (L1-L4) that enable LLMs to:
 
 - Explore API catalogs and generate workflow stages
 - Validate and analyze workflows
@@ -41,7 +41,7 @@ McpServer (stdio JSON-RPC)
     └── DiagnosticTools.cs    - 3 diagnostic tools
 ```
 
-## Level 1 Tools (24 implemented)
+## Level 1 Tools (27 implemented)
 
 ### Catalog Tools (4)
 
@@ -164,12 +164,22 @@ The MCP surface is aligned with the current SIH runtime schema. Agents should pr
 - `bodyFile` for large request payloads
 - `dataFile` plus `forEach` for collection-driven bootstraps
 - `type: Object` and `type: Array` for structured workflow inputs
-- JSON-aware expressions such as `jsonLength(...)`, `exists(...)`, `first(...)`, and `isEmptyJson(...)`
+- JSON-aware expressions such as `jsonLength(...)`, `exists(...)`, `empty(...)`, `coalesce(...)`, `first(...)`, and `isEmptyJson(...)`
 - response tokens such as `{{response.status}}`, `{{response.body}}`, and `{{response.headers.HeaderName}}` on endpoint stages
 - optional JSON path segments via `?`, for example `{{response.body.account.status?}}`
 - workflow-stage result tokens such as `{{stage:child.workflow.result.status}}` and `{{stage:child.workflow.result.message}}`
+- workflow-stage output tokens such as `{{stage:child.workflow.output.accountAppId}}`
 - aggregated workflow `forEach` outputs: `foreach_items`, `foreach_results`, `foreach_success_count`, and `foreach_failed_count`
 - execution reporting controls such as `--report-format`, `--capture-http`, and `reporting.*` defaults in `workflows.config`
+- execution artifacts named as `{workflow-name}.{executionId}.workflow.output` and `{workflow-name}.{executionId}.workflow.report.{json|html}`
+- catalog definitions may include optional `healthCheck` URLs or relative paths for runtime preflight validation
+
+Repository sample workflows to inspect alongside MCP authoring:
+
+- `samples/sample-parent.workflow`
+- `samples/sample-child.workflow`
+- `samples/sample-conditional.workflow`
+- `samples/sample-bootstrap.workflow`
 
 Use `get_plugin_capabilities` to retrieve these authoring capabilities in structured form at runtime.
 
@@ -289,7 +299,7 @@ You can also test the server manually from the terminal:
 echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | SIH_PROJECT_ROOT=. ./dist/mcp/osx-arm64/sih mcp
 ```
 
-This should print a JSON response listing all 32 tools.
+This should print a JSON response listing all 35 tools.
 
 ## Runtime Path Configuration
 
