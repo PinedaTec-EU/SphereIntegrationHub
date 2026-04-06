@@ -22,6 +22,7 @@ public sealed class WorkflowStageDefinition
     public Dictionary<string, string>? Debug { get; set; }
     public string? Message { get; set; }
     public Dictionary<string, string>? Output { get; set; }
+    public List<string>? SecretOutputs { get; set; }
     public Dictionary<int, string>? JumpOnStatus { get; set; }
     public Dictionary<int, WorkflowStageStatusAction>? OnStatus { get; set; }
     public WorkflowStageEnsureDefinition? Ensure { get; set; }
