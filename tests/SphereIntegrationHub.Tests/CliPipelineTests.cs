@@ -233,6 +233,7 @@ public sealed class CliPipelineTests
             new CliPathResolver(),
             new CliPlanPrinter(),
             new CliWorkflowEnvironmentValidator(),
+            output,
             factory,
             new WorkflowConfigLoader(),
             new OpenTelemetryBootstrapper());

@@ -34,7 +34,7 @@ internal sealed class CliApp
         _serviceFactory = serviceFactory ?? new CliServiceFactory(_output);
         var loader = configLoader ?? new WorkflowConfigLoader();
         var otel = telemetryBootstrapper ?? new OpenTelemetryBootstrapper();
-        _pipeline = pipeline ?? new CliPipeline(_pathResolver, _planPrinter, _environmentValidator, _serviceFactory, loader, otel);
+        _pipeline = pipeline ?? new CliPipeline(_pathResolver, _planPrinter, _environmentValidator, _output, _serviceFactory, loader, otel);
     }
 
     public async Task<int> RunAsync(string[] args)
@@ -86,7 +86,7 @@ internal sealed class CliApp
         }
 
         var runResult = await _pipeline.RunAsync(parseResult, CancellationToken.None);
-        foreach (var resultMessage in runResult.Messages)
+        foreach (var resultMessage in runResult.Messages.Skip(runResult.EmittedMessageCount))
         {
             var writer = resultMessage.Kind == CliRunMessageKind.Error ? _output.Error : _output.Out;
             var text = resultMessage.Kind == CliRunMessageKind.Error

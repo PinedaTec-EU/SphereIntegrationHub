@@ -8,4 +8,4 @@ internal enum CliRunMessageKind
 
 internal sealed record CliRunMessage(CliRunMessageKind Kind, string Text);
 
-internal sealed record CliRunResult(int ExitCode, IReadOnlyList<CliRunMessage> Messages);
+internal sealed record CliRunResult(int ExitCode, IReadOnlyList<CliRunMessage> Messages, int EmittedMessageCount = 0);

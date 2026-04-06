@@ -10,6 +10,7 @@ internal sealed class CliPipeline : ICliPipeline
     private readonly ICliPathResolver _pathResolver;
     private readonly ICliPlanPrinter _planPrinter;
     private readonly ICliWorkflowEnvironmentValidator _environmentValidator;
+    private readonly ICliOutputProvider _output;
     private readonly ICliServiceFactory _serviceFactory;
     private readonly IWorkflowConfigLoader _configLoader;
     private readonly IOpenTelemetryBootstrapper _telemetryBootstrapper;
@@ -18,6 +19,7 @@ internal sealed class CliPipeline : ICliPipeline
         ICliPathResolver pathResolver,
         ICliPlanPrinter planPrinter,
         ICliWorkflowEnvironmentValidator environmentValidator,
+        ICliOutputProvider output,
         ICliServiceFactory serviceFactory,
         IWorkflowConfigLoader configLoader,
         IOpenTelemetryBootstrapper telemetryBootstrapper)
@@ -25,6 +27,7 @@ internal sealed class CliPipeline : ICliPipeline
         _pathResolver = pathResolver ?? throw new ArgumentNullException(nameof(pathResolver));
         _planPrinter = planPrinter ?? throw new ArgumentNullException(nameof(planPrinter));
         _environmentValidator = environmentValidator ?? throw new ArgumentNullException(nameof(environmentValidator));
+        _output = output ?? throw new ArgumentNullException(nameof(output));
         _serviceFactory = serviceFactory ?? throw new ArgumentNullException(nameof(serviceFactory));
         _configLoader = configLoader ?? throw new ArgumentNullException(nameof(configLoader));
         _telemetryBootstrapper = telemetryBootstrapper ?? throw new ArgumentNullException(nameof(telemetryBootstrapper));
@@ -34,6 +37,7 @@ internal sealed class CliPipeline : ICliPipeline
     {
         var stopwatch = Stopwatch.StartNew();
         var messages = new List<CliRunMessage>();
+        var emittedMessageCount = 0;
         var workflowPath = parseResult.WorkflowPath
             ?? throw new InvalidOperationException("Workflow path is required.");
         var config = _configLoader.Load(workflowPath);
@@ -49,7 +53,7 @@ internal sealed class CliPipeline : ICliPipeline
         catch (Exception ex)
         {
             messages.Add(new CliRunMessage(CliRunMessageKind.Error, ex.Message));
-            return new CliRunResult(1, messages);
+            return new CliRunResult(1, messages, emittedMessageCount);
         }
         using var telemetryHandle = _telemetryBootstrapper.Start(config);
         using var activity = Telemetry.ActivitySource.StartActivity(TelemetryConstants.ActivityCliRun);
@@ -63,27 +67,27 @@ internal sealed class CliPipeline : ICliPipeline
         var workflowLoader = _serviceFactory.CreateWorkflowLoader();
         if (!TryLoadWorkflow(parseResult, workflowLoader, messages, out var workflowDocument))
         {
-            return new CliRunResult(1, messages);
+            return new CliRunResult(1, messages, emittedMessageCount);
         }
 
         if (!TryLoadVars(parseResult, workflowDocument, out var varsOverrideActive, messages))
         {
-            return new CliRunResult(1, messages);
+            return new CliRunResult(1, messages, emittedMessageCount);
         }
 
         if (!TryValidateWorkflow(parseResult, workflowDocument, workflowLoader, messages))
         {
-            return new CliRunResult(1, messages);
+            return new CliRunResult(1, messages, emittedMessageCount);
         }
 
         if (!TryLoadCatalog(catalogPath, workflowDocument, messages, out var catalog, out var selectedVersion))
         {
-            return new CliRunResult(1, messages);
+            return new CliRunResult(1, messages, emittedMessageCount);
         }
 
         if (!TryValidateEnvironment(parseResult, workflowDocument, selectedVersion, messages))
         {
-            return new CliRunResult(1, messages);
+            return new CliRunResult(1, messages, emittedMessageCount);
         }
 
         EmitBaseUrlInfo(selectedVersion, parseResult.Environment!, messages);
@@ -91,16 +95,18 @@ internal sealed class CliPipeline : ICliPipeline
 
         if (!await TryCacheSwaggerAndValidateEndpoints(parseResult, workflowDocument, selectedVersion, messages, cancellationToken))
         {
-            return new CliRunResult(1, messages);
+            return new CliRunResult(1, messages, emittedMessageCount);
         }
+
+        emittedMessageCount = EmitPendingMessages(messages, emittedMessageCount);
 
         if (parseResult.DryRun)
         {
-            return BuildDryRunResult(workflowDocument, workflowLoader, parseResult, stopwatch, messages);
+            return BuildDryRunResult(workflowDocument, workflowLoader, parseResult, stopwatch, messages, emittedMessageCount);
         }
 
         var cacheRoot = Path.Combine(_pathResolver.ResolveDefaultCacheRoot(parseResult.WorkflowPath), selectedVersion.Version);
-        return await ExecuteWorkflowAsync(parseResult, workflowDocument, selectedVersion, cacheRoot, varsOverrideActive, reportOptions, messages, cancellationToken);
+        return await ExecuteWorkflowAsync(parseResult, workflowDocument, selectedVersion, cacheRoot, varsOverrideActive, reportOptions, messages, emittedMessageCount, cancellationToken);
     }
 
     private void EmitPreamble(InlineArguments parseResult, List<CliRunMessage> messages)
@@ -362,12 +368,13 @@ internal sealed class CliPipeline : ICliPipeline
         WorkflowLoader workflowLoader,
         InlineArguments parseResult,
         Stopwatch stopwatch,
-        List<CliRunMessage> messages)
+        List<CliRunMessage> messages,
+        int emittedMessageCount)
     {
         if (EmitSelfJumpWarnings(workflowDocument.Definition, messages))
         {
             AddError(messages, "Dry-run failed due to self-jump configuration errors.");
-            return new CliRunResult(1, messages);
+            return new CliRunResult(1, messages, emittedMessageCount);
         }
         var planner = _serviceFactory.CreateWorkflowPlanner(workflowLoader);
         var workflowPlan = planner.BuildPlan(workflowDocument, parseResult.Verbose);
@@ -377,7 +384,7 @@ internal sealed class CliPipeline : ICliPipeline
         AddInfo(messages, writer.ToString().TrimEnd('\r', '\n'));
         AddInfo(messages, string.Empty);
         AddInfo(messages, $"Dry-run completed successfully in {stopwatch.Elapsed.TotalMilliseconds:F0} ms.");
-        return new CliRunResult(0, messages);
+        return new CliRunResult(0, messages, emittedMessageCount);
     }
 
     private static bool EmitSelfJumpWarnings(WorkflowDefinition definition, List<CliRunMessage> messages)
@@ -428,6 +435,7 @@ internal sealed class CliPipeline : ICliPipeline
         bool varsOverrideActive,
         WorkflowExecutionReportOptions reportOptions,
         List<CliRunMessage> messages,
+        int emittedMessageCount,
         CancellationToken cancellationToken)
     {
         try
@@ -474,7 +482,7 @@ internal sealed class CliPipeline : ICliPipeline
 
             EmitExecutionArtifactsSummary(result, reportOptions, messages);
 
-            return new CliRunResult(0, messages);
+            return new CliRunResult(0, messages, emittedMessageCount);
         }
         catch (Exception ex)
         {
@@ -485,8 +493,23 @@ internal sealed class CliPipeline : ICliPipeline
 
             AddError(messages, $"Workflow [{workflowDocument.Definition.Name}] execution failed: {ex.Message}");
             AddError(messages, "Execution aborted.");
-            return new CliRunResult(1, messages);
+            return new CliRunResult(1, messages, emittedMessageCount);
         }
+    }
+
+    private int EmitPendingMessages(IReadOnlyList<CliRunMessage> messages, int alreadyEmittedCount)
+    {
+        for (var i = alreadyEmittedCount; i < messages.Count; i++)
+        {
+            var message = messages[i];
+            var writer = message.Kind == CliRunMessageKind.Error ? _output.Error : _output.Out;
+            var text = message.Kind == CliRunMessageKind.Error
+                ? ConsoleMessageFormatter.FormatError(message.Text, _output.UseColors)
+                : ConsoleMessageFormatter.FormatInfo(message.Text, _output.UseColors);
+            writer.WriteLine(text);
+        }
+
+        return messages.Count;
     }
 
     private void EmitExecutionArtifactsSummary(

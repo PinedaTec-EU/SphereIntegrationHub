@@ -15,7 +15,7 @@ internal sealed class CliUsagePrinter : ICliUsagePrinter
         writer.WriteLine("  -c, --catalog   Optional catalog path (defaults to embedded catalog).");
         writer.WriteLine("      --envfile   Optional env file override for the root workflow.");
         writer.WriteLine("      --varsfile  Optional vars file override (must be .wfvars).");
-        writer.WriteLine("      --report-format  Execution report artifact format: json, html, both, or none.");
+        writer.WriteLine("      --report-format  Execution report artifact format: json, html, both, or none. Default: json.");
         writer.WriteLine("      --capture-http   Capture level for HTTP details in reports: none, headers, or bodies.");
         writer.WriteLine("      --refresh-cache  Redownload swagger definitions even if cached.");
         writer.WriteLine("      --dry-run   Print the execution plan without calling endpoints.");
@@ -24,12 +24,16 @@ internal sealed class CliUsagePrinter : ICliUsagePrinter
         writer.WriteLine("      --mocked    Use mock payloads/outputs when defined.");
         writer.WriteLine("      --no-redact Disable redaction of sensitive headers and payload fields in reports.");
         writer.WriteLine("      --no-summary Disable the post-execution summary block.");
+        writer.WriteLine("      Preflight: validates environment, probes configured API healthCheck endpoints, refreshes swagger cache, and validates referenced endpoints before execution.");
         writer.WriteLine();
         writer.WriteLine("Report options:");
         writer.WriteLine("  sih report <path>  Generate an interactive HTML trace report from an execution JSON artifact.");
         writer.WriteLine("  -x, --execution    Path to the .workflow.report.json file (alternative to positional arg).");
         writer.WriteLine("  -o, --output       Output directory for the HTML file (defaults to same dir as JSON).");
         writer.WriteLine("      --no-open      Do not open the report in the browser after generation.");
+        writer.WriteLine("  Examples:");
+        writer.WriteLine("    sih --workflow ./my.workflow --env local --report-format both");
+        writer.WriteLine("    sih report ./output/my.workflow.report.json --no-open");
         writer.WriteLine();
         writer.WriteLine("Global:");
         writer.WriteLine("      --version   Print only the CLI version.");
