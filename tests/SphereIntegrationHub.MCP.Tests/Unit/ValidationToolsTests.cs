@@ -170,7 +170,7 @@ description: [this is malformed
     }
 
     [Fact]
-    public void ValidateStage_WithValidStage_ReturnsSuccess()
+    public async Task ValidateStage_WithValidStage_ReturnsSuccess()
     {
         // Arrange
         var validStage = TestDataBuilder.CreateSampleStage();
@@ -181,7 +181,7 @@ description: [this is malformed
         };
 
         // Act
-        var result = tool.ExecuteAsync(args).Result;
+        var result = await tool.ExecuteAsync(args);
         var json = ToJson(result);
 
         // Assert
@@ -190,7 +190,7 @@ description: [this is malformed
     }
 
     [Fact]
-    public void ValidateStage_WithInvalidStage_ReturnsErrors()
+    public async Task ValidateStage_WithInvalidStage_ReturnsErrors()
     {
         // Arrange
         var invalidStage = TestDataBuilder.CreateInvalidStage();
@@ -201,7 +201,7 @@ description: [this is malformed
         };
 
         // Act
-        var result = tool.ExecuteAsync(args).Result;
+        var result = await tool.ExecuteAsync(args);
         var json = ToJson(result);
 
         // Assert
@@ -213,7 +213,7 @@ description: [this is malformed
     }
 
     [Fact]
-    public void ValidateStage_WithMissingName_ReturnsError()
+    public async Task ValidateStage_WithMissingName_ReturnsError()
     {
         // Arrange
         var stageWithoutName = new Dictionary<string, object>
@@ -233,7 +233,7 @@ description: [this is malformed
         };
 
         // Act
-        var result = tool.ExecuteAsync(args).Result;
+        var result = await tool.ExecuteAsync(args);
         var json = ToJson(result);
 
         // Assert
