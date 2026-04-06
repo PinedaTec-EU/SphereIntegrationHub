@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -8,6 +9,13 @@ namespace SphereIntegrationHub.Services;
 public sealed class TemplateResolver
 {
     private static readonly Regex TokenRegex = new(@"\{\{\s*(.+?)\s*\}\}", RegexOptions.Compiled);
+
+    // Matches: system:datetime.utcnow + 0001:06:15-01:02:03
+    //          system:date.now - 0000:01:00
+    //          system:time.utcnow
+    private static readonly Regex SystemTokenRegex = new(
+        @"^system[.:](?<type>datetime|date|time)[.:](?<variant>now|utcnow)(?:\s*(?<sign>[+\-])\s*(?<years>\d+):(?<months>\d+):(?<days>\d+)(?:-(?<hours>\d+):(?<minutes>\d+):(?<seconds>\d+))?)?$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private readonly ISystemTimeProvider _systemProvider;
 
     public TemplateResolver(ISystemTimeProvider? systemProvider = null)
@@ -156,59 +164,52 @@ public sealed class TemplateResolver
     {
         if (segments.Length < 3)
         {
-            throw new InvalidOperationException($"Invalid token '{token}'. Expected 'system:<datetime|date|time>.<now|utcnow>'.");
+            throw new InvalidOperationException($"Invalid token '{token}'. Expected 'system:<datetime|date|time>.<now|utcnow>' with optional offset '±YYYY:MM:DD' or '±YYYY:MM:DD-HH:mm:ss'.");
         }
 
-        if (segments[1].Equals("datetime", StringComparison.OrdinalIgnoreCase))
+        var match = SystemTokenRegex.Match(token);
+        if (!match.Success)
         {
-            if (segments[2].Equals("now", StringComparison.OrdinalIgnoreCase))
-            {
-                return _systemProvider.Now.ToString("O", System.Globalization.CultureInfo.InvariantCulture);
-            }
-
-            if (segments[2].Equals("utcnow", StringComparison.OrdinalIgnoreCase))
-            {
-                return _systemProvider.UtcNow.ToString("O", System.Globalization.CultureInfo.InvariantCulture);
-            }
-
-            throw new InvalidOperationException($"Invalid token '{token}'. Expected 'system:datetime.<now|utcnow>'.");
+            throw new InvalidOperationException($"Invalid token '{token}'. Expected 'system:<datetime|date|time>.<now|utcnow>' with optional offset '±YYYY:MM:DD' or '±YYYY:MM:DD-HH:mm:ss'.");
         }
 
-        if (segments[1].Equals("date", StringComparison.OrdinalIgnoreCase))
+        var type = match.Groups["type"].Value;
+        var isUtc = match.Groups["variant"].Value.Equals("utcnow", StringComparison.OrdinalIgnoreCase);
+        var baseDateTime = isUtc ? _systemProvider.UtcNow : _systemProvider.Now;
+
+        if (match.Groups["sign"].Success)
         {
-            if (segments[2].Equals("now", StringComparison.OrdinalIgnoreCase))
-            {
-                return DateOnly.FromDateTime(_systemProvider.Now.DateTime)
-                    .ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-            }
+            var sign = match.Groups["sign"].Value == "+" ? 1 : -1;
+            var years = int.Parse(match.Groups["years"].Value, CultureInfo.InvariantCulture);
+            var months = int.Parse(match.Groups["months"].Value, CultureInfo.InvariantCulture);
+            var days = int.Parse(match.Groups["days"].Value, CultureInfo.InvariantCulture);
 
-            if (segments[2].Equals("utcnow", StringComparison.OrdinalIgnoreCase))
-            {
-                return DateOnly.FromDateTime(_systemProvider.UtcNow.DateTime)
-                    .ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-            }
+            baseDateTime = baseDateTime.AddYears(sign * years).AddMonths(sign * months).AddDays(sign * days);
 
-            throw new InvalidOperationException($"Invalid token '{token}'. Expected 'system:date.<now|utcnow>'.");
+            if (match.Groups["hours"].Success)
+            {
+                var hours = int.Parse(match.Groups["hours"].Value, CultureInfo.InvariantCulture);
+                var minutes = int.Parse(match.Groups["minutes"].Value, CultureInfo.InvariantCulture);
+                var seconds = int.Parse(match.Groups["seconds"].Value, CultureInfo.InvariantCulture);
+
+                baseDateTime = baseDateTime.AddHours(sign * hours).AddMinutes(sign * minutes).AddSeconds(sign * seconds);
+            }
         }
 
-        if (segments[1].Equals("time", StringComparison.OrdinalIgnoreCase))
+        if (type.Equals("datetime", StringComparison.OrdinalIgnoreCase))
         {
-            if (segments[2].Equals("now", StringComparison.OrdinalIgnoreCase))
-            {
-                return TimeOnly.FromDateTime(_systemProvider.Now.DateTime)
-                    .ToString("HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);
-            }
-
-            if (segments[2].Equals("utcnow", StringComparison.OrdinalIgnoreCase))
-            {
-                return TimeOnly.FromDateTime(_systemProvider.UtcNow.DateTime)
-                    .ToString("HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);
-            }
-
-            throw new InvalidOperationException($"Invalid token '{token}'. Expected 'system:time.<now|utcnow>'.");
+            return baseDateTime.ToString("O", CultureInfo.InvariantCulture);
         }
 
-        throw new InvalidOperationException($"Invalid token '{token}'. Expected 'system:<datetime|date|time>.<now|utcnow>'.");
+        if (type.Equals("date", StringComparison.OrdinalIgnoreCase))
+        {
+            return DateOnly.FromDateTime(baseDateTime.DateTime)
+                .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        }
+
+        // time
+        return TimeOnly.FromDateTime(baseDateTime.DateTime)
+            .ToString("HH:mm:ss", CultureInfo.InvariantCulture);
     }
 
     private static ResolvedTokenValue ResolveStageOutputValue(
