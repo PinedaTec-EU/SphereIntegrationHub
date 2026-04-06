@@ -289,6 +289,8 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
                 throw new ArgumentException("Each versions item must include 'definitions' array");
             }
 
+            var versionBaseUrl = ParseBaseUrlFromElement(versionItem);
+
             var definitions = new List<ApiDefinition>();
             foreach (var definitionItem in defsEl.EnumerateArray())
             {
@@ -308,17 +310,27 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
 
                 var normalizedSwaggerUrl = CatalogSwaggerUrlNormalizer.NormalizeForCatalog(swaggerUrl!);
                 var definitionBaseUrl = ParseDefinitionBaseUrl(definitionItem);
-                if (definitionBaseUrl.Count > 0 &&
+
+                // Use definition-level baseUrl if present; fall back to version-level baseUrl.
+                var effectiveBaseUrl = definitionBaseUrl.Count > 0 ? definitionBaseUrl : versionBaseUrl;
+
+                if (effectiveBaseUrl.Count > 0 &&
+                    !normalizedSwaggerUrl.Contains("{{baseUrl.", StringComparison.OrdinalIgnoreCase) &&
                     CatalogSwaggerTemplateBuilder.TryBuildTemplate(
                         normalizedSwaggerUrl,
-                        definitionBaseUrl,
-                        definitionBaseUrl.Keys.FirstOrDefault(static key =>
+                        effectiveBaseUrl,
+                        effectiveBaseUrl.Keys.FirstOrDefault(static key =>
                             key.Equals("local", StringComparison.OrdinalIgnoreCase)) ?? "local",
                         out var templatedSwaggerUrl,
                         out var inferredPort))
                 {
                     normalizedSwaggerUrl = templatedSwaggerUrl;
                     port ??= inferredPort;
+                    // Store the effective baseUrl on the definition so the catalog is self-contained.
+                    if (definitionBaseUrl.Count == 0)
+                    {
+                        definitionBaseUrl = effectiveBaseUrl;
+                    }
                 }
 
                 if (definitionBaseUrl.Count == 0 && !normalizedSwaggerUrl.Contains("{{baseUrl.", StringComparison.OrdinalIgnoreCase))
@@ -385,9 +397,12 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
     }
 
     private static Dictionary<string, string> ParseDefinitionBaseUrl(JsonElement definitionItem)
+        => ParseBaseUrlFromElement(definitionItem);
+
+    private static Dictionary<string, string> ParseBaseUrlFromElement(JsonElement element)
     {
         var baseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (definitionItem.TryGetProperty("baseUrl", out var baseUrlEl) &&
+        if (element.TryGetProperty("baseUrl", out var baseUrlEl) &&
             baseUrlEl.ValueKind == JsonValueKind.Object)
         {
             foreach (var property in baseUrlEl.EnumerateObject())
