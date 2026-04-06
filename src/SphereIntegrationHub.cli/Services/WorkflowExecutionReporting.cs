@@ -178,11 +178,20 @@ internal static class WorkflowExecutionRedactor
         return RedactJsonElement(json).GetRawText();
     }
 
-    public static Dictionary<string, object?> ConvertOutputs(IReadOnlyDictionary<string, string> outputs)
+    public static Dictionary<string, object?> ConvertOutputs(
+        IReadOnlyDictionary<string, string> outputs,
+        IReadOnlySet<string>? secretKeys = null,
+        IReadOnlySet<string>? secretValues = null)
     {
         var result = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         foreach (var pair in outputs)
         {
+            if (secretKeys?.Contains(pair.Key) == true || (secretValues?.Count > 0 && !string.IsNullOrEmpty(pair.Value) && secretValues.Contains(pair.Value)))
+            {
+                result[pair.Key] = "*****";
+                continue;
+            }
+
             if (JsonValueHelper.TryParse(pair.Value, out var json))
             {
                 result[pair.Key] = json;
