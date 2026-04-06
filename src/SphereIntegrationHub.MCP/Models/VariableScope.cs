@@ -18,6 +18,7 @@ public sealed record InputVariable
     public required string Name { get; init; }
     public required string Type { get; init; }
     public required bool Required { get; init; }
+    public bool Secret { get; init; }
 }
 
 public sealed record GlobalVariable
@@ -25,6 +26,7 @@ public sealed record GlobalVariable
     public required string Name { get; init; }
     public required string Type { get; init; }
     public required string Value { get; init; }
+    public bool Secret { get; init; }
 }
 
 public sealed record ContextVariable
