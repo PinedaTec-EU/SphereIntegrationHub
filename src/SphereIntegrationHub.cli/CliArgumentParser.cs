@@ -171,7 +171,7 @@ internal sealed class CliArgumentParser : ICliArgumentParser
         }
 
         if (execPath is null)
-            return new InlineArguments(Error: "Missing execution report path. Usage: sih report <path-to-json> [--output <dir>] [--no-open]");
+            return new InlineArguments(Error: "Missing execution report path. Usage: sih report <path-to-json-or-dir> [--output <dir>] [--no-open]");
 
         return new InlineArguments(
             IsReportCommand: true,
