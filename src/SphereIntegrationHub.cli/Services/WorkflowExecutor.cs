@@ -775,7 +775,10 @@ public sealed class WorkflowExecutor
 
         context.EndpointOutputs[stage.Name] = stageOutput;
         context.EndpointOutputsJson[stage.Name] = stageOutputJson;
-        UpdateActiveStageRecordOutput(context, stageOutput, responseContext.StatusCode);
+        var secretOutputKeys = stage.SecretOutputs is { Count: > 0 }
+            ? new HashSet<string>(stage.SecretOutputs, StringComparer.OrdinalIgnoreCase)
+            : null;
+        UpdateActiveStageRecordOutput(context, stageOutput, responseContext.StatusCode, secretOutputKeys);
         PrintStageMessage(definition, stage, context, responseContext);
 
         if (TryResolveStatusAction(stage, responseContext.StatusCode, out var statusAction))
@@ -964,6 +967,17 @@ public sealed class WorkflowExecutor
         IReadOnlyDictionary<string, string> inputs,
         bool mocked)
     {
+        var secretInputKeys = document.Definition.Input?
+            .Where(i => i.Secret)
+            .Select(i => i.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var reportInputs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in inputs)
+        {
+            reportInputs[pair.Key] = secretInputKeys?.Contains(pair.Key) == true ? "*****" : pair.Value;
+        }
+
         return new WorkflowExecutionReport
         {
             WorkflowName = document.Definition.Name,
@@ -974,7 +988,7 @@ public sealed class WorkflowExecutor
             Mocked = mocked,
             DryRun = false,
             StartedAtUtc = _systemProvider.UtcNow,
-            Inputs = new Dictionary<string, string>(inputs, StringComparer.OrdinalIgnoreCase)
+            Inputs = reportInputs
         };
     }
 
@@ -995,7 +1009,10 @@ public sealed class WorkflowExecutor
             context.Report.ErrorMessage = errorMessage;
             context.Report.FinishedAtUtc = _systemProvider.UtcNow;
             context.Report.DurationMs = (long)(context.Report.FinishedAtUtc.Value - context.Report.StartedAtUtc).TotalMilliseconds;
-            context.Report.Output = WorkflowExecutionRedactor.ConvertOutputs(outputs);
+            var endStageSecretKeys = document.Definition.EndStage?.SecretOutputs is { Count: > 0 }
+                ? new HashSet<string>(document.Definition.EndStage.SecretOutputs, StringComparer.OrdinalIgnoreCase)
+                : null;
+            context.Report.Output = WorkflowExecutionRedactor.ConvertOutputs(outputs, endStageSecretKeys, context.SecretValues);
             context.Report.OutputFilePath = context.OutputFilePath;
             context.Report.Metrics.TotalStages = context.Report.Stages.Count;
         }
@@ -1316,7 +1333,7 @@ public sealed class WorkflowExecutor
         }
     }
 
-    private void UpdateActiveStageRecordOutput(ExecutionContext context, IReadOnlyDictionary<string, string> stageOutput, int statusCode)
+    private void UpdateActiveStageRecordOutput(ExecutionContext context, IReadOnlyDictionary<string, string> stageOutput, int statusCode, IReadOnlySet<string>? secretOutputKeys = null)
     {
         var record = context.ActiveStageRecord;
         if (record is null)
@@ -1325,7 +1342,7 @@ public sealed class WorkflowExecutor
         }
 
         record.HttpStatusCode = statusCode;
-        record.Output = WorkflowExecutionRedactor.ConvertOutputs(stageOutput);
+        record.Output = WorkflowExecutionRedactor.ConvertOutputs(stageOutput, secretOutputKeys, context.SecretValues);
         if (stageOutput.TryGetValue("ensure_status", out var ensureStatus))
         {
             record.EnsureStatus = ensureStatus;
@@ -1344,9 +1361,9 @@ public sealed class WorkflowExecutor
             return;
         }
 
-        record.WorkflowInputs = WorkflowExecutionRedactor.ConvertOutputs(workflowInputs);
-        record.WorkflowOutput = WorkflowExecutionRedactor.ConvertOutputs(workflowOutput);
-        record.WorkflowResult = WorkflowExecutionRedactor.ConvertOutputs(workflowResult);
+        record.WorkflowInputs = WorkflowExecutionRedactor.ConvertOutputs(workflowInputs, secretValues: context.SecretValues);
+        record.WorkflowOutput = WorkflowExecutionRedactor.ConvertOutputs(workflowOutput, secretValues: context.SecretValues);
+        record.WorkflowResult = WorkflowExecutionRedactor.ConvertOutputs(workflowResult, secretValues: context.SecretValues);
     }
 
     private Dictionary<string, string>? ExtractRequestHeaders(WorkflowStageDefinition stage, TemplateContext templateContext)
@@ -1752,6 +1769,7 @@ public sealed class WorkflowExecutor
     {
         if (definition.InitStage?.Variables is null)
         {
+            RegisterSecretInputValues(definition, context);
             ApplyInitContext(definition, context);
             return;
         }
@@ -1782,9 +1800,30 @@ public sealed class WorkflowExecutor
             var value = _dynamicValueService.Generate(randomDefinition, new PayloadProcessorContext(1, string.Empty, string.Empty, string.Empty, string.Empty), _formatting);
             context.Globals[variable.Name] = value;
             AssignJsonValue(context.GlobalJson, variable.Name, value);
+            if (variable.Secret && !string.IsNullOrEmpty(value))
+            {
+                context.SecretValues.Add(value);
+            }
         }
 
+        RegisterSecretInputValues(definition, context);
         ApplyInitContext(definition, context);
+    }
+
+    private static void RegisterSecretInputValues(WorkflowDefinition definition, ExecutionContext context)
+    {
+        if (definition.Input is null)
+        {
+            return;
+        }
+
+        foreach (var input in definition.Input)
+        {
+            if (input.Secret && context.Inputs.TryGetValue(input.Name, out var value) && !string.IsNullOrEmpty(value))
+            {
+                context.SecretValues.Add(value);
+            }
+        }
     }
 
     private void ApplyInitContext(WorkflowDefinition definition, ExecutionContext context)
@@ -1913,6 +1952,7 @@ public sealed class WorkflowExecutor
             WorkflowOutputsJson = new Dictionary<string, IReadOnlyDictionary<string, JsonElement>>(StringComparer.OrdinalIgnoreCase);
             WorkflowResults = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
             CircuitBreakers = new Dictionary<string, CircuitBreakerState>(StringComparer.OrdinalIgnoreCase);
+            SecretValues = new HashSet<string>(StringComparer.Ordinal);
             Context = parentContext is null
                 ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, string>(parentContext, StringComparer.OrdinalIgnoreCase);
@@ -1933,6 +1973,7 @@ public sealed class WorkflowExecutor
         public Dictionary<string, IReadOnlyDictionary<string, JsonElement>> WorkflowOutputsJson { get; }
         public Dictionary<string, IReadOnlyDictionary<string, string>> WorkflowResults { get; }
         public Dictionary<string, CircuitBreakerState> CircuitBreakers { get; }
+        public HashSet<string> SecretValues { get; }
         public string? OutputFilePath { get; set; }
         public int IndentLevel { get; }
         public WorkflowExecutionReport? Report { get; set; }
