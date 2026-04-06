@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
 
 using SphereIntegrationHub.cli;
@@ -8,6 +9,7 @@ namespace SphereIntegrationHub.Services;
 
 internal sealed class ExecutionReportGenerator
 {
+    private const string ReportFilePattern = "*.workflow.report.json";
     private readonly ICliOutputProvider _output;
 
     public ExecutionReportGenerator(ICliOutputProvider output)
@@ -18,22 +20,18 @@ internal sealed class ExecutionReportGenerator
     public async Task<int> GenerateAndOpenAsync(InlineArguments args, CancellationToken cancellationToken)
     {
         var path = args.ExecutionReportPath!;
+        var fullPath = Path.GetFullPath(path);
 
-        if (!File.Exists(path))
+        if (!File.Exists(fullPath) && !Directory.Exists(fullPath))
         {
-            _output.Error.WriteLine($"Execution report not found: {path}");
+            _output.Error.WriteLine($"Execution report path not found: {path}");
             return 1;
         }
 
-        string rawJson;
-        WorkflowExecutionReport report;
+        ReportArtifact[] reports;
         try
         {
-            rawJson = await File.ReadAllTextAsync(path, cancellationToken);
-            report = JsonSerializer.Deserialize<WorkflowExecutionReport>(
-                         rawJson,
-                         new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
-                     ?? throw new InvalidOperationException("Deserialization returned null.");
+            reports = await LoadReportsAsync(fullPath, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -41,12 +39,17 @@ internal sealed class ExecutionReportGenerator
             return 1;
         }
 
-        var outputDir = args.ReportOutputPath ?? Path.GetDirectoryName(Path.GetFullPath(path)) ?? ".";
+        if (reports.Length == 0)
+        {
+            _output.Error.WriteLine($"No execution reports found in: {path}");
+            return 1;
+        }
+
+        var selectedReport = reports[^1];
+        var outputDir = args.ReportOutputPath ?? GetDefaultOutputDirectory(fullPath, selectedReport.Path);
         Directory.CreateDirectory(outputDir);
 
-        var baseName = Path.GetFileNameWithoutExtension(path);
-        if (baseName.EndsWith(".workflow.report", StringComparison.OrdinalIgnoreCase))
-            baseName = baseName[..^".workflow.report".Length];
+        var baseName = BuildOutputBaseName(fullPath, selectedReport.Path);
         var htmlPath = Path.Combine(outputDir, $"{baseName}.workflow.report.html");
 
         var appVersion = typeof(ExecutionReportGenerator).Assembly
@@ -54,7 +57,7 @@ internal sealed class ExecutionReportGenerator
             ?.InformationalVersion?.Split('+')[0]
             ?? typeof(ExecutionReportGenerator).Assembly.GetName().Version?.ToString()
             ?? string.Empty;
-        var html = BuildHtml(rawJson, appVersion);
+        var html = BuildHtml(reports, reports.Length - 1, appVersion);
         await File.WriteAllTextAsync(htmlPath, html, cancellationToken);
 
         _output.Out.WriteLine($"Report: {htmlPath}");
@@ -74,8 +77,80 @@ internal sealed class ExecutionReportGenerator
         return 0;
     }
 
-    private static string BuildHtml(string reportJson, string appVersion)
+    private static async Task<ReportArtifact[]> LoadReportsAsync(string path, CancellationToken cancellationToken)
     {
+        if (File.Exists(path))
+        {
+            return [await LoadReportAsync(path, cancellationToken)];
+        }
+
+        var reportFiles = Directory.GetFiles(path, ReportFilePattern, SearchOption.TopDirectoryOnly)
+            .OrderBy(file => Path.GetFileName(file), StringComparer.Ordinal)
+            .ToArray();
+
+        var reports = new List<ReportArtifact>(reportFiles.Length);
+        foreach (var reportFile in reportFiles)
+        {
+            reports.Add(await LoadReportAsync(reportFile, cancellationToken));
+        }
+
+        return reports.ToArray();
+    }
+
+    private static async Task<ReportArtifact> LoadReportAsync(string path, CancellationToken cancellationToken)
+    {
+        var rawJson = await File.ReadAllTextAsync(path, cancellationToken);
+        var report = JsonSerializer.Deserialize<WorkflowExecutionReport>(
+                         rawJson,
+                         new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                     ?? throw new InvalidOperationException($"Deserialization returned null for '{path}'.");
+
+        return new ReportArtifact(
+            Path.GetFullPath(path),
+            Path.GetFileName(path),
+            rawJson,
+            report);
+    }
+
+    private static string GetDefaultOutputDirectory(string requestedPath, string selectedReportPath)
+    {
+        if (Directory.Exists(requestedPath))
+        {
+            return requestedPath;
+        }
+
+        return Path.GetDirectoryName(selectedReportPath) ?? ".";
+    }
+
+    private static string BuildOutputBaseName(string requestedPath, string selectedReportPath)
+    {
+        if (Directory.Exists(requestedPath))
+        {
+            return $"{Path.GetFileName(requestedPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))}.reports";
+        }
+
+        var baseName = Path.GetFileNameWithoutExtension(selectedReportPath);
+        if (baseName.EndsWith(".workflow.report", StringComparison.OrdinalIgnoreCase))
+        {
+            baseName = baseName[..^".workflow.report".Length];
+        }
+
+        return baseName;
+    }
+
+    private static string BuildHtml(IReadOnlyList<ReportArtifact> reports, int initialReportIndex, string appVersion)
+    {
+        var reportsJson = JsonSerializer.Serialize(reports.Select(report => new
+        {
+            path = report.Path,
+            fileName = report.FileName,
+            executionId = report.Report.ExecutionId,
+            workflowName = report.Report.WorkflowName,
+            result = report.Report.Result,
+            startedAtUtc = report.Report.StartedAtUtc,
+            json = JsonSerializer.Deserialize<JsonElement>(report.RawJson)
+        }));
+
         return $$"""
 <!doctype html>
 <html lang="en" data-theme="light">
@@ -132,6 +207,8 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .btn{background:var(--btn-bg);color:var(--btn-c);border:1px solid var(--btn-border);padding:5px 11px;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap;transition:background .15s,color .15s;display:inline-flex;align-items:center;gap:5px}
 .btn:hover{background:var(--btn-hover-bg);color:var(--btn-hover-c)}
 .btn-icon{padding:5px 9px;font-size:14px}
+.report-picker{max-width:360px;min-width:180px;background:var(--btn-bg);color:var(--btn-c);border:1px solid var(--btn-border);padding:5px 11px;border-radius:6px;font-size:12px;font-family:inherit}
+.report-picker:hover{color:var(--btn-hover-c)}
 #file-input{display:none}
 /* ── Meta / chips ────────────────────────────────────────────────── */
 .meta-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:6px 16px;display:flex;gap:16px;align-items:center;flex-shrink:0;font-size:11.5px;color:var(--text-muted);flex-wrap:wrap;transition:background .2s}
@@ -247,6 +324,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
   <span class="banner-sep">·</span>
   <span class="banner-version" id="banner-version">v{{appVersion}}</span>
   <h1 class="banner-title" id="banner-title">Loading&hellip;</h1>
+  <select class="report-picker" id="report-picker" title="Select execution"></select>
   <label for="file-input" class="btn">&#128193; Load</label>
   <input type="file" id="file-input" accept=".json">
   <button class="btn btn-icon" id="theme-toggle" title="Toggle dark/light mode" onclick="toggleTheme()">🌙</button>
@@ -273,7 +351,8 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 </div>
 
 <script>
-const _initialData = {{reportJson}};
+const _reports = {{reportsJson}};
+const _initialReportIndex = {{initialReportIndex}};
 let _report   = null;
 let _tree     = null;   // root nodes
 let _expanded = new Set();  // indices of expanded workflow rows
@@ -302,6 +381,10 @@ function fmtMs(ms) {
   return Math.round(ms) + 'ms';
 }
 function fmtDate(iso) {
+  if (!iso) return '';
+  try { return new Date(iso).toLocaleString(); } catch { return iso; }
+}
+function fmtDateShort(iso) {
   if (!iso) return '';
   try { return new Date(iso).toLocaleString(); } catch { return iso; }
 }
@@ -350,6 +433,12 @@ function fmtVal(v) {
 function kv(k, v) {
   if (!v && v !== 0) return '';
   return `<div class="kv-row"><span class="kv-k">${k}</span><span class="kv-v">${v}</span></div>`;
+}
+function reportOptionLabel(entry) {
+  const workflow = entry.workflowName || 'Workflow';
+  const execution = entry.executionId || entry.fileName || 'Execution';
+  const startedAt = fmtDateShort(entry.startedAtUtc);
+  return startedAt ? `${workflow} · ${execution} · ${startedAt}` : `${workflow} · ${execution}`;
 }
 
 /* ── Tree builder ────────────────────────────────────────────────── */
@@ -418,6 +507,28 @@ function render(report) {
   const startTs = new Date(report.StartedAtUtc).getTime();
   _tree = buildTree(stages);
   renderTree(_tree, totalMs, startTs);
+}
+
+function loadReportByIndex(index) {
+  const safeIndex = Math.max(0, Math.min(index, _reports.length - 1));
+  const entry = _reports[safeIndex];
+  if (!entry) return;
+  const picker = document.getElementById('report-picker');
+  if (picker) picker.value = String(safeIndex);
+  render(entry.json);
+}
+
+function initReportPicker() {
+  const picker = document.getElementById('report-picker');
+  if (!picker) return;
+  if (_reports.length <= 1) {
+    picker.style.display = 'none';
+    return;
+  }
+
+  picker.innerHTML = _reports.map((entry, index) =>
+    `<option value="${index}">${esc(reportOptionLabel(entry))}</option>`).join('');
+  picker.addEventListener('change', e => loadReportByIndex(Number(e.target.value)));
 }
 
 /* ── Tree renderer ───────────────────────────────────────────────── */
@@ -637,7 +748,10 @@ document.getElementById('file-input').addEventListener('change', function(e) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
-    try { render(JSON.parse(ev.target.result)); }
+    try {
+      _report = null;
+      render(JSON.parse(ev.target.result));
+    }
     catch(err) { alert('Invalid JSON: ' + err.message); }
   };
   reader.readAsText(file);
@@ -645,10 +759,17 @@ document.getElementById('file-input').addEventListener('change', function(e) {
 });
 
 /* ── Boot ────────────────────────────────────────────────────────── */
-render(_initialData);
+initReportPicker();
+loadReportByIndex(_initialReportIndex);
 </script>
 </body>
 </html>
 """;
     }
+
+    private sealed record ReportArtifact(
+        string Path,
+        string FileName,
+        string RawJson,
+        WorkflowExecutionReport Report);
 }

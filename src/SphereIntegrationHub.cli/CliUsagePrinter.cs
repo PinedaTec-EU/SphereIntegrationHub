@@ -6,7 +6,7 @@ internal sealed class CliUsagePrinter : ICliUsagePrinter
     {
         writer.WriteLine("Usage:");
         writer.WriteLine("  sih --workflow <path> --env <environment> [--catalog <path>] [--envfile <path>] [--varsfile <path>] [--report-format <json|html|both|none>] [--capture-http <none|headers|bodies>] [--refresh-cache] [--dry-run] [--verbose] [--debug] [--mocked]");
-        writer.WriteLine("  sih report <path-to-json> [--output <dir>] [--no-open]");
+        writer.WriteLine("  sih report <path-to-json-or-dir> [--output <dir>] [--no-open]");
         writer.WriteLine("  sih --version");
         writer.WriteLine();
         writer.WriteLine("Run options:");
@@ -27,13 +27,14 @@ internal sealed class CliUsagePrinter : ICliUsagePrinter
         writer.WriteLine("      Preflight: validates environment, probes configured API healthCheck endpoints, refreshes swagger cache, and validates referenced endpoints before execution.");
         writer.WriteLine();
         writer.WriteLine("Report options:");
-        writer.WriteLine("  sih report <path>  Generate an interactive HTML trace report from an execution JSON artifact.");
-        writer.WriteLine("  -x, --execution    Path to the .workflow.report.json file (alternative to positional arg).");
+        writer.WriteLine("  sih report <path>  Generate an interactive HTML trace report from one execution JSON artifact or from a directory of report JSON files.");
+        writer.WriteLine("  -x, --execution    Path to a .workflow.report.json file or a directory containing them.");
         writer.WriteLine("  -o, --output       Output directory for the HTML file (defaults to same dir as JSON).");
         writer.WriteLine("      --no-open      Do not open the report in the browser after generation.");
         writer.WriteLine("  Examples:");
         writer.WriteLine("    sih --workflow ./my.workflow --env local --report-format both");
         writer.WriteLine("    sih report ./output/my.workflow.report.json --no-open");
+        writer.WriteLine("    sih report ./.sphere/workflows/bootstrap/output --no-open");
         writer.WriteLine();
         writer.WriteLine("Global:");
         writer.WriteLine("      --version   Print only the CLI version.");
