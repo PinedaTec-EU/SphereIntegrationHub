@@ -264,4 +264,67 @@ public sealed class TemplateResolverTests
 
         Assert.True(DateTimeOffset.TryParse(resolved, out _));
     }
+
+    [Theory]
+    [InlineData("system:datetime.utcnow + 0000:00:01-01:02:03", 0, 0, 1, 1, 2, 3)]
+    [InlineData("system:datetime.now + 0001:02:03-00:00:00",    1, 2, 3, 0, 0, 0)]
+    [InlineData("system:datetime.utcnow - 0000:00:05-00:30:00", 0, 0, -5, 0, -30, 0)]
+    [InlineData("system:datetime.now + 0000:00:00-00:00:00",    0, 0, 0, 0, 0, 0)]
+    public void ResolveTemplate_SystemDatetime_AppliesOffset(
+        string token, int years, int months, int days, int hours, int minutes, int seconds)
+    {
+        var fixedNow = new DateTimeOffset(2026, 4, 6, 12, 0, 0, TimeSpan.Zero);
+        var timeProvider = new FixedTimeProvider(fixedNow);
+        var resolver = new TemplateResolver(timeProvider);
+        var context = EmptyContext();
+
+        var resolved = resolver.ResolveTemplate($"{{{{{token}}}}}", context);
+
+        var expected = fixedNow
+            .AddYears(years).AddMonths(months).AddDays(days)
+            .AddHours(hours).AddMinutes(minutes).AddSeconds(seconds);
+        Assert.True(DateTimeOffset.TryParse(resolved, out var actual));
+        Assert.Equal(expected, actual);
+    }
+
+    [Theory]
+    [InlineData("system:date.now + 0001:06:15",    2027, 10, 21)]
+    [InlineData("system:date.utcnow - 0000:01:00", 2026,  3,  6)]
+    [InlineData("system:date.now + 0000:00:00",    2026,  4,  6)]
+    public void ResolveTemplate_SystemDate_AppliesOffset(
+        string token, int expectedYear, int expectedMonth, int expectedDay)
+    {
+        var fixedNow = new DateTimeOffset(2026, 4, 6, 12, 0, 0, TimeSpan.Zero);
+        var resolver = new TemplateResolver(new FixedTimeProvider(fixedNow));
+        var context = EmptyContext();
+
+        var resolved = resolver.ResolveTemplate($"{{{{{token}}}}}", context);
+
+        Assert.Equal(new DateOnly(expectedYear, expectedMonth, expectedDay).ToString("yyyy-MM-dd"), resolved);
+    }
+
+    [Fact]
+    public void ResolveTemplate_SystemDatetime_InvalidOffset_Throws()
+    {
+        var resolver = new TemplateResolver();
+        var context = EmptyContext();
+
+        Assert.Throws<InvalidOperationException>(
+            () => resolver.ResolveTemplate("{{ system:datetime.now + badoffset }}", context));
+    }
+
+    private static TemplateContext EmptyContext() => new(
+        new Dictionary<string, string>(),
+        new Dictionary<string, string>(),
+        new Dictionary<string, string>(),
+        new Dictionary<string, IReadOnlyDictionary<string, string>>(),
+        new Dictionary<string, IReadOnlyDictionary<string, string>>(),
+        new Dictionary<string, IReadOnlyDictionary<string, string>>(),
+        new Dictionary<string, string>());
+
+    private sealed class FixedTimeProvider(DateTimeOffset value) : SphereIntegrationHub.Services.Interfaces.ISystemTimeProvider
+    {
+        public DateTimeOffset Now => value;
+        public DateTimeOffset UtcNow => value.ToUniversalTime();
+    }
 }
