@@ -6,7 +6,27 @@ This document explains variable scopes, context sharing, and random value genera
 
 ### Inputs (`input`)
 
-Inputs are provided by the caller via a `.wfvars` file. They can be referenced anywhere in the workflow:
+Inputs are provided by the caller via a `.wfvars` file. They can be referenced anywhere in the workflow.
+
+Mark an input as `secret: true` to prevent its value from appearing in the execution report:
+
+```yaml
+input:
+  - name: "apiKey"
+    type: "Text"
+    required: true
+    secret: true
+```
+
+Behavior:
+
+- The value is masked as `*****` in the `Inputs` section of the execution report.
+- The value is registered in the runtime secret register and masked wherever it appears in stage outputs.
+- The input name is always visible.
+
+---
+
+Inputs are provided by the caller via a `.wfvars` file:
 
 ```
 username: boss
@@ -75,6 +95,24 @@ References use:
 ```
 {{global.someName}}
 ```
+
+#### Secret variables
+
+Add `secret: true` to an `initStage.variables` entry to mark the generated value as sensitive:
+
+```yaml
+initStage:
+  variables:
+    - name: "nonce"
+      type: "Guid"
+      secret: true
+```
+
+Behavior:
+
+- The real value is kept in the execution context for template resolution — workflows operate normally.
+- The generated value is registered in the runtime secret register.
+- Any stage output or workflow output whose resolved value matches a registered secret value is automatically masked as `*****` in the execution report.
 
 ### Shared context (`context`)
 
