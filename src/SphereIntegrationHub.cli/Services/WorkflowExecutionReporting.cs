@@ -91,6 +91,9 @@ public sealed class WorkflowStageExecutionRecord
     public Dictionary<string, string>? ResponseHeaders { get; set; }
     public string? ResponseBody { get; set; }
     public Dictionary<string, object?> Output { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, object?> WorkflowInputs { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, object?> WorkflowOutput { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, object?> WorkflowResult { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed record WorkflowExecutionArtifacts(
