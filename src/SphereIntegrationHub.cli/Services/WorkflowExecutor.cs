@@ -1110,7 +1110,9 @@ public sealed class WorkflowExecutor
         JsonElement source;
         if (!string.IsNullOrWhiteSpace(stage.DataFile))
         {
-            source = _dataFileService.LoadStructured(stage.DataFile, workflowPath);
+            var rawContent = _dataFileService.LoadText(stage.DataFile, workflowPath);
+            var resolvedContent = _templateResolver.ResolveTemplate(rawContent, context.BuildTemplateContext(workflowPath));
+            source = _dataFileService.ParseStructured(resolvedContent, stage.DataFile);
             if (!string.IsNullOrWhiteSpace(stage.ForEach))
             {
                 var path = stage.ForEach.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
