@@ -3,6 +3,7 @@ namespace SphereIntegrationHub.Definitions;
 public sealed class WorkflowEndStage
 {
     public Dictionary<string, string> Output { get; set; } = new();
+    public List<string>? SecretOutputs { get; set; }
     public bool OutputJson { get; set; } = true;
     public Dictionary<string, string>? Context { get; set; }
     public WorkflowResultDefinition? Result { get; set; }

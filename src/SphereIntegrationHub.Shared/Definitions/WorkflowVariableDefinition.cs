@@ -18,4 +18,5 @@ public sealed class WorkflowVariableDefinition
     public string? Format { get; set; }
     public int? Start { get; set; }
     public int? Step { get; set; }
+    public bool Secret { get; set; }
 }
