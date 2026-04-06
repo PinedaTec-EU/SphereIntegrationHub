@@ -239,6 +239,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .trace-row.wf-row{background:var(--wf-row-bg)}
 .trace-row.wf-row:hover{background:var(--wf-row-hover)}
 .trace-row.wf-row.selected{background:var(--wf-row-selected)}
+.trace-row.is-skipped{opacity:.92}
 /* left cell */
 .trace-left{width:380px;min-width:380px;padding:4px 8px;display:flex;flex-direction:column;justify-content:center;gap:1px;overflow:hidden;border-right:1px solid var(--border)}
 .trace-left-top{display:flex;align-items:center;gap:5px;overflow:hidden;width:100%}
@@ -265,6 +266,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .stage-lbl{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;color:var(--text);font-weight:500}
 .stage-lbl.s-error{color:#ef4444}
 .stage-lbl.s-skipped{color:var(--text-subtle)}
+.stage-state{font-size:10px;font-weight:700;letter-spacing:.02em;color:var(--chip-skip-c);background:var(--chip-skip-bg);border:1px solid var(--chip-skip-b);border-radius:4px;padding:1px 5px;flex-shrink:0}
 .stage-uri{font-size:10.5px;color:var(--text-subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;padding-left:22px}
 /* status column */
 .trace-status{width:64px;min-width:64px;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--border);flex-shrink:0}
@@ -279,7 +281,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .span-bar{position:absolute;height:18px;top:13px;border-radius:4px;min-width:3px;display:flex;align-items:center;padding:0 5px;font-size:10px;color:rgba(255,255,255,.9);white-space:nowrap;overflow:hidden;cursor:pointer;transition:filter .1s}
 .span-bar:hover{filter:brightness(1.12)}
 .bar-ok{background:#22c55e}.bar-error{background:#ef4444}
-.bar-skipped{background:#94a3b8;color:var(--text-muted)}
+.bar-skipped{background:repeating-linear-gradient(135deg,#94a3b8 0 8px,#cbd5e1 8px 16px);color:#334155;border:1px dashed #64748b}
 .bar-running{background:#3b82f6}.bar-mocked{background:#8b5cf6}
 .bar-workflow{background:linear-gradient(90deg,#6366f1,#8b5cf6)}
 /* children group */
@@ -398,6 +400,12 @@ function statusCls(s) {
     case 'skipped': return 'skipped'; default: return 'running';
   }
 }
+function statusText(s) {
+  switch ((s||'').toLowerCase()) {
+    case 'skipped': return 'Not executed';
+    default: return s || 'Running';
+  }
+}
 function badgeCls(s) { return 'badge b-' + statusCls(s); }
 function methodCls(m) { return m ? 'm-' + m.toLowerCase() : ''; }
 function httpRangeCls(code) {
@@ -409,8 +417,9 @@ function httpRangeCls(code) {
   return '';
 }
 function barCls(stage) {
-  if (isWfKind(stage)) return 'bar-workflow';
+  if (statusCls(stage.Status) === 'skipped') return 'bar-skipped';
   if (stage.Mocked) return 'bar-mocked';
+  if (isWfKind(stage)) return 'bar-workflow';
   return 'bar-' + statusCls(stage.Status);
 }
 function isWfKind(stage) {
@@ -491,7 +500,7 @@ function render(report) {
     `<span class="chip chip-total">Total: ${m.TotalStages ?? stages.length}</span>`+
     `<span class="chip chip-ok">Executed: ${m.ExecutedStages ?? 0}</span>`;
   if (m.FailedStages)  chips += `<span class="chip chip-error">Failed: ${m.FailedStages}</span>`;
-  if (m.SkippedStages) chips += `<span class="chip chip-skipped">Skipped: ${m.SkippedStages}</span>`;
+  if (m.SkippedStages) chips += `<span class="chip chip-skipped">Not executed: ${m.SkippedStages}</span>`;
   if (m.MockedStages)  chips += `<span class="chip chip-mocked">Mocked: ${m.MockedStages}</span>`;
   if (m.TotalRetries)  chips += `<span class="chip chip-retries">Retries: ${m.TotalRetries}</span>`;
   if (m.HttpStages)    chips += `<span class="chip chip-total">HTTP: ${m.HttpStages}</span>`;
@@ -571,9 +580,10 @@ function buildRow(node, totalMs, startTs) {
   const lbl       = stage.Status === 'Error' ? 's-error' : stage.Status === 'Skipped' ? 's-skipped' : '';
   const bCls      = barCls(stage);
   const wfCls     = isWf ? ' wf-row' : '';
+  const skippedCls = statusCls(stage.Status) === 'skipped' ? ' is-skipped' : '';
   const selCls    = _selected === idx ? ' selected' : '';
 
-  let html = `<div class="trace-row${wfCls}${selCls}" data-idx="${idx}" onclick="rowClick(${idx})">`;
+  let html = `<div class="trace-row${wfCls}${skippedCls}${selCls}" data-idx="${idx}" onclick="rowClick(${idx})">`;
 
   // Left cell
   html += `<div class="trace-left">`;
@@ -593,23 +603,28 @@ function buildRow(node, totalMs, startTs) {
     html += `<span class="http-badge ${methodCls(method)}">${esc(method)}</span>`;
   }
   html += `<span class="stage-lbl ${lbl}" title="${esc(stage.StageName)}">${esc(stage.StageName)}</span>`;
+  if (statusCls(stage.Status) === 'skipped') {
+    html += `<span class="stage-state">Not executed</span>`;
+  }
   html += `</div>`;
   if (path) html += `<span class="stage-uri" title="${esc(stage.RequestUri)}">${esc(path)}</span>`;
+  else if (statusCls(stage.Status) === 'skipped') html += `<span class="stage-uri">Condition not met or skipped before execution.</span>`;
   html += `</div>`;
 
   // Status cell
   html += `<div class="trace-status">`;
   if (stage.HttpStatusCode != null) {
     html += `<span class="http-status ${sCls}">${stage.HttpStatusCode}</span>`;
-  } else if (isWf) {
-    html += `<span class="${badgeCls(stage.Status)}" style="font-size:9px">${esc(stage.Status)}</span>`;
+  } else if (isWf || statusCls(stage.Status) === 'skipped') {
+    html += `<span class="${badgeCls(stage.Status)}" style="font-size:9px">${esc(statusText(stage.Status))}</span>`;
   }
   html += `</div>`;
 
   // Timeline bar
   html += `<div class="trace-right">`;
   html += `<div class="span-bar ${bCls}" style="left:${offsetPct}%;width:${widthPct}%">`;
-  if (durMs >= 8) html += fmtMs(durMs);
+  if (statusCls(stage.Status) === 'skipped') html += `Not executed`;
+  else if (durMs >= 8) html += fmtMs(durMs);
   html += `</div></div>`;
 
   html += `</div>`;
@@ -672,7 +687,7 @@ function showDetail(idx) {
 
   document.getElementById('detail-title').textContent = stage.StageName;
   // Meta line
-  let meta = `<span class="${badgeCls(stage.Status)}">${esc(stage.Status)}</span>`;
+  let meta = `<span class="${badgeCls(stage.Status)}">${esc(statusText(stage.Status))}</span>`;
   meta += ` <span style="color:var(--text-subtle)">·</span> <strong>${esc(stage.WorkflowName)}</strong>`;
   meta += ` <span style="color:var(--text-subtle)">·</span> ${fmtMs(stage.DurationMs)}`;
   if (stage.RetryCount) meta += ` <span style="color:var(--chip-retry-c)">↺ ${stage.RetryCount}</span>`;
@@ -711,6 +726,7 @@ function showDetail(idx) {
   body += `</div></div>`;
 
   body += `<div class="detail-section"><h3>Execution</h3><div class="kv">`;
+  body += kv('Executed', statusCls(stage.Status) === 'skipped' ? 'No' : 'Yes');
   body += kv('Start offset', fmtMs(offsetMs));
   body += kv('Duration', fmtMs(stage.DurationMs));
   if (stage.RetryCount) body += kv('Retries', stage.RetryCount);

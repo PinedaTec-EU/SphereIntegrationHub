@@ -40,6 +40,32 @@ public sealed class ExecutionReportGeneratorTests
         Assert.Contains("01KNGXHCZZZZ6KMC3DZDZAJRTJ", html, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task GenerateAndOpenAsync_WithSkippedStage_RendersNotExecutedCopy()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"sih-report-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+
+        var reportPath = Path.Combine(root, "sample.01KNGXHCZZZZ6KMC3DZDZAJRTJ.workflow.report.json");
+        await File.WriteAllTextAsync(reportPath, CreateSkippedReportJson());
+
+        var output = new TestOutputProvider();
+        var generator = new ExecutionReportGenerator(output);
+
+        var result = await generator.GenerateAndOpenAsync(
+            new InlineArguments(
+                IsReportCommand: true,
+                ExecutionReportPath: root,
+                OpenAfterGenerate: false),
+            CancellationToken.None);
+
+        Assert.Equal(0, result);
+
+        var htmlPath = Path.Combine(root, $"{Path.GetFileName(root)}.reports.workflow.report.html");
+        var html = await File.ReadAllTextAsync(htmlPath);
+        Assert.Contains("Not executed", html, StringComparison.Ordinal);
+    }
+
     private static string CreateReportJson(string executionId, string workflowName)
     {
         var report = new WorkflowExecutionReport
@@ -68,6 +94,43 @@ public sealed class ExecutionReportGeneratorTests
             FinishedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:01Z"),
             DurationMs = 1000,
             Status = "Ok"
+        });
+
+        return System.Text.Json.JsonSerializer.Serialize(report, new System.Text.Json.JsonSerializerOptions
+        {
+            WriteIndented = true
+        });
+    }
+
+    private static string CreateSkippedReportJson()
+    {
+        var report = new WorkflowExecutionReport
+        {
+            ExecutionId = "01KNGXHCZZZZ6KMC3DZDZAJRTJ",
+            WorkflowName = "Skipped Workflow",
+            WorkflowId = "wf-skip",
+            WorkflowVersion = "1.0.0",
+            WorkflowPath = "/tmp/skipped.workflow",
+            Environment = "local",
+            StartedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:00Z"),
+            FinishedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:02Z"),
+            DurationMs = 2000,
+            Result = "Ok",
+            Output = new Dictionary<string, object?>()
+        };
+
+        report.Metrics.TotalStages = 1;
+        report.Metrics.SkippedStages = 1;
+        report.Stages.Add(new WorkflowStageExecutionRecord
+        {
+            WorkflowName = "Skipped Workflow",
+            StageName = "not-run-stage",
+            StageKind = "Endpoint",
+            StartedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:00Z"),
+            FinishedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:00Z"),
+            DurationMs = 0,
+            Status = "Skipped",
+            RunIf = "{{input.enabled}} == true"
         });
 
         return System.Text.Json.JsonSerializer.Serialize(report, new System.Text.Json.JsonSerializerOptions
