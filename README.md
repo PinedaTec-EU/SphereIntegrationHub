@@ -24,6 +24,7 @@ Documentation:
 - [`cli help`](.doc/cli.md)
 - [`variables and context`](.doc/variables.md)
 - [`dry-run validation`](.doc/dry-run.md)
+- [`execution reporting`](.doc/execution-reporting.md)
 - [`open telemetry`](.doc/telemetry.md)
 - [`MCP Server`](.doc/mcp-server.md) - 🚧 AI-assisted workflow creation (in development)
 - [`plugins`](.doc/plugins.md)
@@ -48,21 +49,15 @@ Swagger definitions are cached per version in:
 
 ## Workflow overview
 
-Workflows are YAML files with main sections:
+SphereIntegrationHub workflows are plain YAML and are designed to stay readable even when orchestration gets complex.
 
-- `version`, `id`, `name`, `description`
-- `references` for workflows and API definitions
-- `input` for required variables
-- `initStage` for workflow-specific variables or context defaults
-- `stages` (endpoint/workflow calls)
-- `endStage` for workflow output and context updates
+- Reference APIs from the versioned catalog and compose parent/child workflows.
+- Accept typed inputs, `.wfvars`, and `.env` values.
+- Mix endpoint calls, workflow stages, retries, circuit breakers, delays, and conditional branches.
+- Work with structured JSON, file-backed payloads, `forEach`, and idempotent `ensure` flows.
+- Emit JSON and HTML execution reports for post-run diagnosis.
 
-Templates support `{{env:NAME}}` to read environment variables anywhere values are resolved.
-Use `references.environmentFile` (or CLI `--envfile`) to load a `.env` file for those variables.
-Inputs from `.wfvars` can be scoped by environment and version (see `variables and context`).
-Stages can declare `delaySeconds` (0-60) to delay execution. Retry and circuit breaker settings apply only to `Endpoint` stages.
-Structured JSON is now first-class: workflows can consume `Object` and `Array` inputs, address JSON paths in tokens, load request bodies from `bodyFile`, load collections from `dataFile`, iterate with `forEach`, and declare idempotent intent with `ensure`.
-Execution reporting is also first-class: runs can emit JSON and HTML reports with stage timelines, retries, jumps, HTTP summaries, redacted payload capture, and a console summary for post-run diagnostics.
+See [`.doc/workflow-schema.md`](.doc/workflow-schema.md) for the full schema, [`.doc/variables.md`](.doc/variables.md) for variable resolution, and [`.doc/execution-reporting.md`](.doc/execution-reporting.md) for report artifacts and viewer behavior.
 
 ## Token and Workflow Semantics
 
@@ -79,15 +74,27 @@ Agents generating workflows should assume these runtime rules:
 
 ## Execution reporting
 
-The CLI can persist post-run diagnostics as execution artifacts. This is part of the runtime now, not a planned feature.
+SphereIntegrationHub can persist each run as JSON + HTML execution artifacts for diagnosis, auditability, and sharing. The HTML viewer gives you a timeline, per-stage drill-down, and multi-run switching from the same page.
 
-- JSON report: machine-readable execution timeline and outputs
-- HTML report: human-readable execution summary
-- Console summary: execution id plus generated artifact paths
-- Configurable HTTP capture: `none`, `headers`, or `bodies`
-- Redaction by default for sensitive headers and JSON fields
+- Machine-readable JSON report
+- Self-contained HTML trace viewer
+- Configurable HTTP capture with redaction by default
 
-Use [`.doc/cli.md`](.doc/cli.md) for flags and [`.doc/telemetry.md`](.doc/telemetry.md) for the relationship between local reports and OpenTelemetry.
+See [`.doc/execution-reporting.md`](.doc/execution-reporting.md) for full usage, artifact formats, and reporting configuration.
+
+### Example report
+
+Interactive timeline with nested workflows, stage duration, and skipped branches:
+
+![Execution report timeline overview](./.doc/Screenshots/execution-report-timeline-overview.png)
+
+Execution switcher across multiple runs in the same output folder:
+
+![Execution report run selector dropdown](./.doc/Screenshots/execution-report-run-selector-dropdown.png)
+
+Stage drill-down with execution metadata and resolved workflow inputs/results:
+
+![Execution report stage details](./.doc/Screenshots/execution-report-stage-details.png)
 
 ### Example workflow (login)
 
