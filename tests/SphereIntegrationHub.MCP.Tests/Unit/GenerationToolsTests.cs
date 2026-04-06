@@ -126,7 +126,7 @@ public class GenerationToolsTests : IDisposable
     }
 
     [Fact]
-    public void GenerateWorkflowSkeleton_WithValidInputs_CreatesCompleteWorkflow()
+    public async Task GenerateWorkflowSkeleton_WithValidInputs_CreatesCompleteWorkflow()
     {
         // Arrange
         var tool = new GenerateWorkflowSkeletonTool(_adapter);
@@ -137,7 +137,7 @@ public class GenerationToolsTests : IDisposable
         };
 
         // Act
-        var result = tool.ExecuteAsync(args).Result;
+        var result = await tool.ExecuteAsync(args);
         var json = ToJson(result);
 
         // Assert
@@ -154,7 +154,7 @@ public class GenerationToolsTests : IDisposable
     }
 
     [Fact]
-    public void GenerateWorkflowSkeleton_WithInputParameters_IncludesInputs()
+    public async Task GenerateWorkflowSkeleton_WithInputParameters_IncludesInputs()
     {
         // Arrange
         var tool = new GenerateWorkflowSkeletonTool(_adapter);
@@ -167,7 +167,7 @@ public class GenerationToolsTests : IDisposable
         };
 
         // Act
-        var result = tool.ExecuteAsync(args).Result;
+        var result = await tool.ExecuteAsync(args);
         var json = ToJson(result);
 
         // Assert
@@ -183,7 +183,7 @@ public class GenerationToolsTests : IDisposable
     }
 
     [Fact]
-    public void GenerateWorkflowSkeleton_WithStructuredInputsAndHints_ReturnsRuntimeAuthoringGuidance()
+    public async Task GenerateWorkflowSkeleton_WithStructuredInputsAndHints_ReturnsRuntimeAuthoringGuidance()
     {
         var tool = new GenerateWorkflowSkeletonTool(_adapter);
         var args = new Dictionary<string, object>
@@ -195,7 +195,7 @@ public class GenerationToolsTests : IDisposable
             ["arrayInputParameters"] = JsonSerializer.SerializeToElement(new[] { "items" })
         };
 
-        var result = tool.ExecuteAsync(args).Result;
+        var result = await tool.ExecuteAsync(args);
         var json = ToJson(result);
         var yaml = json.GetProperty("yaml").GetString();
 
@@ -207,7 +207,7 @@ public class GenerationToolsTests : IDisposable
     }
 
     [Fact]
-    public void GenerateWorkflowSkeleton_WithoutInputParameters_CreatesEmptyInputs()
+    public async Task GenerateWorkflowSkeleton_WithoutInputParameters_CreatesEmptyInputs()
     {
         // Arrange
         var tool = new GenerateWorkflowSkeletonTool(_adapter);
@@ -218,7 +218,7 @@ public class GenerationToolsTests : IDisposable
         };
 
         // Act
-        var result = tool.ExecuteAsync(args).Result;
+        var result = await tool.ExecuteAsync(args);
         var json = ToJson(result);
 
         // Assert
