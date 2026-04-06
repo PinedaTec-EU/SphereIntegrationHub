@@ -25,6 +25,7 @@ internal static class PluginCapabilitiesRegistry
                     "indexName",
                     "runIf",
                     "output",
+                    "secretOutputs",
                     "jumpOnStatus",
                     "onStatus",
                     "ensure",
@@ -193,6 +194,18 @@ internal static class PluginCapabilitiesRegistry
                         "reporting.summaryConsole = true",
                         "{name}.{executionId}.workflow.output",
                         "{name}.{executionId}.workflow.report.json"
+                    }
+                },
+                new
+                {
+                    feature = "Secret Masking",
+                    description = "Sensitive values are masked as ***** in the execution report. Mark inputs, init-stage variables, or specific output keys as secret. The key name is always visible.",
+                    examples = new[]
+                    {
+                        "input: secret: true  →  value masked in report.Inputs",
+                        "initStage.variables: secret: true  →  value masked wherever it appears in outputs",
+                        "stage: secretOutputs: [accessToken]  →  value masked in stage output record",
+                        "endStage: secretOutputs: [accessToken]  →  value masked in report.Output"
                     }
                 }
             }

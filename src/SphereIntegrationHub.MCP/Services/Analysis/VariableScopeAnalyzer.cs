@@ -52,7 +52,8 @@ public sealed class VariableScopeAnalyzer
                     {
                         Name = inputData.GetValueOrDefault("name")?.ToString() ?? "",
                         Type = inputData.GetValueOrDefault("type")?.ToString() ?? "string",
-                        Required = inputData.GetValueOrDefault("required")?.ToString()?.ToLowerInvariant() == "true"
+                        Required = inputData.GetValueOrDefault("required")?.ToString()?.ToLowerInvariant() == "true",
+                        Secret = inputData.GetValueOrDefault("secret")?.ToString()?.ToLowerInvariant() == "true"
                     });
                 }
             }
@@ -75,11 +76,13 @@ public sealed class VariableScopeAnalyzer
                             kvp => kvp.Key.ToString() ?? "",
                             kvp => kvp.Value);
 
+                        var isSecret = varData.GetValueOrDefault("secret")?.ToString()?.ToLowerInvariant() == "true";
                         scope.Globals.Add(new GlobalVariable
                         {
                             Name = varData.GetValueOrDefault("name")?.ToString() ?? "",
                             Type = varData.GetValueOrDefault("type")?.ToString() ?? "string",
-                            Value = varData.GetValueOrDefault("value")?.ToString() ?? ""
+                            Value = isSecret ? "*****" : varData.GetValueOrDefault("value")?.ToString() ?? "",
+                            Secret = isSecret
                         });
                     }
                 }
