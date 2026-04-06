@@ -583,6 +583,7 @@ public sealed class WorkflowExecutor
             nestedDocument.EnvironmentVariables,
             context.Context,
             context.IndentLevel + 1);
+        nestedContext.Report = context.Report;
         CopyJsonContext(context, nestedContext);
         ApplyTypedInputs(nestedDocument.Definition, nestedContext);
         var nestedResult = await ExecuteWorkflowAsync(
@@ -610,6 +611,7 @@ public sealed class WorkflowExecutor
         }
 
         ApplyWorkflowStageResult(context, stage.Name, nestedResult.Status, nestedResult.Message);
+        UpdateActiveWorkflowStageRecord(context, nestedInputs, context.WorkflowOutputs[stage.Name], context.WorkflowResults[stage.Name]);
         if (string.Equals(nestedResult.Status, WorkflowResultStatus.Error.ToString(), StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
@@ -1326,6 +1328,23 @@ public sealed class WorkflowExecutor
         {
             record.EnsureStatus = ensureStatus;
         }
+    }
+
+    private void UpdateActiveWorkflowStageRecord(
+        ExecutionContext context,
+        IReadOnlyDictionary<string, string> workflowInputs,
+        IReadOnlyDictionary<string, string> workflowOutput,
+        IReadOnlyDictionary<string, string> workflowResult)
+    {
+        var record = context.ActiveStageRecord;
+        if (record is null)
+        {
+            return;
+        }
+
+        record.WorkflowInputs = WorkflowExecutionRedactor.ConvertOutputs(workflowInputs);
+        record.WorkflowOutput = WorkflowExecutionRedactor.ConvertOutputs(workflowOutput);
+        record.WorkflowResult = WorkflowExecutionRedactor.ConvertOutputs(workflowResult);
     }
 
     private Dictionary<string, string>? ExtractRequestHeaders(WorkflowStageDefinition stage, TemplateContext templateContext)

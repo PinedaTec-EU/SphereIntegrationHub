@@ -1,5 +1,6 @@
 using SphereIntegrationHub.Definitions;
 using SphereIntegrationHub.Services;
+using SphereIntegrationHub.Services.Interfaces;
 
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
@@ -9,6 +10,116 @@ namespace SphereIntegrationHub.Tests;
 
 public sealed class WorkflowExecutorWorkflowStageTests
 {
+    [Fact]
+    public async Task ExecuteAsync_RecordsNestedWorkflowStagesInExecutionReport()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"sih-nested-report-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+        var parentPath = Path.Combine(tempRoot, "parent.workflow");
+        var childPath = Path.Combine(tempRoot, "child.workflow");
+
+        File.WriteAllText(childPath, """
+version: "1.0"
+id: "child"
+name: "child"
+output: true
+input:
+  - name: "tenantId"
+    type: "Text"
+    required: true
+stages:
+  - name: "seed-child"
+    kind: "Endpoint"
+    mock:
+      status: 200
+      payload: "{\"seeded\":true}"
+    output:
+      seeded: "true"
+endStage:
+  output:
+    childTenantId: "{{input.tenantId}}"
+    childSeeded: "{{stage:seed-child.output.seeded}}"
+""");
+
+        try
+        {
+            var definition = new WorkflowDefinition
+            {
+                Version = "1.0",
+                Id = "parent",
+                Name = "parent",
+                References = new WorkflowReference
+                {
+                    Workflows = new List<WorkflowReferenceItem>
+                    {
+                        new() { Name = "child", Path = "./child.workflow" }
+                    }
+                },
+                Stages = new List<WorkflowStageDefinition>
+                {
+                    new()
+                    {
+                        Name = "run-child",
+                        Kind = WorkflowStageKind.Workflow,
+                        WorkflowRef = "child",
+                        Inputs = new Dictionary<string, object?>
+                        {
+                            ["tenantId"] = "tenant-42"
+                        }
+                    }
+                }
+            };
+
+            var document = new WorkflowDocument(definition, parentPath, new Dictionary<string, string>());
+            var catalogVersion = new ApiCatalogVersion
+            {
+                Version = "test",
+                Definitions = new List<ApiDefinition>()
+            };
+
+            var reportWriter = new TestReportWriter();
+            using var httpClient = new HttpClient();
+            var executor = new WorkflowExecutor(
+                httpClient,
+                new DynamicValueService(),
+                reportWriter: reportWriter,
+                reportOptions: new WorkflowExecutionReportOptions(true, ExecutionReportFormat.None, ExecutionHttpCaptureMode.None, false, false));
+
+            await executor.ExecuteAsync(
+                document,
+                catalogVersion,
+                "test",
+                new Dictionary<string, string>(),
+                varsOverrideActive: false,
+                mocked: true,
+                verbose: false,
+                debug: false,
+                cancellationToken: CancellationToken.None);
+
+            Assert.NotNull(reportWriter.CapturedReport);
+            Assert.Equal(2, reportWriter.CapturedReport!.Stages.Count);
+
+            var parentStage = reportWriter.CapturedReport.Stages[0];
+            var childStage = reportWriter.CapturedReport.Stages[1];
+
+            Assert.Equal("run-child", parentStage.StageName);
+            Assert.Equal("Workflow", parentStage.StageKind);
+            Assert.Equal(0, parentStage.Depth);
+            Assert.Equal("tenant-42", parentStage.WorkflowInputs["tenantId"]);
+            Assert.Equal("tenant-42", parentStage.WorkflowOutput["childTenantId"]);
+            Assert.Equal("True", parentStage.WorkflowOutput["childSeeded"]?.ToString());
+            Assert.Equal("Ok", parentStage.WorkflowResult["status"]);
+
+            Assert.Equal("seed-child", childStage.StageName);
+            Assert.Equal("Endpoint", childStage.StageKind);
+            Assert.Equal(1, childStage.Depth);
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, true);
+        }
+    }
+
     [Fact]
     public async Task ExecuteAsync_PropagatesNestedWorkflowFailuresToParent()
     {
@@ -292,6 +403,21 @@ endStage:
         finally
         {
             Directory.Delete(tempRoot, true);
+        }
+    }
+
+    private sealed class TestReportWriter : IWorkflowExecutionReportWriter
+    {
+        public WorkflowExecutionReport? CapturedReport { get; private set; }
+
+        public Task<WorkflowExecutionArtifacts> WriteAsync(
+            WorkflowExecutionReport report,
+            WorkflowDocument document,
+            WorkflowExecutionReportOptions options,
+            CancellationToken cancellationToken)
+        {
+            CapturedReport = report;
+            return Task.FromResult(new WorkflowExecutionArtifacts(null, null));
         }
     }
 }

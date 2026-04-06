@@ -683,6 +683,9 @@ function showDetail(idx) {
   const hasReq    = !!(stage.RequestHeaders || stage.RequestBody);
   const hasRes    = !!(stage.ResponseHeaders || stage.ResponseBody);
   const hasOutput = !!(stage.Output && Object.keys(stage.Output).length > 0);
+  const hasWorkflowInputs = !!(stage.WorkflowInputs && Object.keys(stage.WorkflowInputs).length > 0);
+  const hasWorkflowOutput = !!(stage.WorkflowOutput && Object.keys(stage.WorkflowOutput).length > 0);
+  const hasWorkflowResult = !!(stage.WorkflowResult && Object.keys(stage.WorkflowResult).length > 0);
 
   let body = '';
 
@@ -713,6 +716,14 @@ function showDetail(idx) {
   if (stage.RetryCount) body += kv('Retries', stage.RetryCount);
   body += `</div></div>`;
 
+  if (hasWorkflowResult) {
+    body += `<div class="detail-section"><h3>Workflow Result</h3><div class="output-kv">`;
+    Object.entries(stage.WorkflowResult).forEach(([k,v]) => {
+      body += `<span class="out-k">${esc(k)}</span><span class="out-v">${esc(fmtVal(v))}</span>`;
+    });
+    body += `</div></div>`;
+  }
+
   // Request / Response
   if (hasReq) {
     body += `<div class="detail-section"><h3>Request Headers</h3><div class="code-block">${esc(stage.RequestHeaders ? JSON.stringify(stage.RequestHeaders,null,2):'')}</div></div>`;
@@ -727,6 +738,22 @@ function showDetail(idx) {
   if (hasOutput) {
     body += `<div class="detail-section full-width"><h3>Stage Output</h3><div class="output-kv">`;
     Object.entries(stage.Output).forEach(([k,v]) => {
+      body += `<span class="out-k">${esc(k)}</span><span class="out-v">${esc(fmtVal(v))}</span>`;
+    });
+    body += `</div></div>`;
+  }
+
+  if (hasWorkflowInputs) {
+    body += `<div class="detail-section full-width"><h3>Workflow Inputs</h3><div class="output-kv">`;
+    Object.entries(stage.WorkflowInputs).forEach(([k,v]) => {
+      body += `<span class="out-k">${esc(k)}</span><span class="out-v">${esc(fmtVal(v))}</span>`;
+    });
+    body += `</div></div>`;
+  }
+
+  if (hasWorkflowOutput) {
+    body += `<div class="detail-section full-width"><h3>Workflow Output</h3><div class="output-kv">`;
+    Object.entries(stage.WorkflowOutput).forEach(([k,v]) => {
       body += `<span class="out-k">${esc(k)}</span><span class="out-v">${esc(fmtVal(v))}</span>`;
     });
     body += `</div></div>`;
