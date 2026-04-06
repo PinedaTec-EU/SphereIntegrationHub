@@ -123,8 +123,48 @@ Environment file resolution:
 Use `{{system:datetime.now}}` or `{{system:datetime.utcnow}}` to insert the current timestamp (ISO 8601 format).
 For date-only or time-only values, use:
 
-- `{{system:date.now}}` / `{{system:date.utcnow}}` (format: `yyyy-MM-dd`)
-- `{{system:time.now}}` / `{{system:time.utcnow}}` (format: `HH:mm:ss`)
+- `{{system:date.now}}` / `{{system:date.utcnow}}` → `yyyy-MM-dd`
+- `{{system:time.now}}` / `{{system:time.utcnow}}` → `HH:mm:ss`
+
+#### Date/time offsets
+
+You can add or subtract a duration using [ISO 8601 duration](https://en.wikipedia.org/wiki/ISO_8601#Durations) syntax
+([spec reference](https://www.iso.org/iso-8601-date-and-time-format.html)):
+
+```
+{{ system:<datetime|date|time>.<now|utcnow> +|- P[nY][nM][nD][T[nH][nM][nS]] }}
+```
+
+The `P` prefix is required. Include only the components you need — all are optional:
+
+| Component | Meaning         | Example |
+|-----------|-----------------|---------|
+| `nY`      | Years           | `P2Y` = 2 years |
+| `nM`      | Months (before `T`) | `P6M` = 6 months |
+| `nD`      | Days            | `P10D` = 10 days |
+| `T`       | Time separator  | required before any time component |
+| `nH`      | Hours           | `PT3H` = 3 hours |
+| `nM`      | Minutes (after `T`) | `PT30M` = 30 minutes |
+| `nS`      | Seconds         | `PT45S` = 45 seconds |
+
+Examples:
+
+```yaml
+# Expiry date 30 days from today
+expiresAt: "{{system:date.utcnow + P30D}}"
+
+# Datetime 1 hour and 30 minutes in the future
+scheduledAt: "{{system:datetime.utcnow + PT1H30M}}"
+
+# Date 1 year and 6 months from now
+renewalDate: "{{system:date.now + P1Y6M}}"
+
+# Yesterday
+yesterday: "{{system:date.utcnow - P1D}}"
+
+# Full offset: +1 year, 2 months, 3 days, 4 hours, 5 minutes, 6 seconds
+fullOffset: "{{system:datetime.now + P1Y2M3DT4H5M6S}}"
+```
 
 ## Stage outputs
 

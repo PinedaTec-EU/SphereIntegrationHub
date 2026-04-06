@@ -10,11 +10,17 @@ public sealed class TemplateResolver
 {
     private static readonly Regex TokenRegex = new(@"\{\{\s*(.+?)\s*\}\}", RegexOptions.Compiled);
 
-    // Matches: system:datetime.utcnow + 0001:06:15-01:02:03
-    //          system:date.now - 0000:01:00
+    // Matches: system:datetime.utcnow + P1DT1H2M3S
+    //          system:date.now - P1Y6M
     //          system:time.utcnow
+    // Duration follows ISO 8601: P[nY][nM][nD][T[nH][nM][nS]]
+    // Reference: https://www.iso.org/iso-8601-date-and-time-format.html
     private static readonly Regex SystemTokenRegex = new(
-        @"^system[.:](?<type>datetime|date|time)[.:](?<variant>now|utcnow)(?:\s*(?<sign>[+\-])\s*(?<years>\d+):(?<months>\d+):(?<days>\d+)(?:-(?<hours>\d+):(?<minutes>\d+):(?<seconds>\d+))?)?$",
+        @"^system[.:](?<type>datetime|date|time)[.:](?<variant>now|utcnow)(?:\s*(?<sign>[+\-])\s*(?<duration>P(?:\d+Y)?(?:\d+M)?(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+S)?)?))?$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex IsoDurationRegex = new(
+        @"^P(?:(?<years>\d+)Y)?(?:(?<months>\d+)M)?(?:(?<days>\d+)D)?(?:T(?:(?<hours>\d+)H)?(?:(?<minutes>\d+)M)?(?:(?<seconds>\d+)S)?)?$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private readonly ISystemTimeProvider _systemProvider;
 
@@ -164,36 +170,32 @@ public sealed class TemplateResolver
     {
         if (segments.Length < 3)
         {
-            throw new InvalidOperationException($"Invalid token '{token}'. Expected 'system:<datetime|date|time>.<now|utcnow>' with optional offset '±YYYY:MM:DD' or '±YYYY:MM:DD-HH:mm:ss'.");
+            throw new InvalidOperationException(
+                $"Invalid token '{token}'. Expected 'system:<datetime|date|time>.<now|utcnow>' with optional ISO 8601 duration offset, e.g. '{{{{system:datetime.utcnow + P1DT2H}}}}'.");
         }
 
         var match = SystemTokenRegex.Match(token);
         if (!match.Success)
         {
-            throw new InvalidOperationException($"Invalid token '{token}'. Expected 'system:<datetime|date|time>.<now|utcnow>' with optional offset '±YYYY:MM:DD' or '±YYYY:MM:DD-HH:mm:ss'.");
+            throw new InvalidOperationException(
+                $"Invalid token '{token}'. Expected 'system:<datetime|date|time>.<now|utcnow>' with optional ISO 8601 duration offset, e.g. '{{{{system:date.now + P5D}}}}'.");
         }
 
         var type = match.Groups["type"].Value;
         var isUtc = match.Groups["variant"].Value.Equals("utcnow", StringComparison.OrdinalIgnoreCase);
         var baseDateTime = isUtc ? _systemProvider.UtcNow : _systemProvider.Now;
 
-        if (match.Groups["sign"].Success)
+        if (match.Groups["duration"].Success)
         {
             var sign = match.Groups["sign"].Value == "+" ? 1 : -1;
-            var years = int.Parse(match.Groups["years"].Value, CultureInfo.InvariantCulture);
-            var months = int.Parse(match.Groups["months"].Value, CultureInfo.InvariantCulture);
-            var days = int.Parse(match.Groups["days"].Value, CultureInfo.InvariantCulture);
-
-            baseDateTime = baseDateTime.AddYears(sign * years).AddMonths(sign * months).AddDays(sign * days);
-
-            if (match.Groups["hours"].Success)
+            var durationMatch = IsoDurationRegex.Match(match.Groups["duration"].Value);
+            if (!durationMatch.Success)
             {
-                var hours = int.Parse(match.Groups["hours"].Value, CultureInfo.InvariantCulture);
-                var minutes = int.Parse(match.Groups["minutes"].Value, CultureInfo.InvariantCulture);
-                var seconds = int.Parse(match.Groups["seconds"].Value, CultureInfo.InvariantCulture);
-
-                baseDateTime = baseDateTime.AddHours(sign * hours).AddMinutes(sign * minutes).AddSeconds(sign * seconds);
+                throw new InvalidOperationException(
+                    $"Invalid ISO 8601 duration in token '{token}'. Expected format: P[nY][nM][nD][T[nH][nM][nS]], e.g. P1Y2M3DT4H5M6S.");
             }
+
+            baseDateTime = ApplyIsoDuration(baseDateTime, durationMatch, sign);
         }
 
         if (type.Equals("datetime", StringComparison.OrdinalIgnoreCase))
@@ -207,9 +209,25 @@ public sealed class TemplateResolver
                 .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         }
 
-        // time
         return TimeOnly.FromDateTime(baseDateTime.DateTime)
             .ToString("HH:mm:ss", CultureInfo.InvariantCulture);
+    }
+
+    private static DateTimeOffset ApplyIsoDuration(DateTimeOffset dt, Match durationMatch, int sign)
+    {
+        if (durationMatch.Groups["years"].Success)
+            dt = dt.AddYears(sign * int.Parse(durationMatch.Groups["years"].Value, CultureInfo.InvariantCulture));
+        if (durationMatch.Groups["months"].Success)
+            dt = dt.AddMonths(sign * int.Parse(durationMatch.Groups["months"].Value, CultureInfo.InvariantCulture));
+        if (durationMatch.Groups["days"].Success)
+            dt = dt.AddDays(sign * int.Parse(durationMatch.Groups["days"].Value, CultureInfo.InvariantCulture));
+        if (durationMatch.Groups["hours"].Success)
+            dt = dt.AddHours(sign * int.Parse(durationMatch.Groups["hours"].Value, CultureInfo.InvariantCulture));
+        if (durationMatch.Groups["minutes"].Success)
+            dt = dt.AddMinutes(sign * int.Parse(durationMatch.Groups["minutes"].Value, CultureInfo.InvariantCulture));
+        if (durationMatch.Groups["seconds"].Success)
+            dt = dt.AddSeconds(sign * int.Parse(durationMatch.Groups["seconds"].Value, CultureInfo.InvariantCulture));
+        return dt;
     }
 
     private static ResolvedTokenValue ResolveStageOutputValue(
