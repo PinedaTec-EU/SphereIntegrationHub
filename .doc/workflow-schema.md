@@ -48,9 +48,20 @@ input:
   - name: "items"
     type: "Array"
     required: false
+  - name: "apiKey"
+    type: "Text"
+    required: true
+    secret: true
 ```
 
 `type` reuses `RandomValueType` enum values (Text, Number, Guid, Object, Array, etc.).
+
+Fields:
+
+- `name` (string, required): input name.
+- `type` (string, optional): value type hint.
+- `required` (bool, default `true`): whether the input is required.
+- `secret` (bool, default `false`): when `true`, the input value is masked as `*****` in the execution report `Inputs` section. The name is always visible. The value is also added to the runtime secret register so it is masked wherever it appears in stage outputs.
 
 ## initStage
 
@@ -114,6 +125,9 @@ stages:
     message: "Login succeeded for {{input.username}}"
     output:
       dto: "{{response.body}}"
+      accessToken: "{{stage:json(create-account.output.dto).token}}"
+    secretOutputs:
+      - accessToken   # value masked as ***** in the execution report; name is still visible
     # optional collection iteration
     # forEach: "{{input.items}}"
     # dataFile: "./seed/accounts.json"
@@ -240,6 +254,8 @@ Common fields:
   - `exists(first({{input.items}}))`
 - `debug`: key/value map printed before stage invocation when `--debug` is enabled (response tokens are not available).
 - `message`: printed after a stage completes successfully (response tokens are available for endpoint stages).
+- `output`: key/value map of resolved output values captured after the stage executes.
+- `secretOutputs`: list of `output` key names whose values are masked as `*****` in the execution report. The key name is always visible.
 - `context`: stage-level context updates (merges into shared context).
 - `set`: stage-level global updates (merges into workflow globals).
 - `jumpOnStatus` (endpoint only): status-based jump, including `endStage`.
@@ -368,6 +384,9 @@ If `dataFile` is present:
 endStage:
   output:
     account: "{{stage:create-account.output.dto}}"
+    accessToken: "{{stage:login.output.jwt}}"
+  secretOutputs:
+    - accessToken   # value masked as ***** in the execution report; name is still visible
   context:
     tokenId: "{{stage:login.output.jwt}}"
   result:
@@ -375,6 +394,7 @@ endStage:
 ```
 
 - `output`: workflow output (referenced by parent workflows).
+- `secretOutputs` (list of strings, optional): output keys whose values are masked as `*****` in the execution report. The key name remains visible.
 - `outputJson`: when `true` (default), output values that are JSON objects/arrays are emitted as JSON; when `false`, values are serialized as strings.
 - `context`: updates shared context after workflow completion.
 - `result.message`: optional success message for `workflow.result.message`.
