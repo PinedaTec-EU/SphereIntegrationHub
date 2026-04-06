@@ -31,6 +31,11 @@ public sealed class WorkflowDataFileService
     public JsonElement LoadStructured(string path, string workflowPath)
     {
         var content = LoadText(path, workflowPath);
+        return ParseStructured(content, path);
+    }
+
+    public JsonElement ParseStructured(string content, string path)
+    {
         var extension = Path.GetExtension(path);
         if (extension.Equals(WorkflowConstants.ExtYaml, StringComparison.OrdinalIgnoreCase) ||
             extension.Equals(WorkflowConstants.ExtYml, StringComparison.OrdinalIgnoreCase))
