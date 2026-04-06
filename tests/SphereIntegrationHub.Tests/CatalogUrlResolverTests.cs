@@ -57,6 +57,31 @@ public sealed class CatalogUrlResolverTests
     }
 
     [Fact]
+    public void ResolveSwaggerUri_WithRelativeSwaggerPathAndDefinitionBaseUrl_ReturnsAbsoluteUri()
+    {
+        var version = new ApiCatalogVersion
+        {
+            Version = "0.1",
+            Definitions = []
+        };
+
+        var definition = new ApiDefinition
+        {
+            Name = "TravelAgent.Admin.Api",
+            SwaggerUrl = "/swagger/v1/swagger.json",
+            BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["local"] = "http://localhost:5004"
+            }
+        };
+
+        var swaggerUri = CatalogUrlResolver.ResolveSwaggerUri(version, definition, "local");
+
+        Assert.Equal("http://localhost:5004/swagger/v1/swagger.json", swaggerUri.ToString());
+        Assert.False(swaggerUri.IsFile);
+    }
+
+    [Fact]
     public void ResolveHealthCheckUri_WithDefinitionBaseUrlAndPort_ReturnsExpandedAbsoluteUri()
     {
         var version = new ApiCatalogVersion

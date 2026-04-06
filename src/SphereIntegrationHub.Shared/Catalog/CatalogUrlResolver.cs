@@ -26,12 +26,14 @@ public static class CatalogUrlResolver
 
     public static Uri ResolveSwaggerUri(ApiCatalogVersion version, ApiDefinition definition, string environment)
     {
+        var hasExplicitFileScheme = definition.SwaggerUrl.StartsWith("file://", StringComparison.OrdinalIgnoreCase);
+
         // If the swagger URL is already absolute with no template tokens, return it directly
         if (!definition.SwaggerUrl.Contains("{{", StringComparison.Ordinal) &&
             Uri.TryCreate(definition.SwaggerUrl, UriKind.Absolute, out var directUri) &&
             (directUri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
              directUri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
-             directUri.IsFile))
+             directUri.IsFile && hasExplicitFileScheme))
         {
             return directUri;
         }
