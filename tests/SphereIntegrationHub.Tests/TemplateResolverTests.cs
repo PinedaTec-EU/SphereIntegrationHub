@@ -266,16 +266,18 @@ public sealed class TemplateResolverTests
     }
 
     [Theory]
-    [InlineData("system:datetime.utcnow + 0000:00:01-01:02:03", 0, 0, 1, 1, 2, 3)]
-    [InlineData("system:datetime.now + 0001:02:03-00:00:00",    1, 2, 3, 0, 0, 0)]
-    [InlineData("system:datetime.utcnow - 0000:00:05-00:30:00", 0, 0, -5, 0, -30, 0)]
-    [InlineData("system:datetime.now + 0000:00:00-00:00:00",    0, 0, 0, 0, 0, 0)]
-    public void ResolveTemplate_SystemDatetime_AppliesOffset(
+    // P[nY][nM][nD]T[nH][nM][nS] — ISO 8601 duration
+    [InlineData("system:datetime.utcnow + P1DT1H2M3S", 0, 0, 1,  1,   2, 3)]   // +1 day, 1h 2m 3s
+    [InlineData("system:datetime.now + P1Y2M3D",        1, 2, 3,  0,   0, 0)]   // +1 year, 2 months, 3 days
+    [InlineData("system:datetime.utcnow - P5DT30M",     0, 0, -5, 0, -30, 0)]   // -5 days, 30 min
+    [InlineData("system:datetime.now + PT0S",           0, 0, 0,  0,   0, 0)]   // zero offset
+    [InlineData("system:datetime.utcnow + PT2H",        0, 0, 0,  2,   0, 0)]   // time-only offset
+    [InlineData("system:datetime.now - P1Y",            -1, 0, 0, 0,  0, 0)]   // year-only offset
+    public void ResolveTemplate_SystemDatetime_AppliesIsoDuration(
         string token, int years, int months, int days, int hours, int minutes, int seconds)
     {
         var fixedNow = new DateTimeOffset(2026, 4, 6, 12, 0, 0, TimeSpan.Zero);
-        var timeProvider = new FixedTimeProvider(fixedNow);
-        var resolver = new TemplateResolver(timeProvider);
+        var resolver = new TemplateResolver(new FixedTimeProvider(fixedNow));
         var context = EmptyContext();
 
         var resolved = resolver.ResolveTemplate($"{{{{{token}}}}}", context);
@@ -288,10 +290,11 @@ public sealed class TemplateResolverTests
     }
 
     [Theory]
-    [InlineData("system:date.now + 0001:06:15",    2027, 10, 21)]
-    [InlineData("system:date.utcnow - 0000:01:00", 2026,  3,  6)]
-    [InlineData("system:date.now + 0000:00:00",    2026,  4,  6)]
-    public void ResolveTemplate_SystemDate_AppliesOffset(
+    [InlineData("system:date.now + P1Y6M15D",    2027, 10, 21)]   // +1 year, 6 months, 15 days
+    [InlineData("system:date.utcnow - P1M",      2026,  3,  6)]   // -1 month
+    [InlineData("system:date.now + P5D",         2026,  4, 11)]   // +5 days
+    [InlineData("system:date.now + P0D",         2026,  4,  6)]   // zero offset
+    public void ResolveTemplate_SystemDate_AppliesIsoDuration(
         string token, int expectedYear, int expectedMonth, int expectedDay)
     {
         var fixedNow = new DateTimeOffset(2026, 4, 6, 12, 0, 0, TimeSpan.Zero);
@@ -304,7 +307,7 @@ public sealed class TemplateResolverTests
     }
 
     [Fact]
-    public void ResolveTemplate_SystemDatetime_InvalidOffset_Throws()
+    public void ResolveTemplate_SystemDatetime_InvalidDuration_Throws()
     {
         var resolver = new TemplateResolver();
         var context = EmptyContext();

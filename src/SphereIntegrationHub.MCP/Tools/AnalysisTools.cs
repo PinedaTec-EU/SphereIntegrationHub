@@ -83,7 +83,14 @@ public sealed class ResolveTemplateTokenTool : IMcpTool
     }
 
     public string Name => "resolve_template_token";
-    public string Description => "Resolves a template token (e.g., {{ input.userId }}) to its source, type, and availability";
+    public string Description =>
+        "Resolves a template token to its source, type, and availability. " +
+        "Supported token roots: input, global, context, env, stage, endpoint, workflow, response, system. " +
+        "System tokens provide current date/time values and support ISO 8601 duration offsets: " +
+        "{{ system:date.utcnow + P30D }} (today + 30 days), " +
+        "{{ system:datetime.now - PT2H }} (now - 2 hours), " +
+        "{{ system:datetime.utcnow + P1Y2M3DT4H5M6S }} (full offset). " +
+        "Duration format: P[nY][nM][nD][T[nH][nM][nS]] — only include components you need.";
 
     public object InputSchema => new
     {
@@ -98,7 +105,9 @@ public sealed class ResolveTemplateTokenTool : IMcpTool
             token = new
             {
                 type = "string",
-                description = "Template token to resolve (e.g., 'input.userId' or '{{ input.userId }}')"
+                description =
+                    "Template token to resolve. Examples: 'input.userId', '{{ input.userId }}', " +
+                    "'system:datetime.utcnow', '{{ system:date.now + P5D }}', '{{ system:datetime.utcnow - PT1H30M }}'."
             }
         },
         required = new[] { "workflowPath", "token" }

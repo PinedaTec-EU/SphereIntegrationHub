@@ -224,11 +224,43 @@ public sealed class VariableScopeAnalyzer
     {
         return
         [
-            new SystemVariable { Token = "system.timestamp", Description = "Current timestamp" },
-            new SystemVariable { Token = "system.date", Description = "Current date" },
-            new SystemVariable { Token = "system.time", Description = "Current time" },
-            new SystemVariable { Token = "system.guid", Description = "Random GUID" },
-            new SystemVariable { Token = "system.random", Description = "Random number" }
+            new SystemVariable
+            {
+                Token = "system:datetime.now",
+                Description = "Current local datetime in ISO 8601 format (e.g. 2026-04-06T14:30:00.000+02:00). " +
+                              "Supports ISO 8601 duration offset: {{ system:datetime.now + P1DT2H }} adds 1 day and 2 hours. " +
+                              "Duration format: P[nY][nM][nD][T[nH][nM][nS]] — include only the components you need."
+            },
+            new SystemVariable
+            {
+                Token = "system:datetime.utcnow",
+                Description = "Current UTC datetime in ISO 8601 format. " +
+                              "Supports ISO 8601 duration offset: {{ system:datetime.utcnow - PT30M }} subtracts 30 minutes. " +
+                              "Duration format: P[nY][nM][nD][T[nH][nM][nS]]."
+            },
+            new SystemVariable
+            {
+                Token = "system:date.now",
+                Description = "Current local date as yyyy-MM-dd (e.g. 2026-04-06). " +
+                              "Supports ISO 8601 duration offset: {{ system:date.now + P30D }} = today + 30 days, " +
+                              "{{ system:date.now + P1Y6M }} = +1 year 6 months, {{ system:date.now - P1M }} = -1 month."
+            },
+            new SystemVariable
+            {
+                Token = "system:date.utcnow",
+                Description = "Current UTC date as yyyy-MM-dd. " +
+                              "Supports ISO 8601 duration offset: {{ system:date.utcnow + P7D }} = UTC today + 7 days."
+            },
+            new SystemVariable
+            {
+                Token = "system:time.now",
+                Description = "Current local time as HH:mm:ss (e.g. 14:30:00)."
+            },
+            new SystemVariable
+            {
+                Token = "system:time.utcnow",
+                Description = "Current UTC time as HH:mm:ss."
+            }
         ];
     }
 
