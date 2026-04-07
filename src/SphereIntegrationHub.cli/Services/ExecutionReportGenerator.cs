@@ -437,6 +437,9 @@ function barCls(stage) {
 function getDurationText(durationMs) {
   return durationMs > 0 ? fmtMs(durationMs) : '';
 }
+function getTimelineLabel(stage, durationText) {
+  return statusCls(stage.Status) === 'skipped' ? statusText(stage.Status) : durationText;
+}
 function isWfKind(stage) {
   return (stage.StageKind || '').toLowerCase().includes('workflow');
 }
@@ -624,6 +627,7 @@ function buildRow(node, totalMs, startTs) {
   const lbl       = stage.Status === 'Error' ? 's-error' : stage.Status === 'Skipped' ? 's-skipped' : '';
   const bCls      = barCls(stage);
   const durationText = getDurationText(durMs);
+  const timelineLabel = getTimelineLabel(stage, durationText);
   const wfCls     = isWf ? ' wf-row' : '';
   const skippedCls = statusCls(stage.Status) === 'skipped' ? ' is-skipped' : '';
   const selCls    = _selected === idx ? ' selected' : '';
@@ -680,11 +684,11 @@ function buildRow(node, totalMs, startTs) {
 
   // Timeline bar
   html += `<div class="trace-right">`;
-  const barTitle = statusCls(stage.Status) === 'skipped' ? 'Not executed' : durationText;
-  html += `<div class="timeline-span" style="left:${offsetPct}%;width:${widthPct}%" title="${esc(barTitle)}"${durationText ? ` data-duration-label="${esc(durationText)}"` : ''}>`;
+  const barTitle = timelineLabel;
+  html += `<div class="timeline-span" style="left:${offsetPct}%;width:${widthPct}%" title="${esc(barTitle)}"${timelineLabel ? ` data-duration-label="${esc(timelineLabel)}"` : ''}>`;
   html += `<div class="span-bar ${bCls}"></div>`;
-  if (statusCls(stage.Status) !== 'skipped' && durationText) {
-    html += `<div class="span-bar-duration">${esc(durationText)}</div>`;
+  if (timelineLabel) {
+    html += `<div class="span-bar-duration">${esc(timelineLabel)}</div>`;
   }
   html += `</div>`;
   html += `</div>`;
@@ -717,6 +721,7 @@ function rowClick(idx) {
       const btn = domRow.querySelector('.expand-btn');
       if (btn) btn.classList.toggle('open', !wasOpen);
     }
+    syncTimelineLabels();
 
     if (_selected === idx) {
       return;

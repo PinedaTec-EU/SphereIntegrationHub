@@ -66,6 +66,8 @@ public sealed class ExecutionReportGeneratorTests
         var htmlPath = Path.Combine(root, $"{Path.GetFileName(root)}.reports.workflow.report.html");
         var html = await File.ReadAllTextAsync(htmlPath);
         Assert.Contains("Not executed", html, StringComparison.Ordinal);
+        Assert.Contains("getTimelineLabel(stage, durationText)", html, StringComparison.Ordinal);
+        Assert.Contains("data-duration-label=\"${esc(timelineLabel)}\"", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -93,6 +95,7 @@ public sealed class ExecutionReportGeneratorTests
         var html = await File.ReadAllTextAsync(htmlPath);
         Assert.Contains("if (_selected === idx && !hasChildren)", html, StringComparison.Ordinal);
         Assert.Contains("if (_selected === idx) {", html, StringComparison.Ordinal);
+        Assert.Contains("syncTimelineLabels();", html, StringComparison.Ordinal);
         Assert.Contains("class=\"tree-indent\"", html, StringComparison.Ordinal);
         Assert.Contains("--uri-indent:", html, StringComparison.Ordinal);
         Assert.Contains("return;", html, StringComparison.Ordinal);
