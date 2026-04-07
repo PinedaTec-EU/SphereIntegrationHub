@@ -4,6 +4,7 @@ using SphereIntegrationHub.Tests.Helpers;
 
 namespace SphereIntegrationHub.Tests;
 
+[Collection(CliCacheMetricsCollection.Name)]
 /// <summary>
 /// Tests that <see cref="ApiEndpointValidator"/> emits the expected cache metrics:
 ///   sih.cache.swagger.operations.hits
