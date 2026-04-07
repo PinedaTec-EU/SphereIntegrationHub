@@ -38,6 +38,8 @@ public sealed class ExecutionReportGeneratorTests
         Assert.Contains("Newer Workflow", html, StringComparison.Ordinal);
         Assert.Contains("const _initialReportIndex = 1;", html, StringComparison.Ordinal);
         Assert.Contains("01KNGXHCZZZZ6KMC3DZDZAJRTJ", html, StringComparison.Ordinal);
+        Assert.Contains("Sphere Integration Hub (SIH)", html, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"Sphere Integration Hub icon\"", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -64,6 +66,36 @@ public sealed class ExecutionReportGeneratorTests
         var htmlPath = Path.Combine(root, $"{Path.GetFileName(root)}.reports.workflow.report.html");
         var html = await File.ReadAllTextAsync(htmlPath);
         Assert.Contains("Not executed", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GenerateAndOpenAsync_WithWorkflowStages_KeepsDetailLogicSeparatedFromExpansion()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"sih-report-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+
+        var reportPath = Path.Combine(root, "sample.01KNGXHCZZZZ6KMC3DZDZAJRTJ.workflow.report.json");
+        await File.WriteAllTextAsync(reportPath, CreateWorkflowTreeReportJson());
+
+        var output = new TestOutputProvider();
+        var generator = new ExecutionReportGenerator(output);
+
+        var result = await generator.GenerateAndOpenAsync(
+            new InlineArguments(
+                IsReportCommand: true,
+                ExecutionReportPath: root,
+                OpenAfterGenerate: false),
+            CancellationToken.None);
+
+        Assert.Equal(0, result);
+
+        var htmlPath = Path.Combine(root, $"{Path.GetFileName(root)}.reports.workflow.report.html");
+        var html = await File.ReadAllTextAsync(htmlPath);
+        Assert.Contains("if (_selected === idx && !hasChildren)", html, StringComparison.Ordinal);
+        Assert.Contains("if (_selected === idx) {", html, StringComparison.Ordinal);
+        Assert.Contains("class=\"tree-indent\"", html, StringComparison.Ordinal);
+        Assert.Contains("--uri-indent:", html, StringComparison.Ordinal);
+        Assert.Contains("return;", html, StringComparison.Ordinal);
     }
 
     private static string CreateReportJson(string executionId, string workflowName)
@@ -131,6 +163,54 @@ public sealed class ExecutionReportGeneratorTests
             DurationMs = 0,
             Status = "Skipped",
             RunIf = "{{input.enabled}} == true"
+        });
+
+        return System.Text.Json.JsonSerializer.Serialize(report, new System.Text.Json.JsonSerializerOptions
+        {
+            WriteIndented = true
+        });
+    }
+
+    private static string CreateWorkflowTreeReportJson()
+    {
+        var report = new WorkflowExecutionReport
+        {
+            ExecutionId = "01KNGXHCZZZZ6KMC3DZDZAJRTJ",
+            WorkflowName = "Workflow Tree",
+            WorkflowId = "wf-tree",
+            WorkflowVersion = "1.0.0",
+            WorkflowPath = "/tmp/tree.workflow",
+            Environment = "local",
+            StartedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:00Z"),
+            FinishedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:03Z"),
+            DurationMs = 3000,
+            Result = "Ok",
+            Output = new Dictionary<string, object?>()
+        };
+
+        report.Metrics.TotalStages = 2;
+        report.Metrics.ExecutedStages = 2;
+        report.Stages.Add(new WorkflowStageExecutionRecord
+        {
+            WorkflowName = "Workflow Tree",
+            StageName = "child-workflow",
+            StageKind = "Workflow",
+            StartedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:00Z"),
+            FinishedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:02Z"),
+            DurationMs = 2000,
+            Status = "Ok",
+            Depth = 0
+        });
+        report.Stages.Add(new WorkflowStageExecutionRecord
+        {
+            WorkflowName = "Nested Workflow",
+            StageName = "inner-stage",
+            StageKind = "Endpoint",
+            StartedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:01Z"),
+            FinishedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:02Z"),
+            DurationMs = 1000,
+            Status = "Ok",
+            Depth = 1
         });
 
         return System.Text.Json.JsonSerializer.Serialize(report, new System.Text.Json.JsonSerializerOptions
