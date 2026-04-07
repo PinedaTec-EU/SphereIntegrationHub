@@ -1,0 +1,47 @@
+namespace SphereIntegrationHub.Services;
+
+internal static class ReportBranding
+{
+    internal const string HeaderTitle = "Sphere Integration Hub (SIH)";
+
+    internal const string HeaderLogoSvg = """
+<svg class="header-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Sphere Integration Hub icon">
+  <defs>
+    <radialGradient id="sphereGrad" cx="42%" cy="38%" r="58%">
+      <stop offset="0%" stop-color="#a78bfa"/>
+      <stop offset="55%" stop-color="#6d28d9"/>
+      <stop offset="100%" stop-color="#1e1b4b"/>
+    </radialGradient>
+    <radialGradient id="nodeGrad" cx="35%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#e0e7ff"/>
+      <stop offset="100%" stop-color="#6d28d9"/>
+    </radialGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="nodeGlow" x="-80%" y="-80%" width="360%" height="360%">
+      <feGaussianBlur stdDeviation="1.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <ellipse cx="60" cy="60" rx="50" ry="50" fill="none" stroke="#6d28d9" stroke-width="0.6" stroke-dasharray="3 3" opacity="0.35"/>
+  <line x1="60" y1="60" x2="60" y2="14" stroke="#a78bfa" stroke-width="1.2" opacity="0.6"/>
+  <line x1="60" y1="60" x2="100" y2="35" stroke="#a78bfa" stroke-width="1.2" opacity="0.6"/>
+  <line x1="60" y1="60" x2="100" y2="85" stroke="#a78bfa" stroke-width="1.2" opacity="0.6"/>
+  <line x1="60" y1="60" x2="60" y2="106" stroke="#a78bfa" stroke-width="1.2" opacity="0.6"/>
+  <line x1="60" y1="60" x2="20" y2="85" stroke="#a78bfa" stroke-width="1.2" opacity="0.6"/>
+  <line x1="60" y1="60" x2="20" y2="35" stroke="#a78bfa" stroke-width="1.2" opacity="0.6"/>
+  <circle cx="60" cy="14" r="5" fill="url(#nodeGrad)" filter="url(#nodeGlow)"/>
+  <circle cx="100" cy="35" r="5" fill="url(#nodeGrad)" filter="url(#nodeGlow)"/>
+  <circle cx="100" cy="85" r="5" fill="url(#nodeGrad)" filter="url(#nodeGlow)"/>
+  <circle cx="60" cy="106" r="5" fill="url(#nodeGrad)" filter="url(#nodeGlow)"/>
+  <circle cx="20" cy="85" r="5" fill="url(#nodeGrad)" filter="url(#nodeGlow)"/>
+  <circle cx="20" cy="35" r="5" fill="url(#nodeGrad)" filter="url(#nodeGlow)"/>
+  <circle cx="60" cy="60" r="22" fill="url(#sphereGrad)" filter="url(#glow)"/>
+  <ellipse cx="60" cy="60" rx="22" ry="9" fill="none" stroke="#c4b5fd" stroke-width="0.7" opacity="0.45"/>
+  <line x1="60" y1="38" x2="60" y2="82" stroke="#c4b5fd" stroke-width="0.7" opacity="0.45"/>
+  <ellipse cx="53" cy="52" rx="7" ry="4.5" fill="white" opacity="0.18" transform="rotate(-20 53 52)"/>
+</svg>
+""";
+}

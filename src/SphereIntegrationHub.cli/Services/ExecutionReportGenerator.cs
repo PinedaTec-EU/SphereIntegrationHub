@@ -167,6 +167,7 @@ internal sealed class ExecutionReportGenerator
   --header-bg:#f8fafc;--row-hover:#f0f9ff;--row-selected:#dbeafe;--row-border:#f1f5f9;
   --wf-row-bg:#f0f4ff;--wf-row-hover:#e0ebff;--wf-row-selected:#c7d9ff;
   --detail-bg:#eff6ff;--detail-border:#bfdbfe;
+  --tree-guide:rgba(59,130,246,.32);
   --code-bg:#f8fafc;--code-border:#e2e8f0;--code-text:#475569;
   --btn-bg:#1e293b;--btn-c:#94a3b8;--btn-border:#334155;--btn-hover-bg:#334155;--btn-hover-c:#f1f5f9;
   --chip-total-bg:#eef2ff;--chip-total-c:#4338ca;--chip-total-b:#c7d2fe;
@@ -184,6 +185,7 @@ internal sealed class ExecutionReportGenerator
   --header-bg:#1e293b;--row-hover:#172554;--row-selected:#1e3a5f;--row-border:#1e293b;
   --wf-row-bg:#1a2540;--wf-row-hover:#1e3060;--wf-row-selected:#1e3a6e;
   --detail-bg:#172554;--detail-border:#1e40af;
+  --tree-guide:rgba(96,165,250,.34);
   --code-bg:#0f172a;--code-border:#334155;--code-text:#94a3b8;
   --btn-bg:#334155;--btn-c:#94a3b8;--btn-border:#475569;--btn-hover-bg:#475569;--btn-hover-c:#f1f5f9;
   --chip-total-bg:#1e1b4b;--chip-total-c:#a5b4fc;--chip-total-b:#312e81;
@@ -199,6 +201,7 @@ internal sealed class ExecutionReportGenerator
 body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:13px;background:var(--bg);color:var(--text);display:flex;flex-direction:column;height:100vh;overflow:hidden;transition:background .2s,color .2s}
 /* ── Banner ──────────────────────────────────────────────────────── */
 .banner{background:var(--banner-bg);color:var(--banner-text);padding:10px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.banner-logo{width:28px;height:28px;flex-shrink:0}
 .banner-brand{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--banner-muted);white-space:nowrap;flex-shrink:0}
 .banner-sep{color:#334155;flex-shrink:0;font-size:16px;line-height:1}
 .banner-version{font-size:11px;font-weight:600;color:#4ade80;background:rgba(74,222,128,.12);border:1px solid rgba(74,222,128,.25);border-radius:4px;padding:1px 7px;white-space:nowrap;flex-shrink:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.02em}
@@ -241,8 +244,11 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .trace-row.wf-row.selected{background:var(--wf-row-selected)}
 .trace-row.is-skipped{opacity:.92}
 /* left cell */
-.trace-left{width:380px;min-width:380px;padding:4px 8px;display:flex;flex-direction:column;justify-content:center;gap:1px;overflow:hidden;border-right:1px solid var(--border)}
+.trace-left{width:380px;min-width:380px;padding:4px 8px;display:flex;flex-direction:column;justify-content:center;gap:1px;overflow:hidden;border-right:1px solid var(--border);position:relative}
 .trace-left-top{display:flex;align-items:center;gap:5px;overflow:hidden;width:100%}
+.tree-indent{height:18px;flex-shrink:0;position:relative;pointer-events:none}
+.tree-indent::before{content:'';position:absolute;top:-10px;bottom:-10px;left:0;right:0;background-image:repeating-linear-gradient(90deg,transparent 0 17px,var(--tree-guide) 17px 18px);opacity:.9}
+.tree-indent::after{content:'';position:absolute;top:50%;right:0;width:12px;border-top:1px solid var(--tree-guide);transform:translateY(-50%)}
 /* expand chevron */
 .expand-btn{width:18px;min-width:18px;height:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--expand-c);font-size:11px;font-weight:700;transition:transform .18s;line-height:1;border-radius:3px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.22)}
 .expand-btn:hover{background:rgba(99,102,241,.22)}
@@ -267,7 +273,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .stage-lbl.s-error{color:#ef4444}
 .stage-lbl.s-skipped{color:var(--text-subtle)}
 .stage-state{font-size:10px;font-weight:700;letter-spacing:.02em;color:var(--chip-skip-c);background:var(--chip-skip-bg);border:1px solid var(--chip-skip-b);border-radius:4px;padding:1px 5px;flex-shrink:0}
-.stage-uri{font-size:10.5px;color:var(--text-subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;padding-left:22px}
+.stage-uri{font-size:10.5px;color:var(--text-subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;padding-left:var(--uri-indent,22px)}
 /* status column */
 .trace-status{width:64px;min-width:64px;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--border);flex-shrink:0}
 .http-status{font-size:11px;font-weight:700;padding:2px 6px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
@@ -322,7 +328,8 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 <body>
 
 <div class="banner">
-  <span class="banner-brand">Sphere</span>
+  {{ReportBranding.HeaderLogoSvg.Replace("class=\"header-logo\"", "class=\"banner-logo\"")}}
+  <span class="banner-brand">{{ReportBranding.HeaderTitle}}</span>
   <span class="banner-sep">·</span>
   <span class="banner-version" id="banner-version">v{{appVersion}}</span>
   <h1 class="banner-title" id="banner-title">Loading&hellip;</h1>
@@ -568,6 +575,9 @@ function buildRow(node, totalMs, startTs) {
   const hasChildren = node.children.length > 0;
   const isWf        = isWfKind(stage);
   const isOpen      = _expanded.has(idx);
+  const depth       = Math.max(0, stage.Depth || 0);
+  const indentPx    = depth * 18;
+  const uriIndentPx = 22 + indentPx;
 
   const stageTs   = new Date(stage.StartedAtUtc).getTime();
   const offsetMs  = Math.max(0, stageTs - startTs);
@@ -586,8 +596,11 @@ function buildRow(node, totalMs, startTs) {
   let html = `<div class="trace-row${wfCls}${skippedCls}${selCls}" data-idx="${idx}" onclick="rowClick(${idx})">`;
 
   // Left cell
-  html += `<div class="trace-left">`;
+  html += `<div class="trace-left" style="--uri-indent:${uriIndentPx}px">`;
   html += `<div class="trace-left-top">`;
+  if (depth > 0) {
+    html += `<span class="tree-indent" style="width:${indentPx}px"></span>`;
+  }
   // expand/collapse button or placeholder
   if (hasChildren) {
     html += `<span class="expand-btn${isOpen?' open':''}">&#9654;</span>`;
@@ -636,14 +649,15 @@ function rowClick(idx) {
   if (!_report) return;
   const node = findNode(_tree, idx);
   if (!node) return;
+  const hasChildren = node.children.length > 0;
 
-  // If already selected → deselect and close detail (toggle off)
-  if (_selected === idx) {
+  // Workflow rows keep their detail open; repeated clicks only toggle children.
+  if (_selected === idx && !hasChildren) {
     closeDetail();
     return;
   }
 
-  if (node.children.length > 0) {
+  if (hasChildren) {
     // Toggle expand children
     const wasOpen = _expanded.has(idx);
     if (wasOpen) _expanded.delete(idx); else _expanded.add(idx);
@@ -653,6 +667,10 @@ function rowClick(idx) {
     if (domRow) {
       const btn = domRow.querySelector('.expand-btn');
       if (btn) btn.classList.toggle('open', !wasOpen);
+    }
+
+    if (_selected === idx) {
+      return;
     }
   }
 

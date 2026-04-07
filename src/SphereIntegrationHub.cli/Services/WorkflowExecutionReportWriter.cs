@@ -51,7 +51,7 @@ public sealed class WorkflowExecutionReportWriter : IWorkflowExecutionReportWrit
         builder.AppendLine("<html lang=\"en\" data-theme=\"light\"><head><meta charset=\"utf-8\" />");
         builder.AppendLine("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">");
         builder.AppendLine($"<title>Workflow Report - {System.Net.WebUtility.HtmlEncode(report.WorkflowName)}</title>");
-        builder.AppendLine("""
+        builder.AppendLine($$"""
 <style>
 :root {
   --bg:#f5f7fa;--surface:#fff;--border:#e2e8f0;--text:#1e293b;--text-muted:#64748b;--text-subtle:#94a3b8;
@@ -70,7 +70,8 @@ public sealed class WorkflowExecutionReportWriter : IWorkflowExecutionReportWrit
 *,*::before,*::after { box-sizing: border-box; }
 body { margin: 0; font-family: ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; font-size: 13px; background: var(--bg); color: var(--text); transition: background .2s, color .2s; }
 header { background: var(--header-bg); color: var(--header-text); padding: 12px 24px; display: flex; align-items: center; gap: 12px; }
-.header-brand { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--header-muted); }
+.header-logo { width: 28px; height: 28px; flex-shrink: 0; }
+.header-brand { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--header-muted); white-space: nowrap; }
 .header-sep { color: #334155; font-size: 16px; }
 .header-title { font-size: 15px; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .btn { background: var(--btn-bg); color: var(--btn-c); border: 1px solid var(--btn-border); padding: 5px 11px; border-radius: 6px; cursor: pointer; font-size: 12px; font-family: inherit; transition: background .15s, color .15s; }
@@ -91,7 +92,8 @@ pre { background: var(--pre-bg); border: 1px solid var(--pre-border); border-rad
 </head>
 <body>
 <header>
-  <span class="header-brand">Sphere</span>
+  {{ReportBranding.HeaderLogoSvg}}
+  <span class="header-brand">{{ReportBranding.HeaderTitle}}</span>
   <span class="header-sep">·</span>
   <span class="header-title">Workflow Report</span>
   <button class="btn btn-icon" id="theme-toggle" title="Toggle dark/light mode" onclick="toggleTheme()">🌙</button>

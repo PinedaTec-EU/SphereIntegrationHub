@@ -71,6 +71,8 @@ public sealed class WorkflowExecutionReportWriterTests
         Assert.Equal("Ok", parsed.RootElement.GetProperty("Result").GetString());
         var html = await File.ReadAllTextAsync(artifacts.HtmlReportPath!);
         Assert.Contains("Workflow Report", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Sphere Integration Hub (SIH)", html, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"Sphere Integration Hub icon\"", html, StringComparison.Ordinal);
     }
 
     [Fact]
