@@ -289,8 +289,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .span-bar{position:absolute;height:18px;top:13px;border-radius:4px;min-width:3px;display:flex;align-items:center;padding:0 5px;font-size:10px;color:rgba(255,255,255,.9);white-space:nowrap;overflow:hidden;cursor:pointer;transition:filter .1s}
 .span-bar:hover{filter:brightness(1.12)}
 .bar-ok{background:#22c55e}.bar-error{background:#ef4444}
-.bar-skipped{background:repeating-linear-gradient(135deg,#94a3b8 0 8px,#cbd5e1 8px 16px);color:var(--chip-skip-bg);border:1px dashed #64748b}
-.bar-skipped-label{color:var(--chip-skip-bg)}
+.bar-skipped{background:var(--chip-skip-bg);border:1px solid var(--chip-skip-b);padding:0}
 .bar-running{background:#3b82f6}.bar-mocked{background:#8b5cf6}
 .bar-workflow{background:linear-gradient(90deg,#6366f1,#8b5cf6)}
 /* children group */
@@ -648,9 +647,9 @@ function buildRow(node, totalMs, startTs) {
 
   // Timeline bar
   html += `<div class="trace-right">`;
-  html += `<div class="span-bar ${bCls}" style="left:${offsetPct}%;width:${widthPct}%">`;
-  if (statusCls(stage.Status) === 'skipped') html += `<span class="bar-skipped-label">Not executed</span>`;
-  else if (durMs >= 8) html += fmtMs(durMs);
+  const barTitle = statusCls(stage.Status) === 'skipped' ? 'Not executed' : (durMs >= 8 ? fmtMs(durMs) : '');
+  html += `<div class="span-bar ${bCls}" style="left:${offsetPct}%;width:${widthPct}%" title="${esc(barTitle)}">`;
+  if (statusCls(stage.Status) !== 'skipped' && durMs >= 8) html += fmtMs(durMs);
   html += `</div></div>`;
 
   html += `</div>`;
