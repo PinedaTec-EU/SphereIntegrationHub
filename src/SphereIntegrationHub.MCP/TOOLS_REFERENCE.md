@@ -4,8 +4,8 @@ This document summarizes the current MCP surface implemented in `src/SphereInteg
 
 ## Tool Count
 
-- Total tools: `37`
-- L1: `29`
+- Total tools: `35`
+- L1: `27`
 - L2: `5`
 - L3: `1`
 - L4: `2`
@@ -82,14 +82,6 @@ Persists generated artifacts in configured workflows path:
 
 Note: if `workflowPath` is provided with `.yaml`/`.yml` (or without extension), MCP normalizes it to `.workflow`.
 
-### `generate_wfvars_from_workflow`
-
-Generates `.wfvars` from an existing workflow:
-- reads workflow YAML from `workflowPath`
-- derives keys from `input`
-- returns `wfvars`
-- optionally writes the file (default `writeChanges=true`)
-
 ### `repair_workflow_artifacts`
 
 Repairs workflow artifacts from an existing workflow file:
@@ -110,17 +102,6 @@ Generates startup bootstrap artifacts for API projects:
 
 Generates `api-catalog.json` content and can write it directly to disk.
 Use this first when onboarding MCP in repositories that do not have catalog files yet.
-
-### `quick_refresh_swagger_cache`
-
-Fast-path cache regeneration from catalog, designed to minimize LLM exploration steps.
-
-Defaults:
-- `version`: `0.1`
-- `environment`: `local`
-- `refresh`: `true`
-
-Use when user says "regenerate cache" and catalog already exists.
 
 ## Execution Report Tools
 
