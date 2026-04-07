@@ -90,8 +90,9 @@ internal sealed class CliPipeline : ICliPipeline
             return new CliRunResult(1, messages, emittedMessageCount);
         }
 
-        EmitBaseUrlInfo(selectedVersion, parseResult.Environment!, messages);
+        EmitBaseUrlInfo(workflowDocument.Definition, selectedVersion, parseResult.Environment!, messages);
         await EmitApiHealthChecksAsync(workflowDocument, selectedVersion, parseResult.Environment!, messages, cancellationToken);
+        emittedMessageCount = EmitPendingMessages(messages, emittedMessageCount);
 
         if (!await TryCacheSwaggerAndValidateEndpoints(parseResult, workflowDocument, selectedVersion, messages, cancellationToken))
         {
@@ -279,9 +280,23 @@ internal sealed class CliPipeline : ICliPipeline
         return false;
     }
 
-    private void EmitBaseUrlInfo(ApiCatalogVersion selectedVersion, string environment, List<CliRunMessage> messages)
+    private void EmitBaseUrlInfo(WorkflowDefinition workflowDefinition, ApiCatalogVersion selectedVersion, string environment, List<CliRunMessage> messages)
     {
-        AddInfo(messages, $"Base url: [per-definition, env={environment}]");
+        var referencedDefinitions = GetReferencedApiDefinitions(workflowDefinition, selectedVersion);
+        if (referencedDefinitions.Count == 0)
+        {
+            AddInfo(messages, $"Base url: [per-definition, env={environment}]");
+            return;
+        }
+
+        AddInfo(messages, $"API endpoints (env={environment}):");
+        foreach (var definition in referencedDefinitions.OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            var baseUrl = CatalogUrlResolver.TryResolveBaseUrl(selectedVersion, definition, environment, out var resolved)
+                ? resolved
+                : "(unresolved)";
+            AddInfo(messages, $"  {definition.Name} -> {baseUrl}");
+        }
     }
 
     private async Task EmitApiHealthChecksAsync(
