@@ -12,20 +12,20 @@ These instructions are maintained by the MCP owners and apply to cache-refresh w
 
 When user intent is to regenerate Swagger cache:
 
-1. Call `quick_refresh_swagger_cache` directly.
+1. Call `refresh_swagger_cache_from_catalog` directly.
 2. Do not run repository discovery/search before step 1.
-3. Use defaults unless user specifies otherwise:
-   - `version = "0.1"`
-   - `environment = "local"`
+3. Prefer explicit arguments:
+   - `version`
+   - `environment`
    - `refresh = true`
 4. Validate result using `counts` from tool output.
 5. If localhost access fails due to sandbox/network restrictions, retry with elevated permissions.
 
 When user intent is to generate `.wfvars` from an existing workflow:
 
-1. Call `generate_wfvars_from_workflow` directly.
+1. Call `repair_workflow_artifacts` directly.
 2. Do not run repository discovery/search before step 1.
-3. Use `writeChanges = true` unless user explicitly asks for preview/dry-run.
+3. Use write mode unless user explicitly asks for preview/dry-run.
 4. If `hasInputs = false`, report warning and stop (no repair needed).
 
 ### Fallback

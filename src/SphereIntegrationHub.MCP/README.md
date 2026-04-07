@@ -31,15 +31,33 @@ McpServer (stdio JSON-RPC)
 │   ├── Catalog/              - API catalog & Swagger reading
 │   ├── Validation/           - Workflow validation
 │   ├── Generation/           - Stage & workflow generation
-│   └── Analysis/             - Variable scope & context flow
+│   ├── Analysis/             - Variable scope & context flow
+│   ├── Semantic/             - Dependency and pattern analysis
+│   ├── Synthesis/            - System-level workflow synthesis
+│   └── Optimization/         - Workflow improvement analysis
 └── Tools/
     ├── CatalogTools.cs       - 4 catalog exploration tools
     ├── ValidationTools.cs    - 3 validation tools
-    ├── GenerationTools.cs    - 3 generation tools
+    ├── WorkflowGenerationTools.cs - 7 workflow generation tools
+    ├── CatalogManagementTools.cs  - 3 catalog management tools
     ├── AnalysisTools.cs      - 3 analysis tools
     ├── ReferenceTools.cs     - 2 reference tools
-    └── DiagnosticTools.cs    - 3 diagnostic tools
+    ├── DiagnosticTools.cs    - 5 diagnostic/report tools
+    ├── SemanticTools.cs      - 3 semantic tools
+    ├── PatternTools.cs       - 2 pattern tools
+    ├── SynthesisTools.cs     - 1 synthesis tool
+    └── OptimizationTools.cs  - 2 optimization tools
 ```
+
+## Tool Surface
+
+Current implemented surface:
+
+- L1: 27 tools
+- L2: 5 tools
+- L3: 1 tool
+- L4: 2 tools
+- Total: 35 tools
 
 ## Level 1 Tools (27 implemented)
 
@@ -56,20 +74,21 @@ McpServer (stdio JSON-RPC)
 - `validate_stage` - Validates single stage
 - `plan_workflow_execution` - Analyzes execution plan
 
-### Generation Tools (12)
+### Workflow Generation Tools (7)
 
 - `generate_endpoint_stage` - Generates stage from endpoint
 - `generate_workflow_skeleton` - Creates workflow template
 - `generate_mock_payload` - Generates test payload
 - `generate_workflow_bundle` - Generates `workflow` + `.wfvars` + payload drafts
 - `write_workflow_artifacts` - Writes generated artifacts to disk
-- `generate_wfvars_from_workflow` - Generates `.wfvars` from workflow `input`
 - `repair_workflow_artifacts` - Validates workflow and creates/repairs `.wfvars`
 - `generate_startup_bootstrap` - Generates startup integration for app boot
+
+### Catalog Management Tools (3)
+
 - `generate_api_catalog_file` - Generates/writes `api-catalog.json`
 - `upsert_api_catalog_and_cache` - Creates/updates catalog from swagger URL and downloads cache
 - `refresh_swagger_cache_from_catalog` - Downloads cache files from existing catalog
-- `quick_refresh_swagger_cache` - Fast-path cache refresh with defaults (`version=0.1`, `environment=local`, `refresh=true`)
 
 ### Analysis Tools (3)
 
@@ -82,11 +101,13 @@ McpServer (stdio JSON-RPC)
 - `list_available_workflows` - Lists all workflows
 - `get_workflow_inputs_outputs` - Shows workflow I/O
 
-### Diagnostic Tools (3)
+### Diagnostic Tools (5)
 
 - `explain_validation_error` - Explains errors with suggestions
 - `get_plugin_capabilities` - Lists stage types & features
 - `suggest_resilience_config` - Suggests retry/timeout config
+- `list_execution_reports` - Lists available report artifacts
+- `read_execution_report` - Reads a report artifact with structured summary
 
 ## Community
 
@@ -209,7 +230,7 @@ Use this short conversation flow with your LLM to get the first workflow generat
    - Prompt: `Use MCP tool upsert_api_catalog_and_cache with version 3.11, apiName AccountsAPI, swaggerUrl <YOUR_SWAGGER_URL>, basePath /api/accounts.`
 3. If catalog exists and you only need cache refresh:
    - Prompt: `Use MCP tool refresh_swagger_cache_from_catalog for version 3.11 with refresh=true.`
-   - Fast-path prompt (recommended for local setups): `Use MCP tool quick_refresh_swagger_cache.`
+   - Keep the request explicit with version and environment so the tool call matches the current server surface.
 4. Generate workflow draft bundle:
    - Prompt: `Use MCP to generate a workflow bundle for "create account" and include workflowDraft + wfvars.`
 5. Persist artifacts:
@@ -335,7 +356,6 @@ This exposes only a minimal subset of tools:
 - `generate_api_catalog_file`
 - `upsert_api_catalog_and_cache`
 - `refresh_swagger_cache_from_catalog`
-- `quick_refresh_swagger_cache`
 
 This reduces `tools/list` payload and usually lowers discovery tokens/latency in generic LLM agents.
 

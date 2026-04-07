@@ -7,7 +7,7 @@
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/PinedaTec-EU/SphereIntegrationHub)
 [![License MIT](https://img.shields.io/badge/MIT_license-blue)](https://opensource.org/licenses/MIT)
 [![DotNet 10](https://img.shields.io/badge/dotnet_10-green)](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
-![MCP](https://img.shields.io/badge/MCP-37_tools-purple)
+![MCP](https://img.shields.io/badge/MCP-35_tools-purple)
 [![NuGet Version](https://img.shields.io/nuget/v/SphereIntegrationHub.Tool.svg?label=CLI)](https://www.nuget.org/packages/SphereIntegrationHub.Tool/)
 [![NuGet Version](https://img.shields.io/nuget/v/SphereIntegrationHub.MCP.Tool.svg?label=MCP)](https://www.nuget.org/packages/SphereIntegrationHub.Mcp.Tool/)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/SphereIntegrationHub.Tool.svg?label=downloads)](https://www.nuget.org/packages/SphereIntegrationHub.Tool/)
@@ -35,7 +35,7 @@ Documentation:
 - [`dry-run validation`](.doc/dry-run.md)
 - [`execution reporting`](.doc/execution-reporting.md)
 - [`open telemetry`](.doc/telemetry.md)
-- [`MCP Server`](.doc/mcp-server.md) - AI-assisted workflow creation (37 tools, all levels)
+- [`MCP Server`](.doc/mcp-server.md) - AI-assisted workflow creation (35 tools, all levels)
 - [`GitHub Action`](.doc/github-action.md) - run workflows from any CI/CD pipeline
 - [`plugins`](.doc/plugins.md)
 
@@ -519,17 +519,17 @@ SphereIntegrationHub is now strong as a local-first API orchestration runtime an
 - ✅ Aggregated `forEach` workflow result state via `foreach_results`, `foreach_success_count`, and `foreach_failed_count`
 - ✅ Post-execution observability with JSON/HTML reports, stage timelines, and summary output
 - ✅ Interactive HTML trace report (`sih report`) — Jaeger-style timeline with per-stage drill-down, HTTP details, and file picker to load prior executions; generated as a standalone command from any `.workflow.report.json` artifact
-- ✅ MCP server with 37 tools across all capability levels — catalog exploration, workflow validation, stage generation, variable analysis, semantic dependency inference, pattern detection, full system synthesis, and optimization — fully aligned with the runtime schema and ready for production AI-assisted authoring
+- ✅ MCP server with 35 implemented tools across all capability levels — catalog exploration, workflow validation, stage generation, variable analysis, semantic dependency inference, pattern detection, full system synthesis, and optimization
 - ✅ GitHub Action (`run-sphere-workflow`) for executing workflows from any CI/CD pipeline, with optional version pinning
 
 ### Near-Term Priorities
 
 1. **Assertions and Regression Diagnostics**
-   First-class assertions, golden snapshots, and failure diffs on top of the new execution reports.
+   First-class assertions, golden snapshots, and failure diffs on top of the existing execution reports.
 2. **Snapshot and Regression Testing**
    Snapshot authoring helpers and update workflows for intentional baseline changes.
-3. **Secret Manager Integration**
-   AWS Secrets Manager, Azure Key Vault, HashiCorp Vault, and similar providers.
+3. **Documentation and Surface Alignment**
+   Keep runtime, CLI, MCP, GitHub Action, and examples synchronized so the documented contract matches the implemented one.
 4. **Plugin/Transformer Extensibility**
    Load custom .NET transformations and stage extensions safely.
 
@@ -541,6 +541,8 @@ SphereIntegrationHub is now strong as a local-first API orchestration runtime an
    Web-based workflow builder for teams that want graphical authoring on top of the YAML runtime.
 3. **Higher-Level Runtime Primitives**
    More semantic stage sugar beyond `ensure`, plus better assertions and reusable payload/template blocks.
+4. **External Secret Providers (Deferred)**
+   AWS Secrets Manager, Azure Key Vault, HashiCorp Vault, and similar providers stay out of the near-term plan until the local-first secret story, assertions, and extension model are more stable.
 
 ### Ongoing Investment
 

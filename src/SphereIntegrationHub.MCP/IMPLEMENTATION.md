@@ -2,7 +2,7 @@
 
 ## Overview
 
-Complete implementation of the SphereIntegrationHub MCP (Model Context Protocol) server providing 18 Level 1 tools for AI-assisted workflow development.
+Implementation notes for the SphereIntegrationHub MCP (Model Context Protocol) server. The current codebase exposes 35 implemented tools across L1-L4, with the main remaining work centered on documentation alignment and authoring quality rather than missing protocol layers.
 
 ## Implementation Status
 
@@ -19,7 +19,7 @@ Complete implementation of the SphereIntegrationHub MCP (Model Context Protocol)
   - Tool registration and routing
   - Request processing (initialize, tools/list, tools/call)
   - Error handling with proper JSON-RPC error responses
-  - Support for 18 Level 1 tools
+  - Support for the current MCP tool surface
 
 ### ✅ Services Layer (Complete)
 
@@ -57,7 +57,13 @@ Complete implementation of the SphereIntegrationHub MCP (Model Context Protocol)
   - Tracks context flow through stages
   - Identifies variable dependencies
 
-### ✅ Level 1 Tools (18 tools - Complete)
+### ✅ Current Tool Surface
+
+- L1: 27 tools
+- L2: 5 tools
+- L3: 1 tool
+- L4: 2 tools
+- Total: 35 tools
 
 #### Catalog Tools (4 tools)
 1. **list_api_catalog_versions** - Lists all available API catalog versions
@@ -177,10 +183,15 @@ src/SphereIntegrationHub.MCP/
 ├── Tools/                              # Tool implementations
 │   ├── CatalogTools.cs                # 4 catalog tools
 │   ├── ValidationTools.cs             # 3 validation tools
-│   ├── GenerationTools.cs             # 3 generation tools
+│   ├── WorkflowGenerationTools.cs     # 7 workflow generation tools
+│   ├── CatalogManagementTools.cs      # 3 catalog management tools
 │   ├── AnalysisTools.cs               # 3 analysis tools
 │   ├── ReferenceTools.cs              # 2 reference tools
-│   └── DiagnosticTools.cs             # 3 diagnostic tools
+│   ├── DiagnosticTools.cs             # 5 diagnostic/report tools
+│   ├── SemanticTools.cs               # 3 semantic tools
+│   ├── PatternTools.cs                # 2 pattern tools
+│   ├── SynthesisTools.cs              # 1 synthesis tool
+│   └── OptimizationTools.cs           # 2 optimization tools
 │
 ├── Models/                             # Data models (pre-existing)
 │   ├── EndpointInfo.cs
@@ -358,20 +369,11 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 3. **Minimal Dependencies** - Only System.Text.Json and YamlDotNet
 4. **Lazy Loading** - Services created on-demand, not at startup
 
-## Future Enhancements (Not Implemented)
+## Current Gaps
 
-### Level 2 Tools (Planned - 5 tools)
-- Semantic search over APIs
-- Workflow composition
-- Dependency analysis
-- Pattern matching
-
-### Level 3 Tools (Planned - 2 tools)
-- Workflow optimization
-- Performance analysis
-
-### Level 4 Tools (Planned - 1 tool)
-- Complete system design generation
+- Some MCP-facing documents still describe outdated tool counts and legacy fast-path tools.
+- The immediate opportunity is to improve repair flows, assertion-oriented authoring, and report-guided diagnostics.
+- External secret-provider integrations remain intentionally deferred; the runtime already supports local secret masking and that local-first model is still the priority.
 
 ## Dependencies
 
@@ -395,7 +397,7 @@ dotnet test src/SphereIntegrationHub.MCP
 
 ## Success Metrics
 
-- ✅ All 18 Level 1 tools implemented
+- ✅ 35 implemented tools across L1-L4
 - ✅ Clean architecture with service layer
 - ✅ Full JSON-RPC 2.0 support
 - ✅ Comprehensive error handling
@@ -407,6 +409,4 @@ dotnet test src/SphereIntegrationHub.MCP
 
 ## Conclusion
 
-The SphereIntegrationHub MCP server is fully functional with all 18 Level 1 tools implemented. The architecture is extensible, services are reusable, and the implementation follows best practices for async C#, error handling, and JSON-RPC protocol compliance.
-
-The server is ready for integration with Claude Desktop and other MCP clients to enable AI-assisted workflow development.
+The SphereIntegrationHub MCP server is in production shape and already covers the higher-capability layers that earlier documents described as future work. The main task now is to keep the documented surface aligned with the implemented `[McpTool]` inventory and continue improving workflow authoring quality on top of that stable base.

@@ -1,6 +1,6 @@
 # MCP Server for SphereIntegrationHub
 
-The MCP server is **production-ready** and ships as a separate dotnet tool (`SphereIntegrationHub.Mcp.Tool`). It exposes **37 tools** across four capability levels — from basic catalog exploration and workflow validation up to full autonomous system synthesis and continuous optimization. All tools are aligned with the current runtime schema.
+The MCP server is **production-ready** and ships as a separate dotnet tool (`SphereIntegrationHub.Mcp.Tool`). It currently exposes **35 implemented tools** across four capability levels — from basic catalog exploration and workflow validation up to system synthesis and workflow optimization.
 
 **Key capabilities at a glance:**
 - Catalog exploration and Swagger introspection (L1)
@@ -25,7 +25,7 @@ The MCP server is **production-ready** and ships as a separate dotnet tool (`Sph
   - [Level 2: Semi-Autonomous Mode](#level-2-semi-autonomous-mode)
   - [Level 3: Autonomous Mode](#level-3-autonomous-mode)
   - [Level 4: Optimizer Mode](#level-4-optimizer-mode)
-- [Implementation Roadmap](#implementation-roadmap)
+- [Current Status and Direction](#current-status-and-direction)
 - [Technical Architecture](#technical-architecture)
 - [Usage Examples](#usage-examples)
 - [Getting Started](#getting-started)
@@ -80,7 +80,7 @@ Currently, creating a complex workflow in SphereIntegrationHub requires:
 
 - Claude Desktop (Anthropic)
 - VSCode with Claude Code extension
-- GitHub Copilot (planned support)
+- GitHub Copilot
 - Cursor IDE
 - Any client implementing MCP protocol
 
@@ -172,7 +172,7 @@ Currently, creating a complex workflow in SphereIntegrationHub requires:
 │  │  - generate_workflow_skeleton                             │  │
 │  │  - suggest_workflow_from_goal (L3)                        │  │
 │  │  - analyze_endpoint_dependencies (L3)                     │  │
-│  │  - ... (26 tools total across all levels)                 │  │
+│  │  - ... (35 tools total across all levels)                 │  │
 │  └───────────────────────────────────────────────────────────┘  │
 │                                                                   │
 │  ┌───────────────────────────────────────────────────────────┐  │
@@ -385,7 +385,7 @@ New runtime authoring features exposed through MCP:
 | `list_execution_reports` | `workflowPath?: string`<br>`outputDir?: string`<br>`limit?: int` | `ExecutionReportList` | Lists available `.workflow.report.json` artifacts ordered by most recent |
 | `read_execution_report` | `reportPath: string`<br>`includeHttpBodies?: bool` | `ExecutionReportSummary` | Reads an execution artifact and returns metadata, metrics, and per-stage details |
 
-**Total L1 Tools: 29**
+**Total L1 Tools: 27**
 
 ---
 
@@ -819,241 +819,32 @@ This is the **"killer feature"** - full autonomous construction.
 }
 ```
 
-**Total L4 Tools: 2 (cumulative: 26)**
+**Total L4 Tools: 2 (cumulative: 35)**
 
 ---
 
-## Implementation Roadmap
+## Current Status and Direction
 
-### Phase 1: Foundation (2-3 weeks)
+The original MCP plan is largely implemented. The remaining work is no longer "build the MCP" but rather keep the MCP surface, runtime schema, and docs aligned while improving authoring quality.
 
-**Goal:** MCP server infrastructure + Level 1 tools
+### Implemented Today
 
-**Deliverables:**
+- L1 foundations are in production: catalog exploration, validation, generation, analysis, references, diagnostics, and execution-report inspection.
+- L2 semantic capabilities are implemented: dependency analysis, data-flow inference, goal-driven workflow suggestions, and API pattern detection.
+- L3 system synthesis is present through `synthesize_system_from_description`.
+- L4 optimization is present through workflow optimization and Swagger coverage analysis.
+- Runtime-aligned authoring is in place for `expectedStatuses`, `onStatus`, `ensure`, `bodyFile`, `dataFile`, `forEach`, structured inputs, and execution-report-aware guidance.
 
-- ✅ MCP server with stdio transport
-- ✅ Tool registration and JSON schema definitions
-- ✅ Integration with existing SphereIntegrationHub services
-- ✅ All 18 Level 1 tools implemented
-- ✅ Basic integration tests
-- ✅ Documentation for tool usage
+### Near-Term Priorities
 
-**Validation:**
+1. Keep tool inventory and docs synchronized with the actual `[McpTool]` surface so AI clients do not rely on non-existent tools.
+2. Improve repair and generation quality around assertions, regression diagnostics, and report-guided fixes.
+3. Tighten examples and prompts so local-first workflows remain the default operating model.
 
-- AI can explore API catalog
-- AI can validate workflows
-- AI can generate individual stages
-- AI can check variable availability
+### Deferred Topics
 
-**Branch:** `feature/mcp-server-integration-phase1`
-
----
-
-### Phase 2: Semantic Analysis (3-4 weeks)
-
-**Goal:** Level 2 semi-autonomous capabilities
-
-**Deliverables:**
-
-- ✅ SwaggerSemanticAnalyzer service
-- ✅ PatternDetector service
-- ✅ All 5 Level 2 tools implemented
-- ✅ Confidence scoring for dependency detection
-- ✅ Integration tests for pattern detection
-- ✅ Documentation for semantic analysis
-
-**New Services:**
-
-```csharp
-// Services/Semantic/SwaggerSemanticAnalyzer.cs
-public class SwaggerSemanticAnalyzer
-{
-    Task<EndpointDependencies> AnalyzeDependenciesAsync(
-        string version, string apiName, string endpoint, string verb);
-
-    Task<List<FieldSource>> FindFieldSourcesAsync(
-        string fieldName, string fieldType, string version);
-
-    double CalculateConfidence(FieldMapping mapping);
-}
-
-// Services/Semantic/PatternDetector.cs
-public class PatternDetector
-{
-    List<ApiPattern> DetectPatterns(OpenApiDocument swagger);
-
-    OAuthPattern? DetectOAuth(OpenApiDocument swagger);
-    CrudPattern? DetectCrud(OpenApiDocument swagger, string resource);
-    PaginationPattern? DetectPagination(OpenApiDocument swagger);
-}
-```
-
-**Validation:**
-
-- AI can detect that "POST /accounts needs organizationId from GET /orgs"
-- AI can identify OAuth 2.0 flow automatically
-- AI can suggest complete workflow for "create account with payment"
-
-**Branch:** `feature/mcp-server-integration-phase2`
-
----
-
-### Phase 3: Autonomous Construction (4-6 weeks)
-
-**Goal:** Level 3 full system synthesis
-
-**Deliverables:**
-
-- ✅ WorkflowGraphBuilder service (dependency graphs, topological sort)
-- ✅ WorkflowSynthesizer service (natural language → workflow)
-- ✅ Test scenario generator
-- ✅ `synthesize_system_from_description` tool
-- ✅ Advanced integration tests with complex scenarios
-- ✅ Performance benchmarks (goal: <5s for typical system)
-
-**New Services:**
-
-```csharp
-// Services/Synthesis/WorkflowGraphBuilder.cs
-public class WorkflowGraphBuilder
-{
-    DependencyGraph BuildGraph(List<EndpointInfo> endpoints);
-    List<string> TopologicalSort(DependencyGraph graph);
-    List<Cycle> DetectCycles(DependencyGraph graph);
-}
-
-// Services/Synthesis/WorkflowSynthesizer.cs
-public class WorkflowSynthesizer
-{
-    Task<SystemDesign> SynthesizeAsync(
-        string description,
-        SystemRequirements requirements);
-
-    Dictionary<string, string> GenerateDataBindings(List<StageInfo> stages);
-
-    List<TestScenario> GenerateTestScenarios(WorkflowDefinition workflow);
-}
-
-// Services/Synthesis/IntentAnalyzer.cs
-public class IntentAnalyzer
-{
-    ParsedIntent ParseDescription(string naturalLanguage);
-    List<string> ExtractEntities(string description);
-    List<string> ExtractActions(string description);
-}
-```
-
-**Validation:**
-
-- AI can build complete hotel booking system from 2-sentence description
-- Generated workflows pass validation
-- Test scenarios cover happy path + error cases
-- Execution plan is correct
-
-**Branch:** `feature/mcp-server-integration-phase3`
-
----
-
-### Phase 4: Runtime-Aligned Authoring
-
-**Goal:** Make MCP expose the real SIH runtime shape instead of a generic workflow abstraction.
-
-**Deliverables:**
-
-- ✅ `get_plugin_capabilities` aligned with actual runtime stage kinds (`Endpoint`, `Workflow`)
-- ✅ Runtime authoring hints for `expectedStatuses`, `onStatus`, `bodyFile`, `dataFile`, `forEach`
-- ✅ Structured input authoring (`Object`, `Array`) surfaced in generation tools
-- ✅ Semantic sugar `ensure` exposed as the preferred idempotent authoring pattern
-- ✅ Documentation updated so agents and humans see the same contract
-
-**Validation:**
-
-- AI agents receive runtime-valid authoring guidance
-- MCP-generated workflow skeletons prefer supported fields over invented abstractions
-- Capability discovery reflects the same semantics documented in the runtime schema
-
----
-
-### Phase 5: Execution Report Tools
-
-**Goal:** Move from schema-aware generation to operationally useful AI assistance.
-
-**Deliverables:**
-
-- ✅ `list_execution_reports` — lists `.workflow.report.json` artifacts in the `output/` directory, ordered by most recent, with lightweight metadata per run
-- ✅ `read_execution_report` — reads and parses a specific artifact, returning full execution metadata, metrics, and per-stage details (HTTP, retries, jump targets, outputs)
-- ✅ `sih report` CLI command — standalone command that generates a self-contained interactive Jaeger-style HTML trace report from any `.workflow.report.json` artifact and opens it in the browser
-- Improved workflow repair/upgrade suggestions for new runtime primitives
-- Better generation of bootstrap/seed workflows using `ensure`, `bodyFile`, and `forEach`
-- Optional dedicated generation helpers for semantic patterns such as ensure/create-if-missing
-
----
-
-### Phase 4: Optimization (2-3 weeks)
-
-**Goal:** Level 4 continuous improvement
-
-**Deliverables:**
-
-- ✅ WorkflowOptimizer service
-- ✅ All 2 Level 4 tools implemented
-- ✅ Performance analysis engine
-- ✅ Coverage reports
-- ✅ Optimization validation (ensure suggested changes don't break workflows)
-
-**New Services:**
-
-```csharp
-// Services/Optimization/WorkflowOptimizer.cs
-public class WorkflowOptimizer
-{
-    OptimizationReport AnalyzeWorkflow(WorkflowDefinition workflow);
-
-    List<Optimization> FindParallelizationOpportunities(WorkflowDefinition wf);
-    List<Optimization> FindRedundantCalls(WorkflowDefinition wf);
-    List<Optimization> SuggestResilienceImprovements(WorkflowDefinition wf);
-    List<Optimization> FindCachingOpportunities(WorkflowDefinition wf);
-
-    WorkflowDefinition ApplyOptimization(
-        WorkflowDefinition workflow,
-        Optimization optimization);
-}
-
-// Services/Optimization/SwaggerCoverageAnalyzer.cs
-public class SwaggerCoverageAnalyzer
-{
-    CoverageReport AnalyzeCoverage(string version);
-    List<string> FindUnusedEndpoints(string version);
-    Dictionary<string, int> GetEndpointUsageStats();
-}
-```
-
-**Validation:**
-
-- AI correctly identifies parallelization opportunities
-- Resilience suggestions are appropriate (no retry on idempotent POSTs)
-- Coverage reports are accurate
-
-**Branch:** `feature/mcp-server-integration-phase4`
-
----
-
-### Phase 5: Polish & Release (2 weeks)
-
-**Goal:** Production-ready MCP server
-
-**Deliverables:**
-
-- ✅ Complete documentation (this file + API reference)
-- ✅ Installation guide for Claude Desktop, VSCode, etc.
-- ✅ Example workflows showcasing each tool
-- ✅ Performance optimizations (caching, async operations)
-- ✅ Error handling and graceful degradation
-- ✅ Logging and diagnostics
-- ✅ Release binaries for macOS, Linux, Windows
-- ✅ GitHub release with changelog
-
-**Branch:** Merge to `main`
+- External secret-provider integrations are intentionally deferred. The runtime already supports secret masking for local inputs and outputs, and that local-first model remains the priority.
+- Larger hosted experiences such as dashboards or visual editors belong to the broader product roadmap, not the immediate MCP roadmap.
 
 ---
 
@@ -1069,10 +860,11 @@ SphereIntegrationHub.MCP/
 ├── Tools/                              # MCP tool implementations
 │   ├── CatalogTools.cs                 # L1: list_versions, get_endpoints, etc.
 │   ├── ValidationTools.cs              # L1: validate_workflow, plan_execution
-│   ├── GenerationTools.cs              # L1: generate_stage, generate_skeleton
+│   ├── WorkflowGenerationTools.cs      # L1: generate_stage, generate_skeleton, bundle, repair
+│   ├── CatalogManagementTools.cs       # L1: catalog file generation and cache refresh
 │   ├── AnalysisTools.cs                # L1: get_variables, resolve_token
 │   ├── ReferenceTools.cs               # L1: list_workflows
-│   ├── DiagnosticTools.cs              # L1: explain_error, suggest_resilience
+│   ├── DiagnosticTools.cs              # L1: explain_error, report inspection
 │   ├── SemanticTools.cs                # L2: analyze_dependencies, infer_flow
 │   ├── PatternTools.cs                 # L2: detect_patterns, generate_crud
 │   ├── SynthesisTools.cs               # L3: synthesize_system
@@ -1716,7 +1508,7 @@ The **SphereIntegrationHub MCP Server** transforms workflow creation from a manu
 | Multi-workflow system | 4-8 hours | 1 hour | 2 minutes |
 | Workflow optimization | 2-4 hours | N/A | 20 seconds |
 
-### Success Metrics (Phase 5)
+### Success Metrics
 
 - ✅ 90% of generated workflows are valid on first try
 - ✅ L3 system synthesis completes in <10 seconds
@@ -1725,10 +1517,10 @@ The **SphereIntegrationHub MCP Server** transforms workflow creation from a manu
 
 ### Next Steps
 
-1. **Review this document** - Ensure alignment with project goals
-2. **Start Phase 1** - Implement basic MCP server + L1 tools
-3. **Iterate based on feedback** - Adjust tool designs as needed
-4. **Expand progressively** - Add L2, L3, L4 as foundation solidifies
+1. **Keep docs aligned with code** - tool counts, examples, and capability claims should match the current implementation.
+2. **Improve authoring quality** - better repair flows, assertions, and report-guided diagnostics.
+3. **Protect the local-first model** - avoid assuming hosted dependencies or external secret providers are part of the core workflow yet.
+4. **Iterate on real usage** - evolve the MCP surface from concrete workflow-authoring feedback.
 
 ---
 
@@ -1742,7 +1534,7 @@ The **SphereIntegrationHub MCP Server** transforms workflow creation from a manu
 
 ---
 
-**Document Version:** 1.0
-**Last Updated:** 2026-02-10
-**Status:** 🚧 Planning Phase
-**Current Branch:** `feature/mcp-server-integration`
+**Document Version:** 1.1
+**Last Updated:** 2026-04-07
+**Status:** Production
+**Current Branch:** `main`
