@@ -1,8 +1,6 @@
-# SphereIntegrationHub
-
 <p align="center">
   <a href="https://github.com/PinedaTec-EU/SphereIntegrationHub">
-    <img loading="lazy" alt="Sphere RabbitMQ" src="./.doc/SIH.png" width="85%"/>
+    <img loading="lazy" alt="Sphere Integration Hub" src="./.doc/SIH.png" width="85%"/>
   </a>
 </p>
 
@@ -10,8 +8,19 @@
 [![License MIT](https://img.shields.io/badge/MIT_license-blue)](https://opensource.org/licenses/MIT)
 [![DotNet 10](https://img.shields.io/badge/dotnet_10-green)](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
 ![MCP](https://img.shields.io/badge/MCP-37_tools-purple)
-![CLI](https://img.shields.io/badge/CLI-blue)
-![IaC](https://img.shields.io/badge/IaC-red)
+[![NuGet Version](https://img.shields.io/nuget/v/SphereIntegrationHub.Tool.svg?label=CLI)](https://www.nuget.org/packages/SphereIntegrationHub.Tool/)
+[![NuGet Version](https://img.shields.io/nuget/v/SphereIntegrationHub.MCP.svg?label=MCP)](https://www.nuget.org/packages/SphereIntegrationHub.Mcp.Tool/)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/SphereIntegrationHub.Tool.svg?label=downloads)](https://www.nuget.org/packages/SphereIntegrationHub.Tool/)
+[![GitHub Release](https://img.shields.io/github/v/release/PinedaTec-EU/SphereIntegrationHub?label=release)](https://github.com/PinedaTec-EU/SphereIntegrationHub/releases)
+[![GitHub commits](https://img.shields.io/github/commit-activity/m/PinedaTec-EU/SphereIntegrationHub)](https://github.com/PinedaTec-EU/SphereIntegrationHub/commits/main)
+[![GitHub Issues](https://img.shields.io/github/issues/PinedaTec-EU/SphereIntegrationHub)](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues)
+[![GitHub Stars](https://img.shields.io/github/stars/PinedaTec-EU/SphereIntegrationHub?style=social)](https://github.com/PinedaTec-EU/SphereIntegrationHub/stargazers)
+[![Twitter Follow](https://img.shields.io/twitter/follow/jmrpineda?style=social)](https://twitter.com/jmrpineda)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?logo=linkedin)](https://www.linkedin.com/in/jmrpineda)
+
+<p align="center">
+  <img src="./.doc/icon.svg" width="90" height="90" alt="SphereIntegrationHub icon"/>
+</p>
 
 CLI tool to orchestrate API calls using versioned Swagger catalogs and YAML workflows. Workflows can reference other workflows, share context (like JWTs), validate endpoints against cached Swagger specs, and run in dry-run mode for validation.
 
@@ -53,6 +62,10 @@ dotnet new tool-manifest   # only if .config/dotnet-tools.json doesn't exist yet
 dotnet tool install SphereIntegrationHub.Tool
 dotnet tool restore        # teammates and CI run this to pick it up
 ```
+
+### Nugets
+[CLI](https://www.nuget.org/packages/SphereIntegrationHub.Tool/)
+[MCP](https://www.nuget.org/packages/SphereIntegrationHub.Mcp.Tool/)
 
 Verify the installation:
 
