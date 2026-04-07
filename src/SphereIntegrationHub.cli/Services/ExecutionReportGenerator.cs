@@ -435,7 +435,7 @@ function barCls(stage) {
   return 'bar-' + statusCls(stage.Status);
 }
 function getDurationText(durationMs) {
-  return durationMs >= 8 ? fmtMs(durationMs) : '';
+  return durationMs > 0 ? fmtMs(durationMs) : '';
 }
 function isWfKind(stage) {
   return (stage.StageKind || '').toLowerCase().includes('workflow');
