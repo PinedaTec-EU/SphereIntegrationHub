@@ -4,6 +4,10 @@ namespace SphereIntegrationHub.cli;
 
 internal sealed class CliPathResolver : ICliPathResolver
 {
+    private const string WorkflowsFolderName = "workflows";
+    private const string ApiCatalogFileName = "api-catalog.json";
+    private const string CacheFolderName = "cache";
+
     public string FormatPath(string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -58,42 +62,57 @@ internal sealed class CliPathResolver : ICliPathResolver
 
     public string ResolveDefaultCatalogPath(string? workflowPath)
     {
-        if (!string.IsNullOrWhiteSpace(workflowPath))
-        {
-            var workflowDirectory = Path.GetDirectoryName(workflowPath);
-            if (!string.IsNullOrWhiteSpace(workflowDirectory))
-            {
-                var parent = Directory.GetParent(workflowDirectory);
-                if (parent is not null)
-                {
-                    return Path.Combine(parent.FullName, "api-catalog.json");
-                }
-            }
-        }
-
-        return Path.Combine(AppContext.BaseDirectory, "api-catalog.json");
+        var resourcesRoot = ResolveDefaultResourcesRoot(workflowPath);
+        return Path.Combine(resourcesRoot ?? AppContext.BaseDirectory, ApiCatalogFileName);
     }
 
     public string ResolveDefaultCacheRoot(string? workflowPath)
     {
-        if (!string.IsNullOrWhiteSpace(workflowPath))
-        {
-            var workflowDirectory = Path.GetDirectoryName(workflowPath);
-            if (!string.IsNullOrWhiteSpace(workflowDirectory))
-            {
-                var parent = Directory.GetParent(workflowDirectory);
-                if (parent is not null)
-                {
-                    return Path.Combine(parent.FullName, "cache");
-                }
-            }
-        }
-
-        return Path.Combine(AppContext.BaseDirectory, "cache");
+        var resourcesRoot = ResolveDefaultResourcesRoot(workflowPath);
+        return Path.Combine(resourcesRoot ?? AppContext.BaseDirectory, CacheFolderName);
     }
 
     private static bool HasWfvarsExtension(string path)
     {
         return string.Equals(Path.GetExtension(path), WorkflowConstants.ExtWfvars, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? ResolveDefaultResourcesRoot(string? workflowPath)
+    {
+        if (string.IsNullOrWhiteSpace(workflowPath))
+        {
+            return null;
+        }
+
+        var workflowDirectoryPath = Path.GetDirectoryName(Path.GetFullPath(workflowPath));
+        if (string.IsNullOrWhiteSpace(workflowDirectoryPath))
+        {
+            return null;
+        }
+
+        var directory = new DirectoryInfo(workflowDirectoryPath);
+        while (directory is not null)
+        {
+            if (string.Equals(directory.Name, WorkflowsFolderName, StringComparison.OrdinalIgnoreCase) &&
+                directory.Parent is not null)
+            {
+                return directory.Parent.FullName;
+            }
+
+            if (File.Exists(Path.Combine(directory.FullName, ApiCatalogFileName)))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        var workflowDirectory = Path.GetDirectoryName(workflowPath);
+        if (string.IsNullOrWhiteSpace(workflowDirectory))
+        {
+            return null;
+        }
+
+        return Directory.GetParent(workflowDirectory)?.FullName;
     }
 }

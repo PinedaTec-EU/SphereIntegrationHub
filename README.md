@@ -86,6 +86,8 @@ Swagger definitions are cached per version in:
 
 `src/resources/cache/{version}/{definition}.json`
 
+When the CLI resolves default paths from a workflow location, it treats the nearest ancestor `workflows/` folder as shared root. That keeps `api-catalog.json` and `cache/` centralized even if workflows are organized in nested subfolders under `workflows/`.
+
 ## GitHub Action
 
 The `run-sphere-workflow` composite action lets you install the SphereIntegrationHub CLI and execute a workflow from any GitHub Actions pipeline with a single step.
@@ -353,6 +355,8 @@ This writes:
 - `{name}.{executionId}.workflow.output`
 - `{name}.{executionId}.workflow.report.json`
 - `{name}.{executionId}.workflow.report.html`
+
+Execution artifacts are written to the sibling `output/` directory next to the executed workflow file.
 
 Reports include stage timings, retries, jumps, ensure status, HTTP status, redacted headers/body capture, and final outputs.
 
