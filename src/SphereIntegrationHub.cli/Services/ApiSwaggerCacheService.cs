@@ -16,31 +16,22 @@ public sealed class ApiSwaggerCacheService
 
     public async Task CacheSwaggerAsync(
         ApiCatalogVersion catalogVersion,
-        WorkflowDefinition workflow,
         string environment,
         string cacheRoot,
         bool refresh,
         bool verbose,
         CancellationToken cancellationToken)
     {
-        if (workflow.References?.Apis is null || workflow.References.Apis.Count == 0)
+        if (catalogVersion.Definitions.Count == 0)
         {
             return;
         }
 
         Directory.CreateDirectory(cacheRoot);
 
-        foreach (var apiReference in workflow.References.Apis)
+        foreach (var definition in catalogVersion.Definitions.OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase))
         {
             using var activity = Telemetry.ActivitySource.StartActivity(TelemetryConstants.ActivitySwaggerCache);
-            var definition = catalogVersion.Definitions.FirstOrDefault(def =>
-                string.Equals(def.Name, apiReference.Definition, StringComparison.OrdinalIgnoreCase));
-
-            if (definition is null)
-            {
-                throw new InvalidOperationException(
-                    $"API definition '{apiReference.Definition}' was not found in catalog version '{catalogVersion.Version}'.");
-            }
 
             activity?.SetTag(TelemetryConstants.TagApiDefinition, definition.Name);
             activity?.SetTag(TelemetryConstants.TagCatalogVersion, catalogVersion.Version);

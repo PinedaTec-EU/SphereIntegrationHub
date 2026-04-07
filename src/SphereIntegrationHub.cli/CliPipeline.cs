@@ -90,8 +90,8 @@ internal sealed class CliPipeline : ICliPipeline
             return new CliRunResult(1, messages, emittedMessageCount);
         }
 
-        EmitBaseUrlInfo(workflowDocument.Definition, selectedVersion, parseResult.Environment!, messages);
-        await EmitApiHealthChecksAsync(workflowDocument, selectedVersion, parseResult.Environment!, messages, cancellationToken);
+        EmitBaseUrlInfo(selectedVersion.Definitions, selectedVersion, parseResult.Environment!, messages);
+        await EmitApiHealthChecksAsync(selectedVersion.Definitions, selectedVersion, parseResult.Environment!, messages, cancellationToken);
         emittedMessageCount = EmitPendingMessages(messages, emittedMessageCount);
 
         if (!await TryCacheSwaggerAndValidateEndpoints(parseResult, workflowDocument, selectedVersion, messages, cancellationToken))
@@ -280,9 +280,12 @@ internal sealed class CliPipeline : ICliPipeline
         return false;
     }
 
-    private void EmitBaseUrlInfo(WorkflowDefinition workflowDefinition, ApiCatalogVersion selectedVersion, string environment, List<CliRunMessage> messages)
+    private void EmitBaseUrlInfo(
+        IReadOnlyList<ApiDefinition> referencedDefinitions,
+        ApiCatalogVersion selectedVersion,
+        string environment,
+        List<CliRunMessage> messages)
     {
-        var referencedDefinitions = GetReferencedApiDefinitions(workflowDefinition, selectedVersion);
         if (referencedDefinitions.Count == 0)
         {
             AddInfo(messages, $"Base url: [per-definition, env={environment}]");
@@ -300,13 +303,12 @@ internal sealed class CliPipeline : ICliPipeline
     }
 
     private async Task EmitApiHealthChecksAsync(
-        WorkflowDocument workflowDocument,
+        IReadOnlyList<ApiDefinition> referencedDefinitions,
         ApiCatalogVersion selectedVersion,
         string environment,
         List<CliRunMessage> messages,
         CancellationToken cancellationToken)
     {
-        var referencedDefinitions = GetReferencedApiDefinitions(workflowDocument.Definition, selectedVersion);
         if (referencedDefinitions.Count == 0)
         {
             return;
@@ -349,7 +351,7 @@ internal sealed class CliPipeline : ICliPipeline
                 : "Swagger definitions: (analyzing cache)");
             using var httpClient = _serviceFactory.CreateHttpClient();
             var cacheService = _serviceFactory.CreateApiSwaggerCacheService(httpClient);
-            await cacheService.CacheSwaggerAsync(selectedVersion, workflowDocument.Definition, parseResult.Environment!, cacheRoot, parseResult.RefreshCache, parseResult.Verbose, cancellationToken);
+            await cacheService.CacheSwaggerAsync(selectedVersion, parseResult.Environment!, cacheRoot, parseResult.RefreshCache, parseResult.Verbose, cancellationToken);
 
             if (parseResult.Verbose)
             {
@@ -559,26 +561,6 @@ internal sealed class CliPipeline : ICliPipeline
 
     private static void AddError(List<CliRunMessage> messages, string text)
         => messages.Add(new CliRunMessage(CliRunMessageKind.Error, text));
-
-    private static IReadOnlyList<ApiDefinition> GetReferencedApiDefinitions(
-        WorkflowDefinition workflowDefinition,
-        ApiCatalogVersion catalogVersion)
-    {
-        if (workflowDefinition.References?.Apis is not { Count: > 0 })
-        {
-            return Array.Empty<ApiDefinition>();
-        }
-
-        var definitionNames = workflowDefinition.References.Apis
-            .Select(item => item.Definition)
-            .Where(item => !string.IsNullOrWhiteSpace(item))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        return catalogVersion.Definitions
-            .Where(item => definitionNames.Contains(item.Name))
-            .ToList();
-    }
 
     private static void EmitVarsSources(VarsFileResolution resolution, List<CliRunMessage> messages)
     {
