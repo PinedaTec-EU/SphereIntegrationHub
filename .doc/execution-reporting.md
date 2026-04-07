@@ -50,7 +50,7 @@ It includes:
 Generate JSON + HTML reports during execution:
 
 ```bash
-SphereIntegrationHub.cli \
+sih \
   --workflow ./src/resources/workflows/create-account.workflow \
   --env pre \
   --report-format both \
