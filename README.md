@@ -9,7 +9,7 @@
 [![DotNet 10](https://img.shields.io/badge/dotnet_10-green)](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
 ![MCP](https://img.shields.io/badge/MCP-37_tools-purple)
 [![NuGet Version](https://img.shields.io/nuget/v/SphereIntegrationHub.Tool.svg?label=CLI)](https://www.nuget.org/packages/SphereIntegrationHub.Tool/)
-[![NuGet Version](https://img.shields.io/nuget/v/SphereIntegrationHub.MCP.svg?label=MCP)](https://www.nuget.org/packages/SphereIntegrationHub.Mcp.Tool/)
+[![NuGet Version](https://img.shields.io/nuget/v/SphereIntegrationHub.MCP.Tool.svg?label=MCP)](https://www.nuget.org/packages/SphereIntegrationHub.Mcp.Tool/)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/SphereIntegrationHub.Tool.svg?label=downloads)](https://www.nuget.org/packages/SphereIntegrationHub.Tool/)
 [![GitHub Release](https://img.shields.io/github/v/release/PinedaTec-EU/SphereIntegrationHub?label=release)](https://github.com/PinedaTec-EU/SphereIntegrationHub/releases)
 [![GitHub commits](https://img.shields.io/github/commit-activity/m/PinedaTec-EU/SphereIntegrationHub)](https://github.com/PinedaTec-EU/SphereIntegrationHub/commits/main)
