@@ -4,6 +4,7 @@ using SphereIntegrationHub.Services.Interfaces;
 
 namespace SphereIntegrationHub.Tests;
 
+[Collection(CliCacheMetricsCollection.Name)]
 public sealed class ApiEndpointValidatorLoggerTests
 {
     [Fact]

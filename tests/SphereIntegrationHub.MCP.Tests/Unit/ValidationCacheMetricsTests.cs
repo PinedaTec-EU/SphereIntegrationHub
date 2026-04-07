@@ -167,8 +167,10 @@ public sealed class ValidationCacheMetricsTests : IDisposable
         await freshService.ValidateWorkflowAsync(extraPath);
 
         metrics.Sum(Evictions).Should().Be(1);
-        // Size net: +1 (new entry) −1 (eviction) = 0 for this listener window
-        metrics.Sum(SizeInstrument).Should().Be(0);
+        // Assert the −1 decrement was recorded, without asserting the net sum:
+        // another test running in parallel may emit +1 to the same static UpDownCounter,
+        // making a Sum == 0 assertion flaky. Checking for the −1 value is robust.
+        metrics.GetValues(SizeInstrument).Should().Contain(-1.0);
     }
 
     public void Dispose() => _mockFs.Dispose();
