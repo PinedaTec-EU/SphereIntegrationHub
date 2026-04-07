@@ -57,4 +57,32 @@ public sealed class CliPathResolverTests
 
         Assert.Equal(Path.Combine(tempRoot, "api-catalog.json"), catalogPath);
     }
+
+    [Fact]
+    public void ResolveDefaultCatalogPath_UsesSharedWorkflowsRootForNestedWorkflow()
+    {
+        ICliPathResolver resolver = new CliPathResolver();
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"aos-catalog-nested-{Guid.NewGuid():N}");
+        var workflows = Path.Combine(tempRoot, "workflows", "accounts", "create");
+        Directory.CreateDirectory(workflows);
+        var workflowPath = Path.Combine(workflows, "main.workflow");
+
+        var catalogPath = resolver.ResolveDefaultCatalogPath(workflowPath);
+
+        Assert.Equal(Path.Combine(tempRoot, "api-catalog.json"), catalogPath);
+    }
+
+    [Fact]
+    public void ResolveDefaultCacheRoot_UsesSharedWorkflowsRootForNestedWorkflow()
+    {
+        ICliPathResolver resolver = new CliPathResolver();
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"aos-cache-nested-{Guid.NewGuid():N}");
+        var workflows = Path.Combine(tempRoot, "workflows", "accounts", "create");
+        Directory.CreateDirectory(workflows);
+        var workflowPath = Path.Combine(workflows, "main.workflow");
+
+        var cachePath = resolver.ResolveDefaultCacheRoot(workflowPath);
+
+        Assert.Equal(Path.Combine(tempRoot, "cache"), cachePath);
+    }
 }
