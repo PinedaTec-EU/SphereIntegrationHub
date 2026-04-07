@@ -1,3 +1,7 @@
+using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using System.Text;
+
 using SphereIntegrationHub.MCP.Models;
 using SphereIntegrationHub.MCP.Services.Integration;
 using YamlDotNet.Serialization;
@@ -11,6 +15,9 @@ namespace SphereIntegrationHub.MCP.Services.Validation;
 /// </summary>
 public sealed class WorkflowValidatorService
 {
+    private const int MaxValidationCacheEntries = 50;
+    private readonly ConcurrentDictionary<string, ValidationResult> _validationCache = new();
+
     private readonly SihServicesAdapter _adapter;
     private readonly IDeserializer _yamlDeserializer;
 
@@ -21,6 +28,12 @@ public sealed class WorkflowValidatorService
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
             .IgnoreUnmatchedProperties()
             .Build();
+    }
+
+    private static string ComputeContentHash(string content)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(content));
+        return Convert.ToHexString(bytes);
     }
 
     /// <summary>
@@ -44,6 +57,13 @@ public sealed class WorkflowValidatorService
         try
         {
             var yamlContent = await File.ReadAllTextAsync(workflowPath);
+            var cacheKey = ComputeContentHash(yamlContent);
+
+            if (_validationCache.TryGetValue(cacheKey, out var cachedResult))
+            {
+                return cachedResult;
+            }
+
             var workflow = _yamlDeserializer.Deserialize<Dictionary<string, object>>(yamlContent);
 
             var errors = new List<ValidationError>();
@@ -58,12 +78,24 @@ public sealed class WorkflowValidatorService
                 ValidateStages(stages, errors, warnings);
             }
 
-            return new ValidationResult
+            var result = new ValidationResult
             {
                 Valid = errors.Count == 0,
                 Errors = errors,
                 Warnings = warnings
             };
+
+            if (_validationCache.Count >= MaxValidationCacheEntries)
+            {
+                var evict = _validationCache.Keys.FirstOrDefault();
+                if (evict is not null)
+                {
+                    _validationCache.TryRemove(evict, out _);
+                }
+            }
+
+            _validationCache[cacheKey] = result;
+            return result;
         }
         catch (Exception ex)
         {
