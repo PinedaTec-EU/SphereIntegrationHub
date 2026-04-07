@@ -283,8 +283,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .timeline-span{position:absolute;top:13px;height:18px;min-width:3px;overflow:visible}
 .span-bar{position:absolute;inset:0;border-radius:4px;display:flex;align-items:center;padding:0 5px;font-size:10px;color:rgba(255,255,255,.9);white-space:nowrap;overflow:hidden;cursor:pointer;transition:filter .1s}
 .span-bar:hover{filter:brightness(1.12)}
-.span-bar-duration{position:absolute;top:0;left:calc(100% + 6px);height:18px;display:flex;align-items:center;font-size:10px;font-weight:600;color:var(--text-muted);white-space:nowrap;pointer-events:none}
-.timeline-span.is-before .span-bar-duration{left:auto;right:calc(100% + 6px)}
+.span-bar-duration{position:absolute;top:0;left:var(--timeline-label-offset,calc(100% + 6px));height:18px;display:flex;align-items:center;font-size:10px;font-weight:600;color:var(--text-muted);white-space:nowrap;pointer-events:none}
 .bar-ok{background:#22c55e}.bar-error{background:#ef4444}
 .bar-skipped{background:var(--chip-skip-bg);border:1px solid var(--chip-skip-b);padding:0}
 .bar-running{background:#3b82f6}.bar-mocked{background:#8b5cf6}
@@ -564,7 +563,6 @@ function renderTree(roots, totalMs, startTs) {
 
 function syncTimelineLabels() {
   document.querySelectorAll('.timeline-span[data-duration-label]').forEach(span => {
-    span.classList.remove('is-before');
     const durationLabel = span.querySelector('.span-bar-duration');
     const lane = span.closest('.trace-right');
     if (!durationLabel || !lane) return;
@@ -573,17 +571,14 @@ function syncTimelineLabels() {
     const barWidth = span.clientWidth;
     const offsetLeft = span.offsetLeft;
     const laneWidth = lane.clientWidth;
+    const preferredLeft = offsetLeft + barWidth + 6;
+    const fallbackLeft = offsetLeft - labelWidth - 6;
+    const maxLeft = Math.max(laneWidth - labelWidth, 0);
+    const labelLeft = preferredLeft + labelWidth <= laneWidth
+      ? preferredLeft
+      : Math.max(Math.min(fallbackLeft, maxLeft), 0);
 
-    const outsideRightFits = offsetLeft + barWidth + 6 + labelWidth <= laneWidth;
-    if (outsideRightFits) {
-      return;
-    }
-
-    const outsideLeftFits = offsetLeft >= labelWidth + 6;
-    if (outsideLeftFits) {
-      span.classList.add('is-before');
-      return;
-    }
+    span.style.setProperty('--timeline-label-offset', `${labelLeft - offsetLeft}px`);
   });
 }
 
