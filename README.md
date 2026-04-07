@@ -38,6 +38,31 @@ If you use SphereIntegrationHub in your company or project, we'd love to hear ab
 - Share your experience on [LinkedIn](https://www.linkedin.com/in/jmrpineda) mentioning **#SphereIntegrationHub** — we repost and feature use cases
 - Drop us a line at [sih@pinedatec.eu](mailto:sih@pinedatec.eu) — tell us what you're automating, we'd love to feature it
 
+## Installation
+
+SphereIntegrationHub ships as a dotnet global tool. Install it once and use the `sih` command anywhere:
+
+```bash
+dotnet tool install -g SphereIntegrationHub.Tool
+```
+
+Or add it as a local tool to your repo (recommended for teams and CI):
+
+```bash
+dotnet new tool-manifest   # only if .config/dotnet-tools.json doesn't exist yet
+dotnet tool install SphereIntegrationHub.Tool
+dotnet tool restore        # teammates and CI run this to pick it up
+```
+
+Verify the installation:
+
+```bash
+sih --version
+```
+
+> **Requires .NET 9 or later.**  
+> For AI-assisted workflow authoring, also install the MCP server: `dotnet tool install -g SphereIntegrationHub.Mcp.Tool`
+
 ## Catalog
 
 The API catalog is a fixed JSON file with versions and API definitions. Each definition provides its own environment base URLs and a relative swagger path. An optional `healthCheck` probes the API before swagger caching and workflow execution:
@@ -255,7 +280,7 @@ Use these files directly when authoring new workflows or when prompting MCP-base
 Dry-run (validates workflow, references, and swagger paths without calling endpoints):
 
 ```bash
-SphereIntegrationHub.cli \
+sih \
   --workflow ./src/resources/workflows/create-account.workflow \
   --env pre \
   --dry-run \
@@ -265,7 +290,7 @@ SphereIntegrationHub.cli \
 Run with mocks (uses `stage.mock` when defined):
 
 ```bash
-SphereIntegrationHub.cli \
+sih \
   --workflow ./src/resources/workflows/create-account.workflow \
   --env pre \
   --mocked
@@ -274,7 +299,7 @@ SphereIntegrationHub.cli \
 Override root `.env` for `{{env:NAME}}` tokens:
 
 ```bash
-SphereIntegrationHub.cli \
+sih \
   --workflow ./src/resources/workflows/create-account.workflow \
   --env pre \
   --envfile ./workflows/.env
@@ -283,7 +308,7 @@ SphereIntegrationHub.cli \
 Force refresh of swagger cache:
 
 ```bash
-SphereIntegrationHub.cli \
+sih \
   --workflow ./src/resources/workflows/create-account.workflow \
   --env pre \
   --refresh-cache
@@ -292,7 +317,7 @@ SphereIntegrationHub.cli \
 Execute a workflow:
 
 ```bash
-SphereIntegrationHub.cli \
+sih \
   --workflow ./src/resources/workflows/create-account.workflow \
   --env pre \
   --input username=user \
@@ -303,7 +328,7 @@ SphereIntegrationHub.cli \
 Generate full execution artifacts:
 
 ```bash
-SphereIntegrationHub.cli \
+sih \
   --workflow ./src/resources/workflows/create-account.workflow \
   --env pre \
   --report-format both \
@@ -321,7 +346,7 @@ Reports include stage timings, retries, jumps, ensure status, HTTP status, redac
 Override root `.env` for `{{env:NAME}}` tokens:
 
 ```bash
-SphereIntegrationHub.cli \
+sih \
   --workflow ./src/resources/workflows/create-account.workflow \
   --env pre \
   --envfile ./workflows/.env
@@ -423,7 +448,7 @@ Swagger definitions are cached per version, ensuring validation against the corr
 No conversion needed—workflows execute directly in pipelines:
 
 ```bash
-SphereIntegrationHub.cli \
+sih \
   --workflow ./workflows/smoke-test.workflow \
   --env prod \
   --dry-run  # Gate deployments with validation

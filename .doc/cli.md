@@ -22,7 +22,7 @@ Examples:
 Dry-run:
 
 ```bash
-SphereIntegrationHub.cli \
+sih \
   --workflow ./src/resources/workflows/create-account.workflow \
   --env pre \
   --dry-run \
@@ -32,7 +32,7 @@ SphereIntegrationHub.cli \
 Execute:
 
 ```bash
-SphereIntegrationHub.cli \
+sih \
   --workflow ./src/resources/workflows/create-account.workflow \
   --env pre \
   --varsfile ./src/resources/workflows/create-account.wfvars
@@ -41,7 +41,7 @@ SphereIntegrationHub.cli \
 Override root `.env`:
 
 ```bash
-SphereIntegrationHub.cli \
+sih \
   --workflow ./src/resources/workflows/create-account.workflow \
   --env pre \
   --envfile ./workflows/create-account.env
@@ -50,7 +50,7 @@ SphereIntegrationHub.cli \
 Use mocks:
 
 ```bash
-SphereIntegrationHub.cli \
+sih \
   --workflow ./src/resources/workflows/create-account.workflow \
   --env pre \
   --mocked
@@ -59,7 +59,7 @@ SphereIntegrationHub.cli \
 Generate JSON + HTML execution reports with body capture:
 
 ```bash
-SphereIntegrationHub.cli \
+sih \
   --workflow ./src/resources/workflows/create-account.workflow \
   --env pre \
   --report-format both \

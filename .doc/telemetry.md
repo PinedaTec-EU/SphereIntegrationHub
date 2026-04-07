@@ -25,7 +25,7 @@ Notes:
 ## Running with telemetry
 
 ```bash
-SphereIntegrationHub.cli \
+sih \
   --workflow ./workflows/create-account.workflow \
   --env pre
 ```
@@ -33,7 +33,7 @@ SphereIntegrationHub.cli \
 Enable console output quickly for local debugging:
 
 ```bash
-SphereIntegrationHub.cli \
+sih \
   --workflow ./workflows/create-account.workflow \
   --env pre \
   --debug
