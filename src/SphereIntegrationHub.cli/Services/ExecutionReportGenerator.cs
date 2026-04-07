@@ -290,7 +290,6 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .span-bar{position:absolute;inset:0;border-radius:4px;display:flex;align-items:center;padding:0 5px;font-size:10px;color:rgba(255,255,255,.9);white-space:nowrap;overflow:hidden;cursor:pointer;transition:filter .1s}
 .span-bar:hover{filter:brightness(1.12)}
 .span-bar-duration{position:absolute;top:0;left:calc(100% + 6px);height:18px;display:flex;align-items:center;font-size:10px;font-weight:600;color:var(--text-muted);white-space:nowrap;pointer-events:none}
-.timeline-span.is-inline .span-bar-duration{left:8px;color:rgba(255,255,255,.92)}
 .timeline-span.is-before .span-bar-duration{left:auto;right:calc(100% + 6px)}
 .bar-ok{background:#22c55e}.bar-error{background:#ef4444}
 .bar-skipped{background:var(--chip-skip-bg);border:1px solid var(--chip-skip-b);padding:0}
@@ -567,9 +566,8 @@ function renderTree(roots, totalMs, startTs) {
 }
 
 function syncTimelineLabels() {
-  const inlinePaddingPx = 10;
   document.querySelectorAll('.timeline-span[data-duration-label]').forEach(span => {
-    span.classList.remove('is-inline', 'is-before');
+    span.classList.remove('is-before');
     const durationLabel = span.querySelector('.span-bar-duration');
     const lane = span.closest('.trace-right');
     if (!durationLabel || !lane) return;
@@ -578,12 +576,6 @@ function syncTimelineLabels() {
     const barWidth = span.clientWidth;
     const offsetLeft = span.offsetLeft;
     const laneWidth = lane.clientWidth;
-
-    const inlineFits = labelWidth <= Math.max(barWidth - inlinePaddingPx, 0);
-    if (inlineFits) {
-      span.classList.add('is-inline');
-      return;
-    }
 
     const outsideRightFits = offsetLeft + barWidth + 6 + labelWidth <= laneWidth;
     if (outsideRightFits) {
@@ -595,8 +587,6 @@ function syncTimelineLabels() {
       span.classList.add('is-before');
       return;
     }
-
-    span.classList.add('is-inline');
   });
 }
 
