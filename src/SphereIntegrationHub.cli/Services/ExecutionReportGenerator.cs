@@ -246,9 +246,10 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 /* left cell */
 .trace-left{width:380px;min-width:380px;padding:4px 8px;display:flex;flex-direction:column;justify-content:center;gap:1px;overflow:hidden;border-right:1px solid var(--border);position:relative}
 .trace-left-top{display:flex;align-items:center;gap:5px;overflow:hidden;width:100%}
-.tree-indent{height:18px;flex-shrink:0;position:relative;pointer-events:none}
-.tree-indent::before{content:'';position:absolute;top:-10px;bottom:-10px;left:0;right:0;background-image:repeating-linear-gradient(90deg,transparent 0 17px,var(--tree-guide) 17px 18px);opacity:.9}
-.tree-indent::after{content:'';position:absolute;top:50%;right:0;width:12px;border-top:1px solid var(--tree-guide);transform:translateY(-50%)}
+.tree-indent{height:18px;display:flex;align-items:stretch;flex-shrink:0;pointer-events:none}
+.tree-guide-cell{width:18px;height:18px;position:relative;flex:0 0 18px}
+.tree-guide-cell::before{content:'';position:absolute;left:8px;top:-8px;bottom:-8px;width:1px;background:var(--tree-guide);opacity:.5}
+.tree-guide-cell.tree-guide-elbow::after{content:'';position:absolute;left:8px;top:50%;width:10px;border-top:1px solid var(--tree-guide);transform:translateY(-50%);opacity:.72}
 /* expand chevron */
 .expand-btn{width:18px;min-width:18px;height:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--expand-c);font-size:11px;font-weight:700;transition:transform .18s;line-height:1;border-radius:3px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.22)}
 .expand-btn:hover{background:rgba(99,102,241,.22)}
@@ -287,7 +288,8 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .span-bar{position:absolute;height:18px;top:13px;border-radius:4px;min-width:3px;display:flex;align-items:center;padding:0 5px;font-size:10px;color:rgba(255,255,255,.9);white-space:nowrap;overflow:hidden;cursor:pointer;transition:filter .1s}
 .span-bar:hover{filter:brightness(1.12)}
 .bar-ok{background:#22c55e}.bar-error{background:#ef4444}
-.bar-skipped{background:repeating-linear-gradient(135deg,#94a3b8 0 8px,#cbd5e1 8px 16px);color:#334155;border:1px dashed #64748b}
+.bar-skipped{background:repeating-linear-gradient(135deg,#94a3b8 0 8px,#cbd5e1 8px 16px);color:var(--chip-skip-bg);border:1px dashed #64748b}
+.bar-skipped-label{color:var(--chip-skip-bg)}
 .bar-running{background:#3b82f6}.bar-mocked{background:#8b5cf6}
 .bar-workflow{background:linear-gradient(90deg,#6366f1,#8b5cf6)}
 /* children group */
@@ -599,7 +601,12 @@ function buildRow(node, totalMs, startTs) {
   html += `<div class="trace-left" style="--uri-indent:${uriIndentPx}px">`;
   html += `<div class="trace-left-top">`;
   if (depth > 0) {
-    html += `<span class="tree-indent" style="width:${indentPx}px"></span>`;
+    html += `<span class="tree-indent" style="width:${indentPx}px">`;
+    for (let level = 0; level < depth; level++) {
+      const elbowCls = level === depth - 1 ? ' tree-guide-elbow' : '';
+      html += `<span class="tree-guide-cell${elbowCls}"></span>`;
+    }
+    html += `</span>`;
   }
   // expand/collapse button or placeholder
   if (hasChildren) {
@@ -636,7 +643,7 @@ function buildRow(node, totalMs, startTs) {
   // Timeline bar
   html += `<div class="trace-right">`;
   html += `<div class="span-bar ${bCls}" style="left:${offsetPct}%;width:${widthPct}%">`;
-  if (statusCls(stage.Status) === 'skipped') html += `Not executed`;
+  if (statusCls(stage.Status) === 'skipped') html += `<span class="bar-skipped-label">Not executed</span>`;
   else if (durMs >= 8) html += fmtMs(durMs);
   html += `</div></div>`;
 
