@@ -73,7 +73,7 @@ Verify the installation:
 sih --version
 ```
 
-> **Requires .NET 9 or later.**  
+> **Requires .NET 10 or later.**  
 > For AI-assisted workflow authoring, also install the MCP server: `dotnet tool install -g SphereIntegrationHub.Mcp.Tool`
 
 ## Catalog
