@@ -9,7 +9,7 @@
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/PinedaTec-EU/SphereIntegrationHub)
 [![License MIT](https://img.shields.io/badge/MIT_license-blue)](https://opensource.org/licenses/MIT)
 [![DotNet 10](https://img.shields.io/badge/dotnet_10-green)](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
-![MCP](https://img.shields.io/badge/MCP-yellow)
+![MCP](https://img.shields.io/badge/MCP-37_tools-purple)
 ![CLI](https://img.shields.io/badge/CLI-blue)
 ![IaC](https://img.shields.io/badge/IaC-red)
 
@@ -26,7 +26,8 @@ Documentation:
 - [`dry-run validation`](.doc/dry-run.md)
 - [`execution reporting`](.doc/execution-reporting.md)
 - [`open telemetry`](.doc/telemetry.md)
-- [`MCP Server`](.doc/mcp-server.md) - 🚧 AI-assisted workflow creation (in development)
+- [`MCP Server`](.doc/mcp-server.md) - AI-assisted workflow creation (37 tools, all levels)
+- [`GitHub Action`](.doc/github-action.md) - run workflows from any CI/CD pipeline
 - [`plugins`](.doc/plugins.md)
 
 ## Community
@@ -46,6 +47,55 @@ The API catalog is a fixed JSON file with versions and API definitions. Each def
 Swagger definitions are cached per version in:
 
 `src/resources/cache/{version}/{definition}.json`
+
+## GitHub Action
+
+The `run-sphere-workflow` composite action lets you install the SphereIntegrationHub CLI and execute a workflow from any GitHub Actions pipeline with a single step.
+
+```yaml
+- uses: PinedaTec-EU/SphereIntegrationHub/.github/actions/run-sphere-workflow@main
+  with:
+    workflow-path: ./workflows/create-account.workflow
+    cli-args: --env prod --catalog ./api-catalog.json
+```
+
+The action always runs `dotnet tool restore` first (so other tools in your manifest are not affected) and then updates `SphereIntegrationHub.Tool` — to the latest version by default, or to the exact version you specify via `tool-version`.
+
+**Pre-deploy smoke test:**
+
+```yaml
+- uses: PinedaTec-EU/SphereIntegrationHub/.github/actions/run-sphere-workflow@main
+  with:
+    workflow-path: ./workflows/smoke-test.workflow
+    cli-args: --env prod --dry-run --verbose
+```
+
+**Pin to a fixed version for reproducible production pipelines:**
+
+```yaml
+- uses: PinedaTec-EU/SphereIntegrationHub/.github/actions/run-sphere-workflow@main
+  with:
+    workflow-path: ./workflows/onboard-customer.workflow
+    tool-version: '1.5.12.149'
+    cli-args: --env prod --catalog ./api-catalog.json --varsfile ./prod.wfvars
+```
+
+**Upload execution report as a CI artifact:**
+
+```yaml
+- uses: PinedaTec-EU/SphereIntegrationHub/.github/actions/run-sphere-workflow@main
+  with:
+    workflow-path: ./workflows/integration-test.workflow
+    cli-args: --env pre --report-format both --capture-http bodies
+
+- uses: actions/upload-artifact@v4
+  if: always()
+  with:
+    name: sih-execution-report
+    path: '*.workflow.report.*'
+```
+
+See [`.doc/github-action.md`](.doc/github-action.md) for the full reference and more examples.
 
 ## Workflow overview
 
@@ -427,7 +477,8 @@ SphereIntegrationHub is now strong as a local-first API orchestration runtime an
 - ✅ Aggregated `forEach` workflow result state via `foreach_results`, `foreach_success_count`, and `foreach_failed_count`
 - ✅ Post-execution observability with JSON/HTML reports, stage timelines, and summary output
 - ✅ Interactive HTML trace report (`sih report`) — Jaeger-style timeline with per-stage drill-down, HTTP details, and file picker to load prior executions; generated as a standalone command from any `.workflow.report.json` artifact
-- ✅ MCP server that exposes these runtime authoring capabilities to AI agents, including `list_execution_reports` and `read_execution_report` tools for agent-driven run inspection
+- ✅ MCP server with 37 tools across all capability levels — catalog exploration, workflow validation, stage generation, variable analysis, semantic dependency inference, pattern detection, full system synthesis, and optimization — fully aligned with the runtime schema and ready for production AI-assisted authoring
+- ✅ GitHub Action (`run-sphere-workflow`) for executing workflows from any CI/CD pipeline, with optional version pinning
 
 ### Near-Term Priorities
 

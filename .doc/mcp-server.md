@@ -1,6 +1,18 @@
 # MCP Server for SphereIntegrationHub
 
-> Update (2026-02-14): MCP now supports configurable paths (`SIH_API_CATALOG_PATH`, `SIH_CACHE_PATH`, `SIH_WORKFLOWS_PATH`), inline YAML validation/planning, and no-cache generation fallback using `endpointSchema`. For exact current tool contracts, see `src/SphereIntegrationHub.MCP/TOOLS_REFERENCE.md`.
+The MCP server is **production-ready** and ships as a separate dotnet tool (`SphereIntegrationHub.Mcp.Tool`). It exposes **37 tools** across four capability levels — from basic catalog exploration and workflow validation up to full autonomous system synthesis and continuous optimization. All tools are aligned with the current runtime schema.
+
+**Key capabilities at a glance:**
+- Catalog exploration and Swagger introspection (L1)
+- Workflow validation, dry-run planning, and stage generation (L1)
+- Variable scope analysis and context flow tracing (L1)
+- Execution report reading for agent-driven run inspection (L1)
+- Semantic dependency inference and API pattern detection (L2)
+- Natural language → complete workflow generation (L2/L3)
+- Full system synthesis from business requirements (L3)
+- Workflow optimization and coverage analysis (L4)
+
+> Configurable paths: `SIH_API_CATALOG_PATH`, `SIH_CACHE_PATH`, `SIH_WORKFLOWS_PATH`. No-cache generation fallback via `endpointSchema`. For exact current tool contracts, see `src/SphereIntegrationHub.MCP/TOOLS_REFERENCE.md`.
 
 ## Table of Contents
 
