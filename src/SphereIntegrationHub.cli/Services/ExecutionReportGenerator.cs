@@ -288,6 +288,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .trace-right{flex:1;position:relative;overflow:hidden}
 .span-bar{position:absolute;height:18px;top:13px;border-radius:4px;min-width:3px;display:flex;align-items:center;padding:0 5px;font-size:10px;color:rgba(255,255,255,.9);white-space:nowrap;overflow:hidden;cursor:pointer;transition:filter .1s}
 .span-bar:hover{filter:brightness(1.12)}
+.span-bar-label{position:absolute;top:13px;height:18px;display:flex;align-items:center;font-size:10px;font-weight:600;color:var(--text-muted);white-space:nowrap;pointer-events:none}
 .bar-ok{background:#22c55e}.bar-error{background:#ef4444}
 .bar-skipped{background:var(--chip-skip-bg);border:1px solid var(--chip-skip-b);padding:0}
 .bar-running{background:#3b82f6}.bar-mocked{background:#8b5cf6}
@@ -591,6 +592,8 @@ function buildRow(node, totalMs, startTs) {
   const sCls      = httpRangeCls(stage.HttpStatusCode);
   const lbl       = stage.Status === 'Error' ? 's-error' : stage.Status === 'Skipped' ? 's-skipped' : '';
   const bCls      = barCls(stage);
+  const durationText = durMs >= 8 ? fmtMs(durMs) : '';
+  const showDurationOutside = durationText && parseFloat(widthPct) < 8;
   const wfCls     = isWf ? ' wf-row' : '';
   const skippedCls = statusCls(stage.Status) === 'skipped' ? ' is-skipped' : '';
   const selCls    = _selected === idx ? ' selected' : '';
@@ -647,10 +650,14 @@ function buildRow(node, totalMs, startTs) {
 
   // Timeline bar
   html += `<div class="trace-right">`;
-  const barTitle = statusCls(stage.Status) === 'skipped' ? 'Not executed' : (durMs >= 8 ? fmtMs(durMs) : '');
+  const barTitle = statusCls(stage.Status) === 'skipped' ? 'Not executed' : durationText;
   html += `<div class="span-bar ${bCls}" style="left:${offsetPct}%;width:${widthPct}%" title="${esc(barTitle)}">`;
-  if (statusCls(stage.Status) !== 'skipped' && durMs >= 8) html += fmtMs(durMs);
-  html += `</div></div>`;
+  if (statusCls(stage.Status) !== 'skipped' && durationText && !showDurationOutside) html += durationText;
+  html += `</div>`;
+  if (statusCls(stage.Status) !== 'skipped' && showDurationOutside) {
+    html += `<div class="span-bar-label" style="left:calc(${offsetPct}% + ${widthPct}% + 6px)" title="${esc(barTitle)}">${esc(durationText)}</div>`;
+  }
+  html += `</div>`;
 
   html += `</div>`;
   return html;
