@@ -167,7 +167,6 @@ internal sealed class ExecutionReportGenerator
   --header-bg:#f8fafc;--row-hover:#f0f9ff;--row-selected:#dbeafe;--row-border:#f1f5f9;
   --wf-row-bg:#f0f4ff;--wf-row-hover:#e0ebff;--wf-row-selected:#c7d9ff;
   --detail-bg:#eff6ff;--detail-border:#bfdbfe;
-  --tree-guide:rgba(59,130,246,.32);
   --code-bg:#f8fafc;--code-border:#e2e8f0;--code-text:#475569;
   --btn-bg:#1e293b;--btn-c:#94a3b8;--btn-border:#334155;--btn-hover-bg:#334155;--btn-hover-c:#f1f5f9;
   --chip-total-bg:#eef2ff;--chip-total-c:#4338ca;--chip-total-b:#c7d2fe;
@@ -185,7 +184,6 @@ internal sealed class ExecutionReportGenerator
   --header-bg:#1e293b;--row-hover:#172554;--row-selected:#1e3a5f;--row-border:#1e293b;
   --wf-row-bg:#1a2540;--wf-row-hover:#1e3060;--wf-row-selected:#1e3a6e;
   --detail-bg:#172554;--detail-border:#1e40af;
-  --tree-guide:rgba(96,165,250,.34);
   --code-bg:#0f172a;--code-border:#334155;--code-text:#94a3b8;
   --btn-bg:#334155;--btn-c:#94a3b8;--btn-border:#475569;--btn-hover-bg:#475569;--btn-hover-c:#f1f5f9;
   --chip-total-bg:#1e1b4b;--chip-total-c:#a5b4fc;--chip-total-b:#312e81;
@@ -246,11 +244,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 /* left cell */
 .trace-left{width:380px;min-width:380px;padding:4px 8px;display:flex;flex-direction:column;justify-content:center;gap:1px;overflow:hidden;border-right:1px solid var(--border);position:relative}
 .trace-left-top{display:flex;align-items:center;gap:5px;overflow:hidden;width:100%}
-.tree-indent{height:18px;display:flex;align-items:center;flex-shrink:0;pointer-events:none}
-.tree-guide-cell{width:18px;height:18px;position:relative;flex:0 0 18px}
-.tree-guide-cell::before{content:'';position:absolute;left:8px;top:-10px;bottom:-10px;width:1px;background:var(--tree-guide);opacity:.55}
-.tree-guide-cell.tree-guide-branch::after{content:'';position:absolute;left:8px;top:50%;width:10px;height:1px;background:var(--tree-guide);transform:translateY(-50%);opacity:.78}
-.tree-guide-cell.tree-guide-node .tree-guide-dot{position:absolute;left:5px;top:50%;width:7px;height:7px;border-radius:999px;background:var(--surface);border:1.5px solid var(--tree-guide);transform:translateY(-50%);box-shadow:0 0 0 1px rgba(59,130,246,.12)}
+.tree-indent{width:var(--tree-indent-width,0);height:18px;flex:0 0 var(--tree-indent-width,0);pointer-events:none}
 /* expand chevron */
 .expand-btn{width:18px;min-width:18px;height:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--expand-c);font-size:11px;font-weight:700;transition:transform .18s;line-height:1;border-radius:3px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.22)}
 .expand-btn:hover{background:rgba(99,102,241,.22)}
@@ -638,17 +632,7 @@ function buildRow(node, totalMs, startTs) {
   html += `<div class="trace-left" style="--uri-indent:${uriIndentPx}px">`;
   html += `<div class="trace-left-top">`;
   if (depth > 0) {
-    html += `<span class="tree-indent" style="width:${indentPx}px">`;
-    for (let level = 0; level < depth; level++) {
-      const isLastLevel = level === depth - 1;
-      const branchCls = isLastLevel ? ' tree-guide-branch tree-guide-node' : '';
-      html += `<span class="tree-guide-cell${branchCls}">`;
-      if (isLastLevel) {
-        html += `<span class="tree-guide-dot"></span>`;
-      }
-      html += `</span>`;
-    }
-    html += `</span>`;
+    html += `<span class="tree-indent" style="--tree-indent-width:${indentPx}px"></span>`;
   }
   // expand/collapse button or placeholder
   if (hasChildren) {
