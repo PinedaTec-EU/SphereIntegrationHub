@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 
 using SphereIntegrationHub.Definitions;
@@ -12,6 +13,8 @@ namespace SphereIntegrationHub.Services;
 
 public sealed class ApiEndpointValidator
 {
+    private static readonly ConcurrentDictionary<string, (DateTime LastWrite, SwaggerPathMap Paths)> _swaggerOperationsCache = new();
+
     private readonly IExecutionLogger _logger;
 
     public ApiEndpointValidator(IExecutionLogger? logger = null)
@@ -188,6 +191,13 @@ public sealed class ApiEndpointValidator
                 continue;
             }
 
+            var lastWrite = File.GetLastWriteTimeUtc(swaggerPath);
+            if (_swaggerOperationsCache.TryGetValue(swaggerPath, out var cached) && cached.LastWrite == lastWrite)
+            {
+                result[definition.Name] = cached.Paths;
+                continue;
+            }
+
             try
             {
                 var json = File.ReadAllText(swaggerPath);
@@ -231,6 +241,7 @@ public sealed class ApiEndpointValidator
                     pathMap[path.Name] = verbMap;
                 }
 
+                _swaggerOperationsCache[swaggerPath] = (lastWrite, pathMap);
                 result[definition.Name] = pathMap;
             }
             catch (Exception ex)
