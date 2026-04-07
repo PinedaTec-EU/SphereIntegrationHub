@@ -225,6 +225,77 @@ public sealed class CliPipelineTests
         Assert.DoesNotContain(result.Messages, message => message.Text.Contains("API health checks:", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public async Task RunAsync_DryRun_NestedWorkflowHealthCheckConfigured_ReportsEndpointFromChildWorkflow()
+    {
+        using var server = WireMockServer.Start();
+        server
+            .Given(Request.Create().WithPath("/health").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200));
+        var fixture = CreateFixture(
+            swaggerHasEndpoint: true,
+            includeMock: true,
+            catalogVersion: "1.0",
+            baseUrls: new Dictionary<string, string> { ["dev"] = server.Url! },
+            healthCheck: "/health",
+            includeWorkflowStage: true,
+            includeNestedApiOnly: true);
+        var pipeline = CreatePipeline();
+
+        var result = await pipeline.RunAsync(new InlineArguments(
+            WorkflowPath: fixture.WorkflowPath,
+            Environment: "dev",
+            CatalogPath: null,
+            DryRun: true), CancellationToken.None);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains(result.Messages, message => message.Text.Contains("API health checks:", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains($"OK accounts -> {server.Url}/health", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task RunAsync_DryRun_CatalogHealthChecksIncludeDefinitionsNotReferencedByWorkflow()
+    {
+        using var accountsServer = WireMockServer.Start();
+        accountsServer
+            .Given(Request.Create().WithPath("/health").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200));
+        using var ordersServer = WireMockServer.Start();
+        ordersServer
+            .Given(Request.Create().WithPath("/ready").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200));
+
+        var fixture = CreateFixture(
+            swaggerHasEndpoint: true,
+            includeMock: true,
+            catalogVersion: "1.0",
+            baseUrls: new Dictionary<string, string> { ["dev"] = accountsServer.Url! },
+            healthCheck: "/health",
+            additionalDefinitions:
+            [
+                new CatalogDefinitionFixture(
+                    "orders",
+                    ordersServer.Url!,
+                    "/ready",
+                    "{\"paths\":{\"/api/orders\":{\"get\":{\"parameters\":[]}}}}")
+            ]);
+        var pipeline = CreatePipeline();
+
+        var result = await pipeline.RunAsync(new InlineArguments(
+            WorkflowPath: fixture.WorkflowPath,
+            Environment: "dev",
+            CatalogPath: null,
+            DryRun: true), CancellationToken.None);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains(result.Messages, message => message.Text.Contains($"OK accounts -> {accountsServer.Url}/health", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains($"OK orders -> {ordersServer.Url}/ready", StringComparison.OrdinalIgnoreCase));
+
+        var cacheRoot = Path.Combine(Path.GetDirectoryName(fixture.CatalogPath)!, "cache", "1.0");
+        Assert.True(File.Exists(Path.Combine(cacheRoot, "accounts.json")));
+        Assert.True(File.Exists(Path.Combine(cacheRoot, "orders.json")));
+    }
+
     private static CliPipeline CreatePipeline()
     {
         var output = new TestOutputProvider();
@@ -246,37 +317,63 @@ public sealed class CliPipelineTests
         Dictionary<string, string> baseUrls,
         string? healthCheck = null,
         bool includeSelfJumpOnMock = false,
-        bool includeWorkflowStageResilience = false)
+        bool includeWorkflowStageResilience = false,
+        bool includeWorkflowStage = false,
+        bool includeNestedApiOnly = false,
+        IReadOnlyList<CatalogDefinitionFixture>? additionalDefinitions = null)
     {
         var root = Path.Combine(Path.GetTempPath(), $"aos-cli-{Guid.NewGuid():N}");
         var workflows = Path.Combine(root, "workflows");
         Directory.CreateDirectory(workflows);
 
         var workflowPath = Path.Combine(workflows, "main.workflow");
-        var swaggerPath = Path.Combine(root, "swagger.json");
         var catalogPath = Path.Combine(root, "api-catalog.json");
+        var baseUrlEntries = string.Join(",", baseUrls.Select(pair => $"\"{pair.Key}\": \"{pair.Value}\""));
 
-        var swaggerJson = swaggerHasEndpoint
+        var definitionJsonEntries = new List<string>();
+        var accountSwaggerPath = Path.Combine(root, "accounts.swagger.json");
+        var accountSwaggerJson = swaggerHasEndpoint
             ? "{\"paths\":{\"/api/accounts\":{\"get\":{\"parameters\":[]}}}}"
             : "{\"paths\":{\"/api/other\":{\"get\":{\"parameters\":[]}}}}";
-        File.WriteAllText(swaggerPath, swaggerJson);
-
-        var swaggerUrl = new Uri(swaggerPath).AbsoluteUri;
-        var baseUrlEntries = string.Join(",", baseUrls.Select(pair => $"\"{pair.Key}\": \"{pair.Value}\""));
-        var catalogJson = $$"""
-        [
-          {
-            "version": "{{catalogVersion}}",
-            "definitions": [
+        File.WriteAllText(accountSwaggerPath, accountSwaggerJson);
+        definitionJsonEntries.Add($$"""
               {
                 "name": "accounts",
-                "swaggerUrl": "{{swaggerUrl}}",
+                "swaggerUrl": "{{new Uri(accountSwaggerPath).AbsoluteUri}}",
                 "healthCheck": {{(healthCheck is null ? "null" : $"\"{healthCheck}\"")}},
                 "baseUrl": {
                   {{baseUrlEntries}}
                 },
                 "basePath": null
               }
+        """);
+
+        if (additionalDefinitions is not null)
+        {
+            foreach (var definition in additionalDefinitions)
+            {
+                var swaggerPath = Path.Combine(root, $"{definition.Name}.swagger.json");
+                File.WriteAllText(swaggerPath, definition.SwaggerJson);
+                definitionJsonEntries.Add($$"""
+              {
+                "name": "{{definition.Name}}",
+                "swaggerUrl": "{{new Uri(swaggerPath).AbsoluteUri}}",
+                "healthCheck": {{(definition.HealthCheck is null ? "null" : $"\"{definition.HealthCheck}\"")}},
+                "baseUrl": {
+                  "dev": "{{definition.BaseUrl}}"
+                },
+                "basePath": null
+              }
+        """);
+            }
+        }
+
+        var catalogJson = $$"""
+        [
+          {
+            "version": "{{catalogVersion}}",
+            "definitions": [
+        {{string.Join("," + Environment.NewLine, definitionJsonEntries)}}
             ]
           }
         ]
@@ -291,16 +388,19 @@ public sealed class CliPipelineTests
             "references:",
         };
 
-        if (includeWorkflowStageResilience)
+        if (includeWorkflowStageResilience || includeWorkflowStage || includeNestedApiOnly)
         {
             workflowLines.Add("  workflows:");
             workflowLines.Add("    - name: \"child\"");
             workflowLines.Add("      path: \"./child.workflow\"");
         }
 
-        workflowLines.Add("  apis:");
-        workflowLines.Add("    - name: \"accounts\"");
-        workflowLines.Add("      definition: \"accounts\"");
+        if (!includeNestedApiOnly)
+        {
+            workflowLines.Add("  apis:");
+            workflowLines.Add("    - name: \"accounts\"");
+            workflowLines.Add("      definition: \"accounts\"");
+        }
 
         if (includeWorkflowStageResilience)
         {
@@ -316,54 +416,83 @@ public sealed class CliPipelineTests
         }
 
         workflowLines.Add("stages:");
-        workflowLines.Add("  - name: \"list\"");
-        workflowLines.Add("    kind: \"Endpoint\"");
-        workflowLines.Add("    apiRef: \"accounts\"");
-        workflowLines.Add("    endpoint: \"/api/accounts\"");
-        workflowLines.Add("    httpVerb: \"GET\"");
-        workflowLines.Add("    expectedStatus: 200");
-        if (includeMock)
+        if (!includeNestedApiOnly)
         {
-            workflowLines.Add("    mock:");
-            workflowLines.Add("      payload: |");
-            workflowLines.Add("        { \"ok\": true }");
+            workflowLines.Add("  - name: \"list\"");
+            workflowLines.Add("    kind: \"Endpoint\"");
+            workflowLines.Add("    apiRef: \"accounts\"");
+            workflowLines.Add("    endpoint: \"/api/accounts\"");
+            workflowLines.Add("    httpVerb: \"GET\"");
+            workflowLines.Add("    expectedStatus: 200");
+            if (includeMock)
+            {
+                workflowLines.Add("    mock:");
+                workflowLines.Add("      payload: |");
+                workflowLines.Add("        { \"ok\": true }");
+                if (includeSelfJumpOnMock)
+                {
+                    workflowLines.Add("      status: 200");
+                }
+            }
+
             if (includeSelfJumpOnMock)
             {
-                workflowLines.Add("      status: 200");
+                workflowLines.Add("    jumpOnStatus:");
+                workflowLines.Add("      200: \"list\"");
             }
         }
 
-        if (includeSelfJumpOnMock)
-        {
-            workflowLines.Add("    jumpOnStatus:");
-            workflowLines.Add("      200: \"list\"");
-        }
-
-        if (includeWorkflowStageResilience)
+        if (includeWorkflowStageResilience || includeWorkflowStage || includeNestedApiOnly)
         {
             workflowLines.Add("  - name: \"child\"");
             workflowLines.Add("    kind: \"Workflow\"");
             workflowLines.Add("    workflowRef: \"child\"");
-            workflowLines.Add("    retry:");
-            workflowLines.Add("      ref: \"standard\"");
-            workflowLines.Add("      httpStatus: [500]");
-            workflowLines.Add("    circuitBreaker:");
-            workflowLines.Add("      ref: \"standard\"");
-            workflowLines.Add("      httpStatus: [500]");
+            if (includeWorkflowStageResilience)
+            {
+                workflowLines.Add("    retry:");
+                workflowLines.Add("      ref: \"standard\"");
+                workflowLines.Add("      httpStatus: [500]");
+                workflowLines.Add("    circuitBreaker:");
+                workflowLines.Add("      ref: \"standard\"");
+                workflowLines.Add("      httpStatus: [500]");
+            }
         }
 
         var workflowYaml = string.Join(Environment.NewLine, workflowLines);
         File.WriteAllText(workflowPath, workflowYaml);
 
-        if (includeWorkflowStageResilience)
+        if (includeWorkflowStageResilience || includeWorkflowStage || includeNestedApiOnly)
         {
             var childWorkflowPath = Path.Combine(workflows, "child.workflow");
-            var childYaml = string.Join(Environment.NewLine, new[]
+            var childLines = new List<string>
             {
                 "version: \"1.0\"",
                 "id: \"child-1\"",
                 "name: \"Child\""
-            });
+            };
+
+            if (includeNestedApiOnly)
+            {
+                childLines.Add("references:");
+                childLines.Add("  apis:");
+                childLines.Add("    - name: \"accounts\"");
+                childLines.Add("      definition: \"accounts\"");
+                childLines.Add("stages:");
+                childLines.Add("  - name: \"list\"");
+                childLines.Add("    kind: \"Endpoint\"");
+                childLines.Add("    apiRef: \"accounts\"");
+                childLines.Add("    endpoint: \"/api/accounts\"");
+                childLines.Add("    httpVerb: \"GET\"");
+                childLines.Add("    expectedStatus: 200");
+                if (includeMock)
+                {
+                    childLines.Add("    mock:");
+                    childLines.Add("      payload: |");
+                    childLines.Add("        { \"ok\": true }");
+                }
+            }
+
+            var childYaml = string.Join(Environment.NewLine, childLines);
             File.WriteAllText(childWorkflowPath, childYaml);
         }
 
@@ -371,6 +500,8 @@ public sealed class CliPipelineTests
     }
 
     private sealed record Fixture(string WorkflowPath, string CatalogPath);
+
+    private sealed record CatalogDefinitionFixture(string Name, string BaseUrl, string? HealthCheck, string SwaggerJson);
 
     private sealed class TestOutputProvider : ICliOutputProvider
     {

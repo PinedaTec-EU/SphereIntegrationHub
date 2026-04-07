@@ -16,17 +16,6 @@ public sealed class ApiSwaggerCacheServiceLoggerTests
         var sourcePath = Path.Combine(tempRoot, "accounts.json");
         await File.WriteAllTextAsync(sourcePath, "{\"paths\":{}}");
 
-        var workflow = new WorkflowDefinition
-        {
-            References = new WorkflowReference
-            {
-                Apis = new List<ApiReferenceItem>
-                {
-                    new() { Name = "accounts", Definition = "accounts" }
-                }
-            }
-        };
-
         var catalog = new ApiCatalogVersion
         {
             Version = "v1",
@@ -38,7 +27,7 @@ public sealed class ApiSwaggerCacheServiceLoggerTests
 
         var cacheRoot = Path.Combine(tempRoot, "cache");
 
-        await service.CacheSwaggerAsync(catalog, workflow, "test", cacheRoot, refresh: true, verbose: true, CancellationToken.None);
+        await service.CacheSwaggerAsync(catalog, "test", cacheRoot, refresh: true, verbose: true, CancellationToken.None);
 
         Assert.Contains(logger.Messages, message => message.Contains("Swagger cached", StringComparison.OrdinalIgnoreCase));
     }
@@ -52,17 +41,6 @@ public sealed class ApiSwaggerCacheServiceLoggerTests
         var service = new ApiSwaggerCacheService(httpClient, logger);
         var tempRoot = Path.Combine(Path.GetTempPath(), $"aos-swagger-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempRoot);
-
-        var workflow = new WorkflowDefinition
-        {
-            References = new WorkflowReference
-            {
-                Apis = new List<ApiReferenceItem>
-                {
-                    new() { Name = "licensing", Definition = "licensing" }
-                }
-            }
-        };
 
         var catalog = new ApiCatalogVersion
         {
@@ -83,7 +61,7 @@ public sealed class ApiSwaggerCacheServiceLoggerTests
 
         var cacheRoot = Path.Combine(tempRoot, "cache");
 
-        await service.CacheSwaggerAsync(catalog, workflow, "local", cacheRoot, refresh: true, verbose: true, CancellationToken.None);
+        await service.CacheSwaggerAsync(catalog, "local", cacheRoot, refresh: true, verbose: true, CancellationToken.None);
 
         Assert.Equal(new Uri("http://localhost:5004/swagger/v1/swagger.json"), handler.LastRequestUri);
         Assert.True(File.Exists(Path.Combine(cacheRoot, "licensing.json")));
