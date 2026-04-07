@@ -125,6 +125,7 @@ public sealed class ExecutionReportGeneratorTests
         Assert.Contains("getDurationText(durationMs)", html, StringComparison.Ordinal);
         Assert.Contains("class=\"timeline-span\"", html, StringComparison.Ordinal);
         Assert.Contains("span-bar-duration", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("is-inline", html, StringComparison.Ordinal);
         Assert.DoesNotContain("span-bar-label", html, StringComparison.Ordinal);
     }
 
