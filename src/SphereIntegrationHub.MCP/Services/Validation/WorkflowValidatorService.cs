@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -58,11 +59,17 @@ public sealed class WorkflowValidatorService
         {
             var yamlContent = await File.ReadAllTextAsync(workflowPath);
             var cacheKey = ComputeContentHash(yamlContent);
+            var sw = Stopwatch.StartNew();
 
             if (_validationCache.TryGetValue(cacheKey, out var cachedResult))
             {
+                sw.Stop();
+                McpTelemetry.ValidationCacheHits.Add(1);
+                McpTelemetry.ValidationDuration.Record(sw.Elapsed.TotalMilliseconds, new KeyValuePair<string, object?>("cache.hit", true));
                 return cachedResult;
             }
+
+            McpTelemetry.ValidationCacheMisses.Add(1);
 
             var workflow = _yamlDeserializer.Deserialize<Dictionary<string, object>>(yamlContent);
 
@@ -88,13 +95,19 @@ public sealed class WorkflowValidatorService
             if (_validationCache.Count >= MaxValidationCacheEntries)
             {
                 var evict = _validationCache.Keys.FirstOrDefault();
-                if (evict is not null)
+                if (evict is not null && _validationCache.TryRemove(evict, out _))
                 {
-                    _validationCache.TryRemove(evict, out _);
+                    McpTelemetry.ValidationCacheEvictions.Add(1);
+                    McpTelemetry.ValidationCacheSize.Add(-1);
                 }
             }
 
             _validationCache[cacheKey] = result;
+            McpTelemetry.ValidationCacheSize.Add(1);
+
+            sw.Stop();
+            McpTelemetry.ValidationDuration.Record(sw.Elapsed.TotalMilliseconds, new KeyValuePair<string, object?>("cache.hit", false));
+
             return result;
         }
         catch (Exception ex)
