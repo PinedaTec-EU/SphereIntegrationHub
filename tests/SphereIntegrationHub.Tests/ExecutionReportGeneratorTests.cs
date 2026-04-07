@@ -98,6 +98,36 @@ public sealed class ExecutionReportGeneratorTests
         Assert.Contains("return;", html, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task GenerateAndOpenAsync_CentralizesTimelineDurationPlacement()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"sih-report-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+
+        var reportPath = Path.Combine(root, "sample.01KNGXHCZZZZ6KMC3DZDZAJRTJ.workflow.report.json");
+        await File.WriteAllTextAsync(reportPath, CreateTimelineLabelReportJson());
+
+        var output = new TestOutputProvider();
+        var generator = new ExecutionReportGenerator(output);
+
+        var result = await generator.GenerateAndOpenAsync(
+            new InlineArguments(
+                IsReportCommand: true,
+                ExecutionReportPath: root,
+                OpenAfterGenerate: false),
+            CancellationToken.None);
+
+        Assert.Equal(0, result);
+
+        var htmlPath = Path.Combine(root, $"{Path.GetFileName(root)}.reports.workflow.report.html");
+        var html = await File.ReadAllTextAsync(htmlPath);
+        Assert.Contains("function syncTimelineLabels()", html, StringComparison.Ordinal);
+        Assert.Contains("getDurationText(durationMs)", html, StringComparison.Ordinal);
+        Assert.Contains("class=\"timeline-span\"", html, StringComparison.Ordinal);
+        Assert.Contains("span-bar-duration", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("span-bar-label", html, StringComparison.Ordinal);
+    }
+
     private static string CreateReportJson(string executionId, string workflowName)
     {
         var report = new WorkflowExecutionReport
@@ -211,6 +241,52 @@ public sealed class ExecutionReportGeneratorTests
             DurationMs = 1000,
             Status = "Ok",
             Depth = 1
+        });
+
+        return System.Text.Json.JsonSerializer.Serialize(report, new System.Text.Json.JsonSerializerOptions
+        {
+            WriteIndented = true
+        });
+    }
+
+    private static string CreateTimelineLabelReportJson()
+    {
+        var report = new WorkflowExecutionReport
+        {
+            ExecutionId = "01KNGXHCZZZZ6KMC3DZDZAJRTJ",
+            WorkflowName = "Timeline Labels",
+            WorkflowId = "wf-labels",
+            WorkflowVersion = "1.0.0",
+            WorkflowPath = "/tmp/labels.workflow",
+            Environment = "local",
+            StartedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:00Z"),
+            FinishedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:03Z"),
+            DurationMs = 3000,
+            Result = "Ok",
+            Output = new Dictionary<string, object?>()
+        };
+
+        report.Metrics.TotalStages = 2;
+        report.Metrics.ExecutedStages = 2;
+        report.Stages.Add(new WorkflowStageExecutionRecord
+        {
+            WorkflowName = "Timeline Labels",
+            StageName = "short-stage",
+            StageKind = "Endpoint",
+            StartedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:00Z"),
+            FinishedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:00.020Z"),
+            DurationMs = 20,
+            Status = "Ok"
+        });
+        report.Stages.Add(new WorkflowStageExecutionRecord
+        {
+            WorkflowName = "Timeline Labels",
+            StageName = "long-stage",
+            StageKind = "Workflow",
+            StartedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:01Z"),
+            FinishedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:02.500Z"),
+            DurationMs = 1500,
+            Status = "Ok"
         });
 
         return System.Text.Json.JsonSerializer.Serialize(report, new System.Text.Json.JsonSerializerOptions

@@ -286,9 +286,12 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 [data-theme="dark"] .s-5xx{background:#4a0d0d;color:#fca5a5}
 /* timeline bar */
 .trace-right{flex:1;position:relative;overflow:hidden}
-.span-bar{position:absolute;height:18px;top:13px;border-radius:4px;min-width:3px;display:flex;align-items:center;padding:0 5px;font-size:10px;color:rgba(255,255,255,.9);white-space:nowrap;overflow:hidden;cursor:pointer;transition:filter .1s}
+.timeline-span{position:absolute;top:13px;height:18px;min-width:3px;overflow:visible}
+.span-bar{position:absolute;inset:0;border-radius:4px;display:flex;align-items:center;padding:0 5px;font-size:10px;color:rgba(255,255,255,.9);white-space:nowrap;overflow:hidden;cursor:pointer;transition:filter .1s}
 .span-bar:hover{filter:brightness(1.12)}
-.span-bar-label{position:absolute;top:13px;height:18px;display:flex;align-items:center;font-size:10px;font-weight:600;color:var(--text-muted);white-space:nowrap;pointer-events:none}
+.span-bar-duration{position:absolute;top:0;left:calc(100% + 6px);height:18px;display:flex;align-items:center;font-size:10px;font-weight:600;color:var(--text-muted);white-space:nowrap;pointer-events:none}
+.timeline-span.is-inline .span-bar-duration{left:8px;color:rgba(255,255,255,.92)}
+.timeline-span.is-before .span-bar-duration{left:auto;right:calc(100% + 6px)}
 .bar-ok{background:#22c55e}.bar-error{background:#ef4444}
 .bar-skipped{background:var(--chip-skip-bg);border:1px solid var(--chip-skip-b);padding:0}
 .bar-running{background:#3b82f6}.bar-mocked{background:#8b5cf6}
@@ -432,6 +435,9 @@ function barCls(stage) {
   if (isWfKind(stage)) return 'bar-workflow';
   return 'bar-' + statusCls(stage.Status);
 }
+function getDurationText(durationMs) {
+  return durationMs >= 8 ? fmtMs(durationMs) : '';
+}
 function isWfKind(stage) {
   return (stage.StageKind || '').toLowerCase().includes('workflow');
 }
@@ -557,6 +563,41 @@ function renderTree(roots, totalMs, startTs) {
     return;
   }
   document.getElementById('trace-rows').innerHTML = buildRows(roots, totalMs, startTs);
+  syncTimelineLabels();
+}
+
+function syncTimelineLabels() {
+  const inlinePaddingPx = 10;
+  document.querySelectorAll('.timeline-span[data-duration-label]').forEach(span => {
+    span.classList.remove('is-inline', 'is-before');
+    const durationLabel = span.querySelector('.span-bar-duration');
+    const lane = span.closest('.trace-right');
+    if (!durationLabel || !lane) return;
+
+    const labelWidth = durationLabel.scrollWidth;
+    const barWidth = span.clientWidth;
+    const offsetLeft = span.offsetLeft;
+    const laneWidth = lane.clientWidth;
+
+    const inlineFits = labelWidth <= Math.max(barWidth - inlinePaddingPx, 0);
+    if (inlineFits) {
+      span.classList.add('is-inline');
+      return;
+    }
+
+    const outsideRightFits = offsetLeft + barWidth + 6 + labelWidth <= laneWidth;
+    if (outsideRightFits) {
+      return;
+    }
+
+    const outsideLeftFits = offsetLeft >= labelWidth + 6;
+    if (outsideLeftFits) {
+      span.classList.add('is-before');
+      return;
+    }
+
+    span.classList.add('is-inline');
+  });
 }
 
 function buildRows(nodes, totalMs, startTs) {
@@ -592,8 +633,7 @@ function buildRow(node, totalMs, startTs) {
   const sCls      = httpRangeCls(stage.HttpStatusCode);
   const lbl       = stage.Status === 'Error' ? 's-error' : stage.Status === 'Skipped' ? 's-skipped' : '';
   const bCls      = barCls(stage);
-  const durationText = durMs >= 8 ? fmtMs(durMs) : '';
-  const showDurationOutside = durationText && parseFloat(widthPct) < 8;
+  const durationText = getDurationText(durMs);
   const wfCls     = isWf ? ' wf-row' : '';
   const skippedCls = statusCls(stage.Status) === 'skipped' ? ' is-skipped' : '';
   const selCls    = _selected === idx ? ' selected' : '';
@@ -651,12 +691,12 @@ function buildRow(node, totalMs, startTs) {
   // Timeline bar
   html += `<div class="trace-right">`;
   const barTitle = statusCls(stage.Status) === 'skipped' ? 'Not executed' : durationText;
-  html += `<div class="span-bar ${bCls}" style="left:${offsetPct}%;width:${widthPct}%" title="${esc(barTitle)}">`;
-  if (statusCls(stage.Status) !== 'skipped' && durationText && !showDurationOutside) html += durationText;
-  html += `</div>`;
-  if (statusCls(stage.Status) !== 'skipped' && showDurationOutside) {
-    html += `<div class="span-bar-label" style="left:calc(${offsetPct}% + ${widthPct}% + 6px)" title="${esc(barTitle)}">${esc(durationText)}</div>`;
+  html += `<div class="timeline-span" style="left:${offsetPct}%;width:${widthPct}%" title="${esc(barTitle)}"${durationText ? ` data-duration-label="${esc(durationText)}"` : ''}>`;
+  html += `<div class="span-bar ${bCls}"></div>`;
+  if (statusCls(stage.Status) !== 'skipped' && durationText) {
+    html += `<div class="span-bar-duration">${esc(durationText)}</div>`;
   }
+  html += `</div>`;
   html += `</div>`;
 
   html += `</div>`;
@@ -841,6 +881,7 @@ document.getElementById('file-input').addEventListener('change', function(e) {
 /* ── Boot ────────────────────────────────────────────────────────── */
 initReportPicker();
 loadReportByIndex(_initialReportIndex);
+window.addEventListener('resize', syncTimelineLabels);
 </script>
 </body>
 </html>
