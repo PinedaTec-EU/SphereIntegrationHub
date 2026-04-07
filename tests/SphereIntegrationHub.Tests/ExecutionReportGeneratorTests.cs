@@ -98,6 +98,8 @@ public sealed class ExecutionReportGeneratorTests
         Assert.Contains("syncTimelineLabels();", html, StringComparison.Ordinal);
         Assert.Contains("class=\"tree-indent\"", html, StringComparison.Ordinal);
         Assert.Contains("--uri-indent:", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("tree-guide-cell", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("tree-guide-dot", html, StringComparison.Ordinal);
         Assert.Contains("return;", html, StringComparison.Ordinal);
     }
 
