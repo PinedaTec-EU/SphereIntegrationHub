@@ -11,6 +11,9 @@ public sealed class WorkflowLoader
 {
     private readonly ConcurrentDictionary<string, (DateTime LastWrite, WorkflowDocument Document)> _documentCache = new();
 
+    // Per-instance gauge: reflects the number of entries currently held in this loader's cache.
+    private readonly System.Diagnostics.Metrics.ObservableGauge<int> _documentCacheSizeGauge;
+
     private readonly IDeserializer _deserializer;
     private readonly EnvironmentFileLoader _envLoader;
 
@@ -21,6 +24,11 @@ public sealed class WorkflowLoader
             .IgnoreUnmatchedProperties()
             .Build();
         _envLoader = new EnvironmentFileLoader();
+        _documentCacheSizeGauge = Telemetry.Meter.CreateObservableGauge(
+            "sih.cache.workflow.document.size",
+            () => _documentCache.Count,
+            "{entries}",
+            "Current number of WorkflowDocuments held in the in-memory cache for this loader instance.");
     }
 
     public WorkflowDocument Load(
@@ -46,14 +54,25 @@ public sealed class WorkflowLoader
         // Workflows referencing an environmentFile are excluded from the cache write below
         // so that changes to the env file always produce a fresh load.
         var isCacheCandidate = envFileOverride is null && (parentEnvironment is null || parentEnvironment.Count == 0);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         if (isCacheCandidate)
         {
             var lastWrite = File.GetLastWriteTimeUtc(fullPath);
             if (_documentCache.TryGetValue(fullPath, out var cached) && cached.LastWrite == lastWrite)
             {
+                sw.Stop();
+                Telemetry.WorkflowDocumentCacheHits.Add(1);
+                Telemetry.WorkflowLoadDuration.Record(
+                    sw.Elapsed.TotalMilliseconds,
+                    new KeyValuePair<string, object?>(TelemetryConstants.TagWorkflowPath, fullPath),
+                    new KeyValuePair<string, object?>(TelemetryConstants.TagCacheHit, true));
+                activity?.SetTag(TelemetryConstants.TagCacheHit, true);
                 return cached.Document;
             }
         }
+
+        Telemetry.WorkflowDocumentCacheMisses.Add(1);
+        activity?.SetTag(TelemetryConstants.TagCacheHit, false);
 
         try
         {
@@ -73,6 +92,12 @@ public sealed class WorkflowLoader
             {
                 _documentCache[fullPath] = (File.GetLastWriteTimeUtc(fullPath), document);
             }
+
+            sw.Stop();
+            Telemetry.WorkflowLoadDuration.Record(
+                sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>(TelemetryConstants.TagWorkflowPath, fullPath),
+                new KeyValuePair<string, object?>(TelemetryConstants.TagCacheHit, false));
 
             return document;
         }

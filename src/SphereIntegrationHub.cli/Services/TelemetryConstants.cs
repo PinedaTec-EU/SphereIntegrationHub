@@ -53,4 +53,8 @@ internal static class TelemetryConstants
     internal const string TagExpressionLength = "expression.length";
     internal const string TagRandomType = "random.type";
     internal const string TagEnvironment = "environment";
+
+    // Cache tags
+    internal const string TagCacheHit = "cache.hit";
+    internal const string TagCacheComponent = "cache.component";
 }
