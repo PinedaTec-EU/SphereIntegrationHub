@@ -246,10 +246,11 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 /* left cell */
 .trace-left{width:380px;min-width:380px;padding:4px 8px;display:flex;flex-direction:column;justify-content:center;gap:1px;overflow:hidden;border-right:1px solid var(--border);position:relative}
 .trace-left-top{display:flex;align-items:center;gap:5px;overflow:hidden;width:100%}
-.tree-indent{height:18px;display:flex;align-items:stretch;flex-shrink:0;pointer-events:none}
+.tree-indent{height:18px;display:flex;align-items:center;flex-shrink:0;pointer-events:none}
 .tree-guide-cell{width:18px;height:18px;position:relative;flex:0 0 18px}
-.tree-guide-cell::before{content:'';position:absolute;left:8px;top:-8px;bottom:-8px;width:1px;background:var(--tree-guide);opacity:.5}
-.tree-guide-cell.tree-guide-elbow::after{content:'';position:absolute;left:8px;top:50%;width:10px;border-top:1px solid var(--tree-guide);transform:translateY(-50%);opacity:.72}
+.tree-guide-cell::before{content:'';position:absolute;left:8px;top:-10px;bottom:-10px;width:1px;background:var(--tree-guide);opacity:.55}
+.tree-guide-cell.tree-guide-branch::after{content:'';position:absolute;left:8px;top:50%;width:10px;height:1px;background:var(--tree-guide);transform:translateY(-50%);opacity:.78}
+.tree-guide-cell.tree-guide-node .tree-guide-dot{position:absolute;left:5px;top:50%;width:7px;height:7px;border-radius:999px;background:var(--surface);border:1.5px solid var(--tree-guide);transform:translateY(-50%);box-shadow:0 0 0 1px rgba(59,130,246,.12)}
 /* expand chevron */
 .expand-btn{width:18px;min-width:18px;height:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--expand-c);font-size:11px;font-weight:700;transition:transform .18s;line-height:1;border-radius:3px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.22)}
 .expand-btn:hover{background:rgba(99,102,241,.22)}
@@ -293,7 +294,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .bar-running{background:#3b82f6}.bar-mocked{background:#8b5cf6}
 .bar-workflow{background:linear-gradient(90deg,#6366f1,#8b5cf6)}
 /* children group */
-.children-group{display:none;border-left:2px solid var(--expand-c);margin-left:0}
+.children-group{display:none;margin-left:0}
 .children-group.open{display:block}
 /* ── Detail panel ────────────────────────────────────────────────── */
 .detail-panel{border-top:2px solid #3b82f6;background:var(--surface);overflow-y:auto;flex-shrink:0;max-height:340px;transition:background .2s}
@@ -603,8 +604,13 @@ function buildRow(node, totalMs, startTs) {
   if (depth > 0) {
     html += `<span class="tree-indent" style="width:${indentPx}px">`;
     for (let level = 0; level < depth; level++) {
-      const elbowCls = level === depth - 1 ? ' tree-guide-elbow' : '';
-      html += `<span class="tree-guide-cell${elbowCls}"></span>`;
+      const isLastLevel = level === depth - 1;
+      const branchCls = isLastLevel ? ' tree-guide-branch tree-guide-node' : '';
+      html += `<span class="tree-guide-cell${branchCls}">`;
+      if (isLastLevel) {
+        html += `<span class="tree-guide-dot"></span>`;
+      }
+      html += `</span>`;
     }
     html += `</span>`;
   }
