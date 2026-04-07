@@ -1,84 +1,103 @@
 # Changelog
 
+## [1.6.13] – 2026-04
+
+- **Validation caching** (three in-memory levels):
+  - `ApiEndpointValidator`: static Swagger operations cache by file path with automatic invalidation by `lastWriteTime`; removes JSON re-parsing on every `Validate()` call.
+  - `WorkflowLoader`: `WorkflowDocument` cache by path + `lastWriteTime`; workflows with `references.environmentFile` are excluded from the cache to ensure a change in the environment file is always detected.
+  - `WorkflowValidatorService` (MCP): `ValidationResult` cache by SHA-256 hash of the YAML content; up to 50 entries with FIFO eviction.
+- **OpenTelemetry metrics for cache** (`sih.cache.*`): hit/miss/eviction counters, size gauge, and duration histogram with tag `cache.hit=true/false` for all three levels. MCP exposes its own meter: `SphereIntegrationHub.MCP`.
+- **`ApiHealthCheckProbe`**: full unit test coverage; `.sphere/workflows/workflows.config` file added to the project.
+- **CLI path resolution for nested workflows**: `CliPathResolver` correctly resolves relative paths to sub-workflows in nested directories.
+- **Execution report HTML** – cumulative improvements:
+  - Visible duration on non-skipped stages in the timeline.
+  - Duration centralized in timeline spans (without inline classes).
+  - Improved CSS for the stage tree and skipped states.
+  - Duration text condition fixed in the report generator.
+- **Report branding**: SVG logo and project title in the HTML execution report header.
+- Refactor: `ApiDefinition` handling consolidated and validation logic simplified.
+- MCP: tool count and internal documentation updated.
+- Docs: README with SVG icon, fixed NuGet badges, .NET 10 requirement, and `sih` command documentation.
+
 ## [1.5.12] – 2026-04-07
 
-- **GitHub Action** `run-sphere-workflow`: composite action para ejecutar workflows desde cualquier pipeline CI/CD con opción de versión fija o latest.
-- **Pre-check de endpoints mejorado**: al arrancar la tool se listan las base URLs resueltas por API referenciada en el workflow antes de empezar el caching swagger, y se emiten inmediatamente a consola.
-- **Secret masking**: los valores marcados como `Secret` en inputs, variables y outputs se enmascaran en los reportes de ejecución y en consola.
-- **Soporte de offset en tokens de fecha/hora**: `{{system:datetime.now+P1D}}`, `{{system:date.today-PT2H}}` con duraciones ISO 8601.
-- Fix MCP: fallback a `baseUrl` a nivel de versión en generación de catálogo.
-- MCP expone el flag `Secret` en análisis de scope de variables y en capacidades de plugins.
-- Documentación del MCP actualizada: estado real (37 herramientas, todos los niveles productivos).
+- **GitHub Action** `run-sphere-workflow`: composite action to run workflows from any CI/CD pipeline with a fixed-version or latest option.
+- **Improved endpoint pre-check**: when the tool starts, it lists the resolved base URLs for each API referenced in the workflow before starting Swagger caching, and emits them to the console immediately.
+- **Secret masking**: values marked as `Secret` in inputs, variables, and outputs are masked in execution reports and in the console.
+- **Offset support in date/time tokens**: `{{system:datetime.now+P1D}}`, `{{system:date.today-PT2H}}` with ISO 8601 durations.
+- Fix MCP: fallback to version-level `baseUrl` when generating the catalog.
+- MCP exposes the `Secret` flag in variable scope analysis and plugin capabilities.
+- MCP documentation updated: real status (37 tools, all production levels).
 
 ## [1.5.9 – 1.5.11] – 2026-03
 
-- **Execution report mejorado**: incluye inputs, outputs y resultados por stage; selector de ejecución múltiple en el HTML viewer.
-- **`sih report` como comando standalone**: genera el reporte HTML interactivo a partir de cualquier `.workflow.report.json` y lo abre en el navegador.
-- HTML report con interfaz de tabs, dark mode, indicadores de estado por stage, versión de aplicación visible y mejoras de layout.
-- Soporte de directorio como input en `sih report` (carga todos los reportes del directorio).
-- `CliPipeline` refactorizado para emitir mensajes de forma progresiva durante la ejecución (en lugar de al final).
+- **Improved execution report**: includes inputs, outputs, and per-stage results; multi-run selector in the HTML viewer.
+- **`sih report` as a standalone command**: generates the interactive HTML report from any `.workflow.report.json` and opens it in the browser.
+- HTML report with tabbed interface, dark mode, stage status indicators, visible application version, and layout improvements.
+- Directory input support in `sih report` (loads all reports from the directory).
+- `CliPipeline` refactored to emit messages progressively during execution instead of only at the end.
 
 ## [1.5.7 – 1.5.8] – 2026-02
 
-- **Shared library** (`SphereIntegrationHub.Shared`): `ApiCatalogVersion` y `ApiDefinition` extraídos como tipos compartidos entre CLI y MCP, eliminando duplicación.
-- **Request body contract processing**: validación del contrato del body contra la spec Swagger en tiempo de ejecución.
-- **Per-definition `baseUrl`**: cada API del catálogo define sus propias URLs por entorno (elimina la URL única a nivel de versión); soporte de `basePath` y token `{{port}}`.
-- **Swagger URI con plantillas**: `swaggerUrl` acepta tokens `{{baseUrl}}`, `{{baseUrl.env}}`, `{{port}}` para URLs dinámicas.
-- MCP: herramientas de gestión de catálogo (`upsert_api_catalog_and_cache`, `generate_api_catalog_file`, `refresh_swagger_cache_from_catalog`, `repair_workflow_artifacts`).
-- MCP: herramientas de análisis de variables (`get_available_variables`, `analyze_context_flow`).
-- Fix: mensajes de error mejorados en fallos de descarga de swagger y en archivo de caché faltante.
+- **Shared library** (`SphereIntegrationHub.Shared`): `ApiCatalogVersion` and `ApiDefinition` extracted as shared types between CLI and MCP, removing duplication.
+- **Request body contract processing**: runtime validation of the body contract against the Swagger spec.
+- **Per-definition `baseUrl`**: each catalog API defines its own environment-specific URLs (removes the single version-level URL); support for `basePath` and `{{port}}` token.
+- **Swagger URI with templates**: `swaggerUrl` accepts `{{baseUrl}}`, `{{baseUrl.env}}`, and `{{port}}` tokens for dynamic URLs.
+- MCP: catalog management tools (`upsert_api_catalog_and_cache`, `generate_api_catalog_file`, `refresh_swagger_cache_from_catalog`, `repair_workflow_artifacts`).
+- MCP: variable analysis tools (`get_available_variables`, `analyze_context_flow`).
+- Fix: improved error messages for Swagger download failures and missing cache file.
 
 ## [1.5.5 – 1.5.6] – 2026-02
 
-- **Execution reporting**: persistencia de cada ejecución como JSON + HTML con timeline, drill-down por stage, captura HTTP con redacción de datos sensibles.
-- **`sih report`**: primer comando standalone para generar el HTML trace report.
-- **Structured inputs** (`Object`, `Array`): workflows que aceptan objetos y arrays como parámetros de entrada tipados.
-- **`healthCheck` en catálogo**: probe opcional por API antes del caching swagger; resultado visible en el arranque.
-- **`ApiHealthCheckProbe`** integrado en el pipeline (dry-run y ejecución normal).
-- MCP: herramientas de inspección de reportes (`list_execution_reports`, `read_execution_report`).
-- MCP probe workflow de ejemplo (`mcp-probe.workflow`).
+- **Execution reporting**: persistence of each run as JSON + HTML with timeline, stage drill-down, HTTP capture with sensitive data redaction.
+- **`sih report`**: first standalone command to generate the HTML trace report.
+- **Structured inputs** (`Object`, `Array`): workflows that accept objects and arrays as typed input parameters.
+- **`healthCheck` in catalog**: optional probe per API before Swagger caching; result visible at startup.
+- **`ApiHealthCheckProbe`** integrated into the pipeline (dry-run and normal execution).
+- MCP: report inspection tools (`list_execution_reports`, `read_execution_report`).
+- MCP sample probe workflow (`mcp-probe.workflow`).
 
 ## [0.5.5] – 2026-01
 
-- **`baseUrl` per-definition** (primera iteración): APIs con URLs propias por entorno en el catálogo.
-- Fix: validación de URI al expandir swagger URL con plantillas.
-- Fix: mensajes de error mejorados en swagger download.
-- Tests añadidos para resolución de swagger URI con rutas relativas.
+- **`baseUrl` per-definition** (first iteration): APIs with their own environment-specific URLs in the catalog.
+- Fix: URI validation when expanding templated Swagger URLs.
+- Fix: improved error messages in Swagger download.
+- Tests added for Swagger URI resolution with relative paths.
 
 ## [0.3.2] – 2025-12
 
-- **MCP Server** publicado como dotnet tool (`SphereIntegrationHub.Mcp.Tool`) con 26 herramientas en 4 niveles de capacidad (L1–L4).
-- **CLI publicado como dotnet tool** (`SphereIntegrationHub.Tool`, comando `sih`).
-- Registro automático de herramientas MCP vía atributo `[McpTool]`.
-- `CatalogUrlResolver` para resolución dinámica de URLs Swagger con soporte de puertos.
-- `IStageGenerator` extraído como interfaz (DIP).
-- Logging añadido a catch blocks silenciosos en MCP.
-- Telemetry y usage ping service (OpenTelemetry, opt-in).
-- Migración a .NET 10.
-- CI/CD: pipeline de publicación en NuGet.
-- Distribución unificada: launcher `sih` con MCP y CLI integrados.
+- **MCP Server** published as a dotnet tool (`SphereIntegrationHub.Mcp.Tool`) with 26 tools across 4 capability levels (L1–L4).
+- **CLI published as a dotnet tool** (`SphereIntegrationHub.Tool`, `sih` command).
+- Automatic MCP tool registration via `[McpTool]` attribute.
+- `CatalogUrlResolver` for dynamic Swagger URL resolution with port support.
+- `IStageGenerator` extracted as an interface (DIP).
+- Logging added to silent catch blocks in MCP.
+- Telemetry and usage ping service (OpenTelemetry, opt-in).
+- Migration to .NET 10.
+- CI/CD: NuGet publishing pipeline.
+- Unified distribution: `sih` launcher with MCP and CLI integrated.
 
 ## [0.3.1] – 2025-11
 
-- **MCP Server inicial**: 26 herramientas para exploración de catálogo, validación de workflows, generación de stages, análisis semántico, síntesis de sistemas y optimización.
-- Herramientas de idempotencia: `ensure`, `expectedStatuses`, `onStatus`, `jumpOnStatus`.
-- `forEach` con `bodyFile` / `dataFile` para bootstraps de colecciones.
-- Resultados agregados de `forEach` en workflow stages: `foreach_results`, `foreach_success_count`, `foreach_failed_count`.
-- Propagación de fallos de workflows hijo al padre.
-- Expresiones `runIf` con funciones: `exists()`, `empty()`, `coalesce()`, `first()`, `any()`, `jsonLength()`, `isEmptyJson()`.
-- Segmentos de path opcionales con `?` en tokens (`{{response.body.item.id?}}`).
-- Validación de tokens contra mock payloads en dry-run.
-- `Object` y `Array` como tipos de input de workflow.
-- Archivos de muestra en `samples/` (parent/child, conditional, bootstrap, secrets).
-- Branding renombrado a SphereIntegrationHub.
+- **Initial MCP Server**: 26 tools for catalog exploration, workflow validation, stage generation, semantic analysis, system synthesis, and optimization.
+- Idempotency tools: `ensure`, `expectedStatuses`, `onStatus`, `jumpOnStatus`.
+- `forEach` with `bodyFile` / `dataFile` for collection bootstraps.
+- Aggregated `forEach` results in workflow stages: `foreach_results`, `foreach_success_count`, `foreach_failed_count`.
+- Failure propagation from child workflows to parent workflows.
+- `runIf` expressions with functions: `exists()`, `empty()`, `coalesce()`, `first()`, `any()`, `jsonLength()`, `isEmptyJson()`.
+- Optional path segments with `?` in tokens (`{{response.body.item.id?}}`).
+- Token validation against mock payloads in dry-run.
+- `Object` and `Array` as workflow input types.
+- Sample files in `samples/` (parent/child, conditional, bootstrap, secrets).
+- Branding renamed to SphereIntegrationHub.
 
 ## [0.3.0] – 2025-10 (baseline)
 
-- CLI inicial: ejecución de workflows YAML contra catálogo de APIs versionado.
-- Workflow composition: stages de tipo `Endpoint` y `Workflow` (hijo).
+- Initial CLI: execution of YAML workflows against a versioned API catalog.
+- Workflow composition: `Endpoint` and `Workflow` (child) stage types.
 - Variables: `input`, `context`, `global`, `env`, `system`, stage outputs.
-- Dry-run con validación de endpoints contra caché Swagger.
-- Retry policies y circuit breakers por stage.
-- `.wfvars` y `.env` para inputs externos.
-- Catálogo de APIs con Swagger caching por versión.
-- Tests unitarios iniciales.
+- Dry-run with endpoint validation against Swagger cache.
+- Retry policies and circuit breakers per stage.
+- `.wfvars` and `.env` for external inputs.
+- API catalog with versioned Swagger caching.
+- Initial unit tests.
