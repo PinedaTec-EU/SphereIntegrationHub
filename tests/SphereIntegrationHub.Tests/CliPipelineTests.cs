@@ -165,7 +165,14 @@ public sealed class CliPipelineTests
             includeMock: true,
             catalogVersion: "1.0",
             baseUrls: new Dictionary<string, string> { ["dev"] = server.Url! },
-            healthCheck: "/health");
+            healthCheck: "/health",
+            readiness: new ApiReadinessPolicyDefinition
+            {
+                MaxRetries = 2,
+                DelayMs = 10,
+                TimeoutMs = 2000,
+                HttpStatus = [200]
+            });
         var pipeline = CreatePipeline();
 
         var result = await pipeline.RunAsync(new InlineArguments(
@@ -175,8 +182,11 @@ public sealed class CliPipelineTests
             DryRun: true), CancellationToken.None);
 
         Assert.Equal(0, result.ExitCode);
+        Assert.Contains(result.Messages, message => message.Text.Contains("Preflight features:", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains("Health readiness retry: enabled", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Messages, message => message.Text.Contains("API health checks:", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(result.Messages, message => message.Text.Contains($"OK accounts -> {server.Url}/health", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains("Policy accounts: retries=2, delay=10ms, timeout=2000ms, healthyStatus=[200]", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains($"OK accounts -> {server.Url}/health after 1 attempt(s)", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -201,7 +211,7 @@ public sealed class CliPipelineTests
             DryRun: true), CancellationToken.None);
 
         Assert.Equal(1, result.ExitCode);
-        Assert.Contains(result.Messages, message => message.Text.Contains($"Failed accounts -> {server.Url}/health", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains($"Failed accounts -> {server.Url}/health after 1 attempt(s)", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(result.Messages, message => message.Text.Contains("Dry-run completed successfully", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -237,10 +247,14 @@ public sealed class CliPipelineTests
             WorkflowPath: fixture.WorkflowPath,
             Environment: "dev",
             CatalogPath: null,
+            Verbose: true,
             DryRun: true), CancellationToken.None);
 
         Assert.Equal(0, result.ExitCode);
-        Assert.Contains(result.Messages, message => message.Text.Contains($"OK accounts -> {server.Url}/health", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains("attempt 1/3: HTTP 503", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains("retrying in 1ms", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains("attempt 2/3: HTTP 204", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains($"OK accounts -> {server.Url}/health after 2 attempt(s)", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

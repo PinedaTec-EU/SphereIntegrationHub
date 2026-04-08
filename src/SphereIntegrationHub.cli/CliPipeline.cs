@@ -91,8 +91,16 @@ internal sealed class CliPipeline : ICliPipeline
             return new CliRunResult(1, messages, emittedMessageCount);
         }
 
+        EmitPreflightFeatures(selectedVersion.Definitions, messages);
         EmitBaseUrlInfo(selectedVersion.Definitions, selectedVersion, parseResult.Environment!, messages);
-        if (!await EmitApiHealthChecksAsync(selectedVersion.Definitions, selectedVersion, parseResult.Environment!, messages, preflightReport, cancellationToken))
+        if (!await EmitApiHealthChecksAsync(
+                selectedVersion.Definitions,
+                selectedVersion,
+                parseResult.Environment!,
+                parseResult.Verbose,
+                messages,
+                preflightReport,
+                cancellationToken))
         {
             emittedMessageCount = EmitPendingMessages(messages, emittedMessageCount);
             return new CliRunResult(1, messages, emittedMessageCount);
@@ -133,6 +141,21 @@ internal sealed class CliPipeline : ICliPipeline
         AddInfo(messages, $"Catalog: {_pathResolver.FormatPath(catalogPath)}");
         AddInfo(messages, $"Workflow path: {_pathResolver.FormatPath(parseResult.WorkflowPath)}");
         AddInfo(messages, $"Environment: {parseResult.Environment}");
+    }
+
+    private void EmitPreflightFeatures(IReadOnlyList<ApiDefinition> definitions, List<CliRunMessage> messages)
+    {
+        var withHealthCheck = definitions.Where(definition => !string.IsNullOrWhiteSpace(definition.HealthCheck)).ToList();
+        if (withHealthCheck.Count == 0)
+        {
+            return;
+        }
+
+        var withReadiness = withHealthCheck.Count(definition => definition.Readiness is not null);
+        AddInfo(messages, "Preflight features:");
+        AddInfo(messages, $"  Health readiness retry: {(withReadiness > 0 ? $"enabled for {withReadiness}/{withHealthCheck.Count} API definitions (catalog-driven)" : "disabled (no readiness policy configured)")}");
+        AddInfo(messages, $"  Swagger retry: {(withReadiness > 0 ? "enabled when definition readiness is configured" : "disabled (no readiness policy configured)")}");
+        AddInfo(messages, "  Execution report preflight trace: enabled");
     }
 
     private bool TryLoadWorkflow(
@@ -311,6 +334,7 @@ internal sealed class CliPipeline : ICliPipeline
         IReadOnlyList<ApiDefinition> referencedDefinitions,
         ApiCatalogVersion selectedVersion,
         string environment,
+        bool verbose,
         List<CliRunMessage> messages,
         WorkflowPreflightReport preflightReport,
         CancellationToken cancellationToken)
@@ -332,6 +356,11 @@ internal sealed class CliPipeline : ICliPipeline
         var hasFailures = false;
         foreach (var result in results)
         {
+            var definition = selectedVersion.Definitions.First(item =>
+                string.Equals(item.Name, result.DefinitionName, StringComparison.OrdinalIgnoreCase));
+            var policy = ApiReadinessPolicyResolver.Resolve(definition);
+            AddInfo(messages, $"  Policy {result.DefinitionName}: retries={policy.MaxRetries}, delay={policy.DelayMs}ms, timeout={policy.TimeoutMs}ms, healthyStatus={FormatHealthyStatus(policy)}");
+
             var operation = new WorkflowPreflightOperationRecord
             {
                 OperationType = "HealthCheck",
@@ -350,19 +379,46 @@ internal sealed class CliPipeline : ICliPipeline
             preflightReport.Operations.Add(operation);
             preflightReport.TotalRetries += result.RetryCount;
             var target = result.ResolvedUrl ?? result.ConfiguredHealthCheck ?? "(unresolved)";
+            if (verbose)
+            {
+                EmitHealthCheckAttempts(result, policy, messages);
+            }
             if (result.IsHealthy)
             {
-                AddInfo(messages, $"  OK {result.DefinitionName} -> {target}");
+                AddInfo(messages, $"  OK {result.DefinitionName} -> {target} after {result.Attempts.Count} attempt(s) in {result.DurationMs} ms.");
                 continue;
             }
 
             hasFailures = true;
-            AddError(messages, $"  Failed {result.DefinitionName} -> {target}. {result.Message}");
+            AddError(messages, $"  Failed {result.DefinitionName} -> {target} after {result.Attempts.Count} attempt(s) in {result.DurationMs} ms. {result.Message}");
         }
 
         preflightReport.DurationMs = preflightReport.Operations.Sum(static operation => operation.DurationMs);
         return !hasFailures;
     }
+
+    private void EmitHealthCheckAttempts(
+        ApiHealthCheckResult result,
+        ApiReadinessPolicy policy,
+        List<CliRunMessage> messages)
+    {
+        foreach (var attempt in result.Attempts)
+        {
+            var statusDetail = attempt.HttpStatusCode is int statusCode
+                ? $"HTTP {statusCode}"
+                : attempt.ErrorMessage ?? "Unknown error";
+            AddInfo(messages, $"    attempt {attempt.AttemptNumber}/{policy.MaxRetries + 1}: {statusDetail}");
+            if (attempt.AttemptNumber < result.Attempts.Count && policy.DelayMs > 0)
+            {
+                AddInfo(messages, $"    retrying in {policy.DelayMs}ms...");
+            }
+        }
+    }
+
+    private static string FormatHealthyStatus(ApiReadinessPolicy policy)
+        => policy.HttpStatus is null || policy.HttpStatus.Count == 0
+            ? "2xx"
+            : $"[{string.Join(",", policy.HttpStatus.Order())}]";
 
     private async Task<bool> TryCacheSwaggerAndValidateEndpoints(
         InlineArguments parseResult,
