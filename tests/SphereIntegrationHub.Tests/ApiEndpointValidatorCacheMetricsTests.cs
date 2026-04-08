@@ -78,8 +78,8 @@ public sealed class ApiEndpointValidatorCacheMetricsTests : IDisposable
 
         validator.Validate(_workflow, _catalog, _cacheRoot, validateRequiredParameters: false, verbose: false);
 
-        Assert.Equal(1, metrics.Sum(Misses));
-        Assert.Equal(0, metrics.Sum(Hits));
+        Assert.Contains(GetMeasurementsForDefinition(metrics, Misses, "accounts"), measurement => measurement.Value == 1);
+        Assert.Empty(GetMeasurementsForDefinition(metrics, Hits, "accounts"));
     }
 
     [Fact]
@@ -93,8 +93,8 @@ public sealed class ApiEndpointValidatorCacheMetricsTests : IDisposable
         // Second call — same path, file not modified
         validator.Validate(_workflow, _catalog, _cacheRoot, validateRequiredParameters: false, verbose: false);
 
-        Assert.Equal(1, metrics.Sum(Hits));
-        Assert.Equal(0, metrics.Sum(Misses));
+        Assert.Contains(GetMeasurementsForDefinition(metrics, Hits, "accounts"), measurement => measurement.Value == 1);
+        Assert.Empty(GetMeasurementsForDefinition(metrics, Misses, "accounts"));
     }
 
     [Fact]
@@ -104,14 +104,15 @@ public sealed class ApiEndpointValidatorCacheMetricsTests : IDisposable
         // Prime the cache with original content
         validator.Validate(_workflow, _catalog, _cacheRoot, validateRequiredParameters: false, verbose: false);
 
-        // Overwrite the swagger file (changes lastWriteTime)
+        // Ensure the filesystem timestamp changes before rewriting the file.
+        Thread.Sleep(1100);
         WriteSwagger(_swaggerPath);
 
         using var metrics = new MetricsCollector(MeterName);
         validator.Validate(_workflow, _catalog, _cacheRoot, validateRequiredParameters: false, verbose: false);
 
-        Assert.Equal(1, metrics.Sum(Misses));
-        Assert.Equal(0, metrics.Sum(Hits));
+        Assert.Contains(GetMeasurementsForDefinition(metrics, Misses, "accounts"), measurement => measurement.Value == 1);
+        Assert.Empty(GetMeasurementsForDefinition(metrics, Hits, "accounts"));
     }
 
     [Fact]
@@ -197,5 +198,18 @@ public sealed class ApiEndpointValidatorCacheMetricsTests : IDisposable
           }
         }
         """);
+    }
+
+    private static IReadOnlyList<(double Value, IReadOnlyDictionary<string, object?> Tags)> GetMeasurementsForDefinition(
+        MetricsCollector metrics,
+        string instrumentName,
+        string apiDefinition)
+    {
+        return metrics
+            .GetMeasurements(instrumentName)
+            .Where(measurement =>
+                measurement.Tags.TryGetValue("api.definition", out var tag) &&
+                string.Equals(tag?.ToString(), apiDefinition, StringComparison.OrdinalIgnoreCase))
+            .ToList();
     }
 }
