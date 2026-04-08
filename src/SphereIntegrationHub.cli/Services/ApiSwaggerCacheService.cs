@@ -206,7 +206,10 @@ public sealed class ApiSwaggerCacheService
             _logger.Info($"Swagger download failed: {swaggerUri}");
         }
 
-        throw new InvalidOperationException($"Failed to download swagger for '{definition.Name}' from '{swaggerUri}': {operation.Message}");
+        var attemptSuffix = operation.Attempts.Count > 1
+            ? $" after {operation.Attempts.Count} attempt(s)"
+            : "";
+        throw new InvalidOperationException($"Failed to download swagger for '{definition.Name}' from '{swaggerUri}'{attemptSuffix}: {operation.Message}");
     }
 
     private static string ToRelativePath(string path)

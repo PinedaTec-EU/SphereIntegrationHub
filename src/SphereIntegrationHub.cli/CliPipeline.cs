@@ -154,8 +154,8 @@ internal sealed class CliPipeline : ICliPipeline
         var withReadiness = withHealthCheck.Count(definition => definition.Readiness is not null);
         AddInfo(messages, string.Empty);
         AddInfo(messages, "Features:");
-        AddInfo(messages, $"- Health readiness retry: {(withReadiness > 0 ? $"enabled for {withReadiness}/{withHealthCheck.Count} API definitions (catalog-driven)" : $"disabled for 0/{withHealthCheck.Count} API definitions")}");
-        AddInfo(messages, $"- Readiness protection: {(withReadiness > 0 ? "true" : "false")}");
+        AddInfo(messages, $"- Health check retry policy: {(withReadiness > 0 ? $"enabled for {withReadiness}/{withHealthCheck.Count} APIs" : $"not configured for {withHealthCheck.Count} APIs")}");
+        AddInfo(messages, $"- Startup guard: {(withReadiness > 0 ? "enabled (aborts if APIs are unhealthy)" : "disabled")}");
     }
 
     private bool TryLoadWorkflow(
