@@ -604,7 +604,8 @@ internal sealed class CliPipeline : ICliPipeline
             }
 
             AddError(messages, $"Workflow [{workflowDocument.Definition.Name}] execution failed: {ex.Message}");
-            AddError(messages, "Execution aborted.");
+            AddInfo(messages, string.Empty);
+            AddError(messages, "Execution aborted!!");
             return new CliRunResult(1, messages, emittedMessageCount);
         }
     }
@@ -644,6 +645,7 @@ internal sealed class CliPipeline : ICliPipeline
             return;
         }
 
+        AddInfo(messages, string.Empty);
         AddInfo(messages, "Execution summary:");
         AddInfo(messages, $"  executionId: {result.ExecutionId ?? "n/a"}");
         AddInfo(messages, $"  outputFile: {(string.IsNullOrWhiteSpace(result.OutputFilePath) ? "n/a" : _pathResolver.FormatPath(result.OutputFilePath))}");
