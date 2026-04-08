@@ -152,10 +152,9 @@ internal sealed class CliPipeline : ICliPipeline
         }
 
         var withReadiness = withHealthCheck.Count(definition => definition.Readiness is not null);
-        AddInfo(messages, "Preflight features:");
-        AddInfo(messages, $"  Health readiness retry: {(withReadiness > 0 ? $"enabled for {withReadiness}/{withHealthCheck.Count} API definitions (catalog-driven)" : "disabled (no readiness policy configured)")}");
-        AddInfo(messages, $"  Swagger retry: {(withReadiness > 0 ? "enabled when definition readiness is configured" : "disabled (no readiness policy configured)")}");
-        AddInfo(messages, "  Execution report preflight trace: enabled");
+        AddInfo(messages, "Features:");
+        AddInfo(messages, $"- Health readiness retry: {(withReadiness > 0 ? $"enabled for {withReadiness}/{withHealthCheck.Count} API definitions (catalog-driven)" : $"disabled for 0/{withHealthCheck.Count} API definitions")}");
+        AddInfo(messages, $"- readiness: {(withReadiness > 0 ? "true" : "false")}");
     }
 
     private bool TryLoadWorkflow(
