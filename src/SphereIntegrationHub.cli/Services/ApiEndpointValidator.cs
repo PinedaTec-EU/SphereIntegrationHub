@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 
 using SphereIntegrationHub.Definitions;
@@ -12,6 +13,16 @@ namespace SphereIntegrationHub.Services;
 
 public sealed class ApiEndpointValidator
 {
+    private static readonly ConcurrentDictionary<string, (DateTime LastWrite, SwaggerPathMap Paths)> _swaggerOperationsCache = new();
+
+    // Gauge registered once per process; reads the live count from the static dictionary.
+    private static readonly System.Diagnostics.Metrics.ObservableGauge<int> _swaggerCacheSizeGauge =
+        Telemetry.Meter.CreateObservableGauge(
+            "sih.cache.swagger.operations.size",
+            () => _swaggerOperationsCache.Count,
+            "{entries}",
+            "Current number of Swagger API definitions held in the in-memory parse cache.");
+
     private readonly IExecutionLogger _logger;
 
     public ApiEndpointValidator(IExecutionLogger? logger = null)
@@ -188,6 +199,21 @@ public sealed class ApiEndpointValidator
                 continue;
             }
 
+            var lastWrite = File.GetLastWriteTimeUtc(swaggerPath);
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            if (_swaggerOperationsCache.TryGetValue(swaggerPath, out var cached) && cached.LastWrite == lastWrite)
+            {
+                sw.Stop();
+                Telemetry.SwaggerCacheHits.Add(1, new KeyValuePair<string, object?>(TelemetryConstants.TagApiDefinition, definition.Name));
+                Telemetry.SwaggerLoadDuration.Record(
+                    sw.Elapsed.TotalMilliseconds,
+                    new KeyValuePair<string, object?>(TelemetryConstants.TagApiDefinition, definition.Name),
+                    new KeyValuePair<string, object?>(TelemetryConstants.TagCacheHit, true));
+                result[definition.Name] = cached.Paths;
+                continue;
+            }
+
+            Telemetry.SwaggerCacheMisses.Add(1, new KeyValuePair<string, object?>(TelemetryConstants.TagApiDefinition, definition.Name));
             try
             {
                 var json = File.ReadAllText(swaggerPath);
@@ -231,6 +257,13 @@ public sealed class ApiEndpointValidator
                     pathMap[path.Name] = verbMap;
                 }
 
+                sw.Stop();
+                Telemetry.SwaggerLoadDuration.Record(
+                    sw.Elapsed.TotalMilliseconds,
+                    new KeyValuePair<string, object?>(TelemetryConstants.TagApiDefinition, definition.Name),
+                    new KeyValuePair<string, object?>(TelemetryConstants.TagCacheHit, false));
+
+                _swaggerOperationsCache[swaggerPath] = (lastWrite, pathMap);
                 result[definition.Name] = pathMap;
             }
             catch (Exception ex)
