@@ -182,8 +182,9 @@ public sealed class CliPipelineTests
             DryRun: true), CancellationToken.None);
 
         Assert.Equal(0, result.ExitCode);
-        Assert.Contains(result.Messages, message => message.Text.Contains("Preflight features:", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(result.Messages, message => message.Text.Contains("Health readiness retry: enabled", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains("Features:", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains("Health readiness retry: enabled for 1/1 API definitions", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains("readiness: true", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Messages, message => message.Text.Contains("API health checks:", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Messages, message => message.Text.Contains("Policy accounts: retries=2, delay=10ms, timeout=2000ms, healthyStatus=[200]", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Messages, message => message.Text.Contains($"OK accounts -> {server.Url}/health after 1 attempt(s)", StringComparison.OrdinalIgnoreCase));
@@ -274,7 +275,35 @@ public sealed class CliPipelineTests
             DryRun: true), CancellationToken.None);
 
         Assert.Equal(0, result.ExitCode);
+        Assert.DoesNotContain(result.Messages, message => message.Text.Contains("Features:", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(result.Messages, message => message.Text.Contains("API health checks:", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task RunAsync_DryRun_HealthCheckWithoutReadiness_ReportsReadinessFalse()
+    {
+        using var server = WireMockServer.Start();
+        server
+            .Given(Request.Create().WithPath("/health").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200));
+        var fixture = CreateFixture(
+            swaggerHasEndpoint: true,
+            includeMock: true,
+            catalogVersion: "1.0",
+            baseUrls: new Dictionary<string, string> { ["dev"] = server.Url! },
+            healthCheck: "/health");
+        var pipeline = CreatePipeline();
+
+        var result = await pipeline.RunAsync(new InlineArguments(
+            WorkflowPath: fixture.WorkflowPath,
+            Environment: "dev",
+            CatalogPath: null,
+            DryRun: true), CancellationToken.None);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains(result.Messages, message => message.Text.Contains("Features:", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains("Health readiness retry: disabled for 0/1 API definitions", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains("readiness: false", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
