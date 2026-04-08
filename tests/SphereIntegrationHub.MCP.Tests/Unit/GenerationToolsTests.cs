@@ -832,7 +832,14 @@ endStage:
                 baseUrl = new { local = "http://localhost:5000" },
                 definitions = new[]
                 {
-                    new { name = "orders", basePath = "/ordersapi", swaggerUrl = "/ordersapi/swagger/v1/swagger.json", healthCheck = "/health/orders" }
+                    new
+                    {
+                        name = "orders",
+                        basePath = "/ordersapi",
+                        swaggerUrl = "/ordersapi/swagger/v1/swagger.json",
+                        healthCheck = "/health/orders",
+                        readiness = new { maxRetries = 2, delayMs = 250, timeoutMs = 1000, httpStatus = new[] { 200, 204 } }
+                    }
                 }
             }
         };
@@ -853,7 +860,9 @@ endStage:
         versionsCountEl.GetInt32().Should().Be(1);
         File.Exists(Path.Combine(_mockFs.RootPath, "src", "resources", "api-catalog.json")).Should().BeTrue();
         var storedJson = await File.ReadAllTextAsync(Path.Combine(_mockFs.RootPath, "src", "resources", "api-catalog.json"));
-        JsonDocument.Parse(storedJson).RootElement[0].GetProperty("definitions")[0].GetProperty("healthCheck").GetString().Should().Be("/health/orders");
+        var definition = JsonDocument.Parse(storedJson).RootElement[0].GetProperty("definitions")[0];
+        definition.GetProperty("healthCheck").GetString().Should().Be("/health/orders");
+        definition.GetProperty("readiness").GetProperty("maxRetries").GetInt32().Should().Be(2);
     }
 
     [Fact]
@@ -998,6 +1007,13 @@ endStage:
             ["apiName"] = "TravelAgent.Admin.Licensing.Api",
             ["swaggerUrl"] = "https://localhost:5005/swagger/v1/swagger.json",
             ["healthCheck"] = "/health",
+            ["readiness"] = JsonSerializer.SerializeToElement(new
+            {
+                maxRetries = 2,
+                delayMs = 500,
+                timeoutMs = 1500,
+                httpStatus = new[] { 200, 204 }
+            }),
             ["basePath"] = "/api",
             ["environment"] = "local",
             ["baseUrl"] = JsonSerializer.SerializeToElement(new { local = "https://localhost" }),
@@ -1017,9 +1033,11 @@ endStage:
         var definitionPort = definition.GetProperty("port").GetInt32();
         var templatedSwaggerUrl = definition.GetProperty("swaggerUrl").GetString();
         var storedHealthCheck = definition.GetProperty("healthCheck").GetString();
+        var readiness = definition.GetProperty("readiness");
         definitionPort.Should().Be(5005);
         templatedSwaggerUrl.Should().Be("{{baseUrl.local}}:{{port}}/swagger/v1/swagger.json");
         storedHealthCheck.Should().Be("/health");
+        readiness.GetProperty("maxRetries").GetInt32().Should().Be(2);
     }
 
     [Fact]

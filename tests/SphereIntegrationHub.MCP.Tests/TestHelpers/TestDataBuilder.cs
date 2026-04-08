@@ -270,6 +270,13 @@ public static class TestDataBuilder
                         BasePath = "/api/accounts",
                         SwaggerUrl = "/swagger/accounts.json",
                         HealthCheck = (string?)"/health/accounts",
+                        Readiness = (object?)new
+                        {
+                            MaxRetries = 3,
+                            DelayMs = 1000,
+                            TimeoutMs = 2000,
+                            HttpStatus = new[] { 200, 204 }
+                        },
                         BaseUrl = new Dictionary<string, string>
                         {
                             ["local"] = "http://localhost",
@@ -282,6 +289,7 @@ public static class TestDataBuilder
                         BasePath = "/api/users",
                         SwaggerUrl = "/swagger/users.json",
                         HealthCheck = (string?)null,
+                        Readiness = (object?)null,
                         BaseUrl = new Dictionary<string, string>
                         {
                             ["local"] = "http://localhost",
@@ -301,6 +309,13 @@ public static class TestDataBuilder
                         BasePath = "/api/accounts",
                         SwaggerUrl = "/swagger/accounts.json",
                         HealthCheck = (string?)"/health/accounts",
+                        Readiness = (object?)new
+                        {
+                            MaxRetries = 3,
+                            DelayMs = 1000,
+                            TimeoutMs = 2000,
+                            HttpStatus = new[] { 200, 204 }
+                        },
                         BaseUrl = new Dictionary<string, string>
                         {
                             ["local"] = "http://localhost",
@@ -313,6 +328,7 @@ public static class TestDataBuilder
                         BasePath = "/api/users",
                         SwaggerUrl = "/swagger/users.json",
                         HealthCheck = (string?)null,
+                        Readiness = (object?)null,
                         BaseUrl = new Dictionary<string, string>
                         {
                             ["local"] = "http://localhost",
@@ -325,6 +341,7 @@ public static class TestDataBuilder
                         BasePath = "/api/products",
                         SwaggerUrl = "/swagger/products.json",
                         HealthCheck = (string?)null,
+                        Readiness = (object?)null,
                         BaseUrl = new Dictionary<string, string>
                         {
                             ["local"] = "http://localhost",

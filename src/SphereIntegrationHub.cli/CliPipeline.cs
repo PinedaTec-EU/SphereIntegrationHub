@@ -58,6 +58,7 @@ internal sealed class CliPipeline : ICliPipeline
         using var telemetryHandle = _telemetryBootstrapper.Start(config);
         using var activity = Telemetry.ActivitySource.StartActivity(TelemetryConstants.ActivityCliRun);
         activity?.SetTag(TelemetryConstants.TagWorkflowPath, parseResult.WorkflowPath);
+        var preflightReport = new WorkflowPreflightReport();
 
         EmitPreamble(parseResult, messages);
 
@@ -91,10 +92,14 @@ internal sealed class CliPipeline : ICliPipeline
         }
 
         EmitBaseUrlInfo(selectedVersion.Definitions, selectedVersion, parseResult.Environment!, messages);
-        await EmitApiHealthChecksAsync(selectedVersion.Definitions, selectedVersion, parseResult.Environment!, messages, cancellationToken);
+        if (!await EmitApiHealthChecksAsync(selectedVersion.Definitions, selectedVersion, parseResult.Environment!, messages, preflightReport, cancellationToken))
+        {
+            emittedMessageCount = EmitPendingMessages(messages, emittedMessageCount);
+            return new CliRunResult(1, messages, emittedMessageCount);
+        }
         emittedMessageCount = EmitPendingMessages(messages, emittedMessageCount);
 
-        if (!await TryCacheSwaggerAndValidateEndpoints(parseResult, workflowDocument, selectedVersion, messages, cancellationToken))
+        if (!await TryCacheSwaggerAndValidateEndpoints(parseResult, workflowDocument, selectedVersion, messages, preflightReport, cancellationToken))
         {
             return new CliRunResult(1, messages, emittedMessageCount);
         }
@@ -107,7 +112,7 @@ internal sealed class CliPipeline : ICliPipeline
         }
 
         var cacheRoot = Path.Combine(_pathResolver.ResolveDefaultCacheRoot(parseResult.WorkflowPath), selectedVersion.Version);
-        return await ExecuteWorkflowAsync(parseResult, workflowDocument, selectedVersion, cacheRoot, varsOverrideActive, reportOptions, messages, emittedMessageCount, cancellationToken);
+        return await ExecuteWorkflowAsync(parseResult, workflowDocument, selectedVersion, cacheRoot, varsOverrideActive, reportOptions, preflightReport, messages, emittedMessageCount, cancellationToken);
     }
 
     private void EmitPreamble(InlineArguments parseResult, List<CliRunMessage> messages)
@@ -302,16 +307,17 @@ internal sealed class CliPipeline : ICliPipeline
         }
     }
 
-    private async Task EmitApiHealthChecksAsync(
+    private async Task<bool> EmitApiHealthChecksAsync(
         IReadOnlyList<ApiDefinition> referencedDefinitions,
         ApiCatalogVersion selectedVersion,
         string environment,
         List<CliRunMessage> messages,
+        WorkflowPreflightReport preflightReport,
         CancellationToken cancellationToken)
     {
         if (referencedDefinitions.Count == 0)
         {
-            return;
+            return true;
         }
 
         using var httpClient = _serviceFactory.CreateHttpClient();
@@ -319,12 +325,30 @@ internal sealed class CliPipeline : ICliPipeline
         var results = await healthCheckProbe.ProbeAsync(httpClient, selectedVersion, referencedDefinitions, environment, cancellationToken);
         if (results.Count == 0)
         {
-            return;
+            return true;
         }
 
         AddInfo(messages, "API health checks:");
+        var hasFailures = false;
         foreach (var result in results)
         {
+            var operation = new WorkflowPreflightOperationRecord
+            {
+                OperationType = "HealthCheck",
+                DefinitionName = result.DefinitionName,
+                Target = result.ResolvedUrl ?? result.ConfiguredHealthCheck,
+                Status = result.IsHealthy ? "Ok" : "Error",
+                Message = result.Message,
+                RetryCount = result.RetryCount,
+                DurationMs = result.DurationMs
+            };
+            foreach (var attempt in result.Attempts)
+            {
+                operation.Attempts.Add(attempt);
+            }
+
+            preflightReport.Operations.Add(operation);
+            preflightReport.TotalRetries += result.RetryCount;
             var target = result.ResolvedUrl ?? result.ConfiguredHealthCheck ?? "(unresolved)";
             if (result.IsHealthy)
             {
@@ -332,8 +356,12 @@ internal sealed class CliPipeline : ICliPipeline
                 continue;
             }
 
-            AddInfo(messages, $"  Warning {result.DefinitionName} -> {target}. {result.Message}");
+            hasFailures = true;
+            AddError(messages, $"  Failed {result.DefinitionName} -> {target}. {result.Message}");
         }
+
+        preflightReport.DurationMs = preflightReport.Operations.Sum(static operation => operation.DurationMs);
+        return !hasFailures;
     }
 
     private async Task<bool> TryCacheSwaggerAndValidateEndpoints(
@@ -341,6 +369,7 @@ internal sealed class CliPipeline : ICliPipeline
         WorkflowDocument workflowDocument,
         ApiCatalogVersion selectedVersion,
         List<CliRunMessage> messages,
+        WorkflowPreflightReport preflightReport,
         CancellationToken cancellationToken)
     {
         try
@@ -351,7 +380,13 @@ internal sealed class CliPipeline : ICliPipeline
                 : "Swagger definitions: (analyzing cache)");
             using var httpClient = _serviceFactory.CreateHttpClient();
             var cacheService = _serviceFactory.CreateApiSwaggerCacheService(httpClient);
-            await cacheService.CacheSwaggerAsync(selectedVersion, parseResult.Environment!, cacheRoot, parseResult.RefreshCache, parseResult.Verbose, cancellationToken);
+            var swaggerOperations = await cacheService.CacheSwaggerAsync(selectedVersion, parseResult.Environment!, cacheRoot, parseResult.RefreshCache, parseResult.Verbose, cancellationToken);
+            foreach (var operation in swaggerOperations)
+            {
+                preflightReport.Operations.Add(operation);
+                preflightReport.TotalRetries += operation.RetryCount;
+            }
+            preflightReport.DurationMs = preflightReport.Operations.Sum(static operation => operation.DurationMs);
 
             if (parseResult.Verbose)
             {
@@ -451,6 +486,7 @@ internal sealed class CliPipeline : ICliPipeline
         string cacheRoot,
         bool varsOverrideActive,
         WorkflowExecutionReportOptions reportOptions,
+        WorkflowPreflightReport preflightReport,
         List<CliRunMessage> messages,
         int emittedMessageCount,
         CancellationToken cancellationToken)
@@ -477,6 +513,7 @@ internal sealed class CliPipeline : ICliPipeline
                 parseResult.Mocked,
                 parseResult.Verbose,
                 parseResult.Debug,
+                preflightReport,
                 cancellationToken);
 
             if (result.Output.Count > 0)

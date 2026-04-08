@@ -40,8 +40,22 @@ public sealed class WorkflowExecutionReportWriterTests
             Output = new Dictionary<string, object?>
             {
                 ["payload"] = JsonSerializer.SerializeToElement(new { id = 1 })
+            },
+            Preflight = new WorkflowPreflightReport
+            {
+                TotalRetries = 1,
+                DurationMs = 120
             }
         };
+        report.Preflight.Operations.Add(new WorkflowPreflightOperationRecord
+        {
+            OperationType = "HealthCheck",
+            DefinitionName = "accounts",
+            Status = "Ok",
+            Target = "https://localhost/health",
+            RetryCount = 1,
+            DurationMs = 120
+        });
         report.Stages.Add(new WorkflowStageExecutionRecord
         {
             WorkflowName = "workflow-report",
@@ -69,8 +83,10 @@ public sealed class WorkflowExecutionReportWriterTests
 
         using var parsed = JsonDocument.Parse(await File.ReadAllTextAsync(artifacts.JsonReportPath!));
         Assert.Equal("Ok", parsed.RootElement.GetProperty("Result").GetString());
+        Assert.Equal(1, parsed.RootElement.GetProperty("Preflight").GetProperty("TotalRetries").GetInt32());
         var html = await File.ReadAllTextAsync(artifacts.HtmlReportPath!);
         Assert.Contains("Workflow Report", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Preflight", html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Sphere Integration Hub (SIH)", html, StringComparison.Ordinal);
         Assert.Contains("aria-label=\"Sphere Integration Hub icon\"", html, StringComparison.Ordinal);
     }

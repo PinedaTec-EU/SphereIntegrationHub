@@ -180,7 +180,7 @@ public sealed class CliPipelineTests
     }
 
     [Fact]
-    public async Task RunAsync_DryRun_HealthCheckConfigured_ReportsFailingEndpointButContinues()
+    public async Task RunAsync_DryRun_HealthCheckConfigured_ReportsFailingEndpointAndFails()
     {
         using var server = WireMockServer.Start();
         server
@@ -200,9 +200,47 @@ public sealed class CliPipelineTests
             CatalogPath: null,
             DryRun: true), CancellationToken.None);
 
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains(result.Messages, message => message.Text.Contains($"Failed accounts -> {server.Url}/health", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(result.Messages, message => message.Text.Contains("Dry-run completed successfully", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task RunAsync_DryRun_HealthCheckConfiguredWithReadinessRetry_RetriesUntilHealthy()
+    {
+        using var server = WireMockServer.Start();
+        server
+            .Given(Request.Create().WithPath("/health").UsingGet())
+            .InScenario("health")
+            .WillSetStateTo("ready")
+            .RespondWith(Response.Create().WithStatusCode(503));
+        server
+            .Given(Request.Create().WithPath("/health").UsingGet())
+            .InScenario("health")
+            .WhenStateIs("ready")
+            .RespondWith(Response.Create().WithStatusCode(204));
+        var fixture = CreateFixture(
+            swaggerHasEndpoint: true,
+            includeMock: true,
+            catalogVersion: "1.0",
+            baseUrls: new Dictionary<string, string> { ["dev"] = server.Url! },
+            healthCheck: "/health",
+            readiness: new ApiReadinessPolicyDefinition
+            {
+                MaxRetries = 2,
+                DelayMs = 1,
+                HttpStatus = [204]
+            });
+        var pipeline = CreatePipeline();
+
+        var result = await pipeline.RunAsync(new InlineArguments(
+            WorkflowPath: fixture.WorkflowPath,
+            Environment: "dev",
+            CatalogPath: null,
+            DryRun: true), CancellationToken.None);
+
         Assert.Equal(0, result.ExitCode);
-        Assert.Contains(result.Messages, message => message.Text.Contains($"Warning accounts -> {server.Url}/health", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(result.Messages, message => message.Text.Contains("Dry-run completed successfully", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains($"OK accounts -> {server.Url}/health", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -316,6 +354,7 @@ public sealed class CliPipelineTests
         string catalogVersion,
         Dictionary<string, string> baseUrls,
         string? healthCheck = null,
+        ApiReadinessPolicyDefinition? readiness = null,
         bool includeSelfJumpOnMock = false,
         bool includeWorkflowStageResilience = false,
         bool includeWorkflowStage = false,
@@ -341,6 +380,7 @@ public sealed class CliPipelineTests
                 "name": "accounts",
                 "swaggerUrl": "{{new Uri(accountSwaggerPath).AbsoluteUri}}",
                 "healthCheck": {{(healthCheck is null ? "null" : $"\"{healthCheck}\"")}},
+                "readiness": {{FormatReadinessJson(readiness)}},
                 "baseUrl": {
                   {{baseUrlEntries}}
                 },
@@ -359,6 +399,7 @@ public sealed class CliPipelineTests
                 "name": "{{definition.Name}}",
                 "swaggerUrl": "{{new Uri(swaggerPath).AbsoluteUri}}",
                 "healthCheck": {{(definition.HealthCheck is null ? "null" : $"\"{definition.HealthCheck}\"")}},
+                "readiness": {{FormatReadinessJson(definition.Readiness)}},
                 "baseUrl": {
                   "dev": "{{definition.BaseUrl}}"
                 },
@@ -501,7 +542,19 @@ public sealed class CliPipelineTests
 
     private sealed record Fixture(string WorkflowPath, string CatalogPath);
 
-    private sealed record CatalogDefinitionFixture(string Name, string BaseUrl, string? HealthCheck, string SwaggerJson);
+    private static string FormatReadinessJson(ApiReadinessPolicyDefinition? readiness)
+        => readiness is null
+            ? "null"
+            : $$"""
+            {
+              "maxRetries": {{(readiness.MaxRetries?.ToString() ?? "null")}},
+              "delayMs": {{(readiness.DelayMs?.ToString() ?? "null")}},
+              "timeoutMs": {{(readiness.TimeoutMs?.ToString() ?? "null")}},
+              "httpStatus": {{(readiness.HttpStatus is { Length: > 0 } ? $"[{string.Join(", ", readiness.HttpStatus)}]" : "null")}}
+            }
+            """;
+
+    private sealed record CatalogDefinitionFixture(string Name, string BaseUrl, string? HealthCheck, string SwaggerJson, ApiReadinessPolicyDefinition? Readiness = null);
 
     private sealed class TestOutputProvider : ICliOutputProvider
     {

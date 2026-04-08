@@ -92,6 +92,7 @@ public class CatalogToolsTests : IDisposable
         apisEl.GetArrayLength().Should().BeGreaterThan(0);
         countEl.GetInt32().Should().BeGreaterThan(0);
         apisEl[0].GetProperty("healthCheck").GetString().Should().Be("/health/accounts");
+        apisEl[0].GetProperty("readiness").GetProperty("MaxRetries").GetInt32().Should().Be(3);
     }
 
     [Fact]
