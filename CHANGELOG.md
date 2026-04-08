@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.5.13] – 2026-04-08
+
+- **Readiness estricto en preflight**: `healthCheck` deja de ser solo informativo; ahora aplica retry/timeout configurables y aborta la ejecución si agota la política.
+- **Nuevo bloque `readiness` en `api-catalog.json`**: soporta `maxRetries`, `delayMs`, `timeoutMs` y `httpStatus` por API.
+- **Swagger download resiliente**: la descarga del swagger remoto reutiliza la política de readiness cuando existe.
+- **Execution report**: añade bloque `Preflight` con operaciones, intentos consecutivos, retries y duración acumulada.
+- **MCP actualizado**: `get_api_definitions`, generación de catálogo, upsert de catálogo y lectura de execution reports exponen la nueva superficie de readiness/preflight.
+- **Documentación alineada**: README, catálogo, dry-run y GitHub Action documentan el nuevo contrato y el requisito de esperar readiness del deployment en CI/CD.
+
 ## [1.5.12] – 2026-04-07
 
 - **GitHub Action** `run-sphere-workflow`: composite action para ejecutar workflows desde cualquier pipeline CI/CD con opción de versión fija o latest.
