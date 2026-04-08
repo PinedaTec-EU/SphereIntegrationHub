@@ -1,7 +1,7 @@
 version: "3.11"
 id: "01J9SAMPLECONTROL000000001"
 name: "sample-conditional-control"
-description: "Demonstrates compound runIf expressions, safe missing-token checks, optional JSON paths, and control helpers."
+description: "Demonstrates compound runIf expressions, safe missing-token checks, optional JSON paths, control helpers, and lookup branching without retrying 404."
 output: true
 references:
   apis:
@@ -27,7 +27,7 @@ stages:
     apiRef: "accounts"
     endpoint: "/api/accounts"
     httpVerb: "GET"
-    expectedStatus: 200
+    expectedStatuses: [200, 404]
     headers:
       Authorization: "Bearer {{input.jwt}}"
     query:
@@ -43,10 +43,24 @@ stages:
     output:
       dto: "{{response.body}}"
       requestId: "{{response.body.meta.requestId?}}"
+      lookupStatus: "{{response.status}}"
+    onStatus:
+      404:
+        output:
+          dto: |
+            {
+              "items": []
+            }
+          lookupMissing: "true"
 
   - name: "create-account"
     kind: "Endpoint"
-    runIf: "jsonLength({{stage:lookup-account.output.dto.items?}}) == 0 && {{stage:lookup-account.output.requestId}} != null"
+    runIf: >-
+      jsonLength({{stage:lookup-account.output.dto.items?}}) == 0 &&
+      (
+        {{stage:lookup-account.output.requestId}} != null ||
+        {{stage:lookup-account.output.lookupMissing}} == 'true'
+      )
     apiRef: "accounts"
     endpoint: "/api/accounts"
     httpVerb: "POST"
@@ -97,6 +111,7 @@ stages:
 endStage:
   output:
     lookup: "{{stage:lookup-account.output.dto}}"
+    lookupStatus: "{{stage:lookup-account.output.lookupStatus}}"
     account: "{{stage:create-account.output.dto}}"
     accountAppId: "{{stage:create-account.output.accountAppId}}"
     ensureStatus: "{{stage:create-account.output.ensure_status}}"

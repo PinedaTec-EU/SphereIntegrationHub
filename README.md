@@ -78,7 +78,7 @@ sih --version
 
 ## Catalog
 
-The API catalog is a fixed JSON file with versions and API definitions. Each definition provides its own environment base URLs and a relative swagger path. An optional `healthCheck` probes the API before swagger caching and workflow execution:
+The API catalog is a fixed JSON file with versions and API definitions. Each definition provides its own environment base URLs and a relative swagger path. An optional `healthCheck` probes the API before swagger caching and workflow execution, and an optional `readiness` policy controls retries/timeouts and accepted HTTP status codes:
 
 `src/resources/api-catalog.json`
 
@@ -281,12 +281,13 @@ Example `./payloads/create-account.json`:
 
 The repository includes reference workflows under `samples/`:
 
-- `sample-parent.workflow` and `sample-child.workflow`: parent/child composition, workflow outputs/results, retries, circuit breakers, and conditional follow-up stages.
-- `sample-conditional.workflow`: compound `runIf` with `&&`, `||`, parentheses, safe missing-token checks, optional JSON paths, `empty(...)`, and `coalesce(...)`.
+- `sample-parent.workflow` and `sample-child.workflow`: parent/child composition, workflow outputs/results, retries, circuit breakers, and conditional follow-up stages, including a lookup that accepts `404` without retrying it.
+- `sample-conditional.workflow`: compound `runIf` with `&&`, `||`, parentheses, safe missing-token checks, optional JSON paths, `empty(...)`, `coalesce(...)`, and branching from a lookup that may return `404`.
 - `sample-bootstrap.workflow`: `expectedStatuses`, `onStatus`, `ensure`, `bodyFile`, `dataFile`, and `forEach` for seed/bootstrap scenarios.
+- `sample-lookup-no-retry.workflow`: focused example for GET/lookup stages where `404` is a business result, not a retriable transport failure.
 - `sample-parent.wfvars`: companion input example for the parent/child sample.
 - `payloads/bootstrap-account.json` and `seed/accounts.json`: file-backed request and collection samples used by `sample-bootstrap.workflow`.
-- `api-catalog.json`: reference catalog for the sample workflows — defines the `accounts` API with per-environment base URLs and a relative swagger path.
+- `api-catalog.json`: reference catalog for the sample workflows — defines the `accounts` API with per-environment base URLs, `healthCheck`, and `readiness` policy for strict preflight.
 
 Use these files directly when authoring new workflows or when prompting MCP-based generation.
 
@@ -532,6 +533,8 @@ SphereIntegrationHub is now strong as a local-first API orchestration runtime an
    Keep runtime, CLI, MCP, GitHub Action, and examples synchronized so the documented contract matches the implemented one.
 4. **Plugin/Transformer Extensibility**
    Load custom .NET transformations and stage extensions safely.
+5. **Transport-Level Retry Controls**
+   Keep catalog-driven readiness strict at preflight time, and evaluate future per-stage boolean controls to opt workflow endpoint calls into the same transport retry policy when that surface is stable.
 
 ### Mid-Term Roadmap
 

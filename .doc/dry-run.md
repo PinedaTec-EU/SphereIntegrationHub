@@ -2,7 +2,7 @@
 
 The `--dry-run` mode validates workflows and prints an execution plan without executing workflow endpoints.
 
-If a referenced API definition includes `healthCheck` in the catalog, SIH performs that HTTP precheck and reports the result without failing the dry-run by itself.
+If a referenced API definition includes `healthCheck` in the catalog, SIH performs that HTTP precheck before swagger caching. When the configured readiness policy is exhausted, dry-run fails immediately.
 
 ## What is validated
 
