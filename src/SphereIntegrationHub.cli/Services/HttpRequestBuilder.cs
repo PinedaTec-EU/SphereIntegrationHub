@@ -103,7 +103,8 @@ internal sealed class HttpRequestBuilder
             throw new InvalidOperationException($"Stage '{stage.Name}' bodyFile requires workflowPath context.");
         }
 
-        return _dataFileService.LoadText(stage.BodyFile, context.WorkflowPath);
+        var resolvedBodyFile = _templateResolver.ResolveTemplate(stage.BodyFile!, context);
+        return _dataFileService.LoadText(resolvedBodyFile, context.WorkflowPath);
     }
 
     private static string BuildRequestUrl(string baseUrl, string endpoint)

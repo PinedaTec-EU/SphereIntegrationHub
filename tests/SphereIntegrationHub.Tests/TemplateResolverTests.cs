@@ -316,6 +316,51 @@ public sealed class TemplateResolverTests
             () => resolver.ResolveTemplate("{{ system:datetime.now + badoffset }}", context));
     }
 
+    [Fact]
+    public void ResolveTemplate_EnvWithColon_Resolves()
+    {
+        var resolver = new TemplateResolver();
+        var context = new TemplateContext(
+            new Dictionary<string, string>(),
+            new Dictionary<string, string>(),
+            new Dictionary<string, string>(),
+            new Dictionary<string, IReadOnlyDictionary<string, string>>(),
+            new Dictionary<string, IReadOnlyDictionary<string, string>>(),
+            new Dictionary<string, IReadOnlyDictionary<string, string>>(),
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["ENVIRONMENT"] = "production"
+            });
+
+        var resolved = resolver.ResolveTemplate("{{env:ENVIRONMENT}}", context);
+
+        Assert.Equal("production", resolved);
+    }
+
+    [Theory]
+    [InlineData("{{env.ENVIRONMENT}}")]
+    [InlineData("{{ENV.ENVIRONMENT}}")]
+    public void ResolveTemplate_EnvWithDot_Throws(string template)
+    {
+        var resolver = new TemplateResolver();
+        var context = new TemplateContext(
+            new Dictionary<string, string>(),
+            new Dictionary<string, string>(),
+            new Dictionary<string, string>(),
+            new Dictionary<string, IReadOnlyDictionary<string, string>>(),
+            new Dictionary<string, IReadOnlyDictionary<string, string>>(),
+            new Dictionary<string, IReadOnlyDictionary<string, string>>(),
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["ENVIRONMENT"] = "production"
+            });
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => resolver.ResolveTemplate(template, context));
+
+        Assert.Contains("env:", ex.Message);
+    }
+
     private static TemplateContext EmptyContext() => new(
         new Dictionary<string, string>(),
         new Dictionary<string, string>(),
