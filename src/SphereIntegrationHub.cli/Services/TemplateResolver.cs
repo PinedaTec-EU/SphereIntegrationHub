@@ -99,6 +99,8 @@ public sealed class TemplateResolver
             "endpoint" => ResolveStageOutputValue(segments, context.EndpointOutputs, context.EndpointOutputJson, "endpoint", token),
             "workflow" => ResolveStageOutputValue(segments, context.WorkflowOutputs, context.WorkflowOutputJson, "workflow", token),
             "stage" => ResolveStageOutputAnyValue(segments, context, token),
+            "env" when token.StartsWith("env.", StringComparison.OrdinalIgnoreCase)
+                => throw new InvalidOperationException($"Invalid env token '{token}'. Use '{{{{env:NAME}}}}' syntax."),
             "env" => ResolveEnvironmentValue(segments, context),
             "system" => ResolvedTokenValue.FromString(ResolveSystem(segments, token)),
             "response" => ResolveResponseValue(segments, responseContext, token),
@@ -471,8 +473,7 @@ public sealed class TemplateResolver
 
     public static string[] SplitToken(string token)
     {
-        var normalized = token.Replace(":", ".", StringComparison.Ordinal);
-        return normalized.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return token.Split(new[] { '.', ':' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 
     public static IEnumerable<string> ExtractTokens(string template)

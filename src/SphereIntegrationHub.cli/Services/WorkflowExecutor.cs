@@ -1143,9 +1143,10 @@ public sealed class WorkflowExecutor
         JsonElement source;
         if (!string.IsNullOrWhiteSpace(stage.DataFile))
         {
-            var rawContent = _dataFileService.LoadText(stage.DataFile, workflowPath);
+            var resolvedDataFile = _templateResolver.ResolveTemplate(stage.DataFile, context.BuildTemplateContext(workflowPath));
+            var rawContent = _dataFileService.LoadText(resolvedDataFile, workflowPath);
             var resolvedContent = _templateResolver.ResolveTemplate(rawContent, context.BuildTemplateContext(workflowPath));
-            source = _dataFileService.ParseStructured(resolvedContent, stage.DataFile);
+            source = _dataFileService.ParseStructured(resolvedContent, resolvedDataFile);
             if (!string.IsNullOrWhiteSpace(stage.ForEach))
             {
                 var path = stage.ForEach.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -1756,7 +1757,9 @@ public sealed class WorkflowExecutor
 
         var rawPayload = string.IsNullOrWhiteSpace(stage.Mock?.PayloadFile)
             ? _mockPayloadService.LoadRawPayload(stage.Mock?.Payload ?? string.Empty, workflowPath)
-            : _mockPayloadService.LoadRawPayloadFromFile(stage.Mock?.PayloadFile ?? string.Empty, workflowPath);
+            : _mockPayloadService.LoadRawPayloadFromFile(
+                _templateResolver.ResolveTemplate(stage.Mock.PayloadFile, context.BuildTemplateContext()),
+                workflowPath);
 
         if (string.IsNullOrWhiteSpace(rawPayload))
         {

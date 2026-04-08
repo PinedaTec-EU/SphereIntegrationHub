@@ -567,23 +567,29 @@ public sealed class WorkflowValidator
 
                 if (!string.IsNullOrWhiteSpace(stage.BodyFile))
                 {
-                    var resolvedPath = ResolveRelativePath(stage.BodyFile, workflowPath);
-                    if (!File.Exists(resolvedPath))
+                    if (!stage.BodyFile.Contains("{{", StringComparison.Ordinal))
                     {
-                        errors.Add($"Stage '{stage.Name}' bodyFile '{stage.BodyFile}' was not found.");
-                    }
-                    else
-                    {
-                        ValidateTemplate(File.ReadAllText(resolvedPath), inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' bodyFile", errors);
+                        var resolvedPath = ResolveRelativePath(stage.BodyFile, workflowPath);
+                        if (!File.Exists(resolvedPath))
+                        {
+                            errors.Add($"Stage '{stage.Name}' bodyFile '{stage.BodyFile}' was not found.");
+                        }
+                        else
+                        {
+                            ValidateTemplate(File.ReadAllText(resolvedPath), inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' bodyFile", errors);
+                        }
                     }
                 }
 
                 if (!string.IsNullOrWhiteSpace(stage.DataFile))
                 {
-                    var resolvedPath = ResolveRelativePath(stage.DataFile, workflowPath);
-                    if (!File.Exists(resolvedPath))
+                    if (!stage.DataFile.Contains("{{", StringComparison.Ordinal))
                     {
-                        errors.Add($"Stage '{stage.Name}' dataFile '{stage.DataFile}' was not found.");
+                        var resolvedPath = ResolveRelativePath(stage.DataFile, workflowPath);
+                        if (!File.Exists(resolvedPath))
+                        {
+                            errors.Add($"Stage '{stage.Name}' dataFile '{stage.DataFile}' was not found.");
+                        }
                     }
                 }
 
@@ -1221,6 +1227,14 @@ public sealed class WorkflowValidator
             if (string.IsNullOrWhiteSpace(stage.Mock?.Payload) && string.IsNullOrWhiteSpace(stage.Mock?.PayloadFile))
             {
                 errors.Add($"Stage '{stage.Name}' mock payload is required for endpoint stages.");
+                return;
+            }
+
+            var payloadFileHasTokens = !string.IsNullOrWhiteSpace(stage.Mock?.PayloadFile)
+                && stage.Mock.PayloadFile.Contains("{{", StringComparison.Ordinal);
+
+            if (payloadFileHasTokens)
+            {
                 return;
             }
 
