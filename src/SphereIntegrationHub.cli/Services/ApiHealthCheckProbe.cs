@@ -20,15 +20,12 @@ public sealed class ApiHealthCheckProbe
         ArgumentNullException.ThrowIfNull(definitions);
         ArgumentException.ThrowIfNullOrWhiteSpace(environment);
 
-        var results = new List<ApiHealthCheckResult>();
-        foreach (var definition in definitions
-                     .Where(item => !string.IsNullOrWhiteSpace(item.HealthCheck))
-                     .OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase))
-        {
-            results.Add(await ProbeDefinitionAsync(httpClient, catalogVersion, definition, environment, cancellationToken));
-        }
+        var tasks = definitions
+            .Where(item => !string.IsNullOrWhiteSpace(item.HealthCheck))
+            .OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(definition => ProbeDefinitionAsync(httpClient, catalogVersion, definition, environment, cancellationToken));
 
-        return results;
+        return await Task.WhenAll(tasks);
     }
 
     private static async Task<ApiHealthCheckResult> ProbeDefinitionAsync(
