@@ -545,6 +545,7 @@ public sealed class ReadExecutionReportTool : IMcpTool
                 errorMessage  = root.TryGetProperty("ErrorMessage",  out var em2) ? em2.GetString()  : null,
                 mocked        = root.TryGetProperty("Mocked",        out var mk2) && mk2.GetBoolean(),
                 metrics       = root.TryGetProperty("Metrics",       out var met) ? JsonSerializer.Deserialize<object>(met.GetRawText()) : null,
+                preflight     = root.TryGetProperty("Preflight",     out var pre) ? JsonSerializer.Deserialize<object>(pre.GetRawText()) : null,
                 output        = root.TryGetProperty("Output",        out var outp) ? JsonSerializer.Deserialize<object>(outp.GetRawText()) : null,
                 stages
             };

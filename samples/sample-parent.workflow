@@ -1,7 +1,7 @@
 version: "3.11"
 id: "01J9SAMPLEPARENT0000000001"
 name: "sample-parent"
-description: "Looks up an account, calls the child workflow, and registers metadata."
+description: "Looks up an account without retrying business statuses, calls the child workflow, and registers metadata."
 output: true
 references:
   workflows:
@@ -46,7 +46,7 @@ stages:
     apiRef: "accounts"
     endpoint: "/api/accounts"
     httpVerb: "GET"
-    expectedStatus: 200
+    expectedStatuses: [200, 404]
     headers:
       Authorization: "Bearer {{input.jwt}}"
     query:
@@ -63,15 +63,16 @@ stages:
         }
     output:
       lookup: "{{response.body}}"
+      lookupStatus: "{{response.status}}"
     message: "Lookup status {{response.status}} for {{input.accountLogin}}."
-    retry:
-      ref: "standard"
-      httpStatus: [500, 503]
-      messages:
-        onException: "Lookup fallo tras reintentos."
+    onStatus:
+      404:
+        output:
+          lookupMissing: "true"
 
   - name: "create-account"
     kind: "Workflow"
+    runIf: "{{stage:lookup-account.output.lookupStatus}} == '404' || {{stage:lookup-account.output.lookupMissing}} == 'true'"
     # Workflow stages do not support retry/circuitBreaker.
     workflowRef: "sample-child"
     inputs:
@@ -122,6 +123,7 @@ endStage:
     accountAppId: "{{stage:create-account.output.accountAppId}}"
     account: "{{stage:create-account.output.account}}"
     lookup: "{{stage:lookup-account.output.lookup}}"
+    lookupStatus: "{{stage:lookup-account.output.lookupStatus}}"
     metadataStatus: "{{stage:register-metadata.output.metadataStatus}}"
   context:
     lastAccountAppId: "{{stage:create-account.output.accountAppId}}"

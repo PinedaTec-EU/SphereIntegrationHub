@@ -1,5 +1,7 @@
 using SphereIntegrationHub.Definitions;
 using SphereIntegrationHub.Services.Interfaces;
+using System.Diagnostics;
+using System.Net;
 
 namespace SphereIntegrationHub.Services;
 
@@ -14,7 +16,7 @@ public sealed class ApiSwaggerCacheService
         _logger = logger ?? new ConsoleExecutionLogger();
     }
 
-    public async Task CacheSwaggerAsync(
+    public async Task<IReadOnlyList<WorkflowPreflightOperationRecord>> CacheSwaggerAsync(
         ApiCatalogVersion catalogVersion,
         string environment,
         string cacheRoot,
@@ -24,10 +26,11 @@ public sealed class ApiSwaggerCacheService
     {
         if (catalogVersion.Definitions.Count == 0)
         {
-            return;
+            return [];
         }
 
         Directory.CreateDirectory(cacheRoot);
+        var operations = new List<WorkflowPreflightOperationRecord>();
 
         foreach (var definition in catalogVersion.Definitions.OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase))
         {
@@ -48,8 +51,17 @@ public sealed class ApiSwaggerCacheService
             {
                 if (verbose)
                 {
-                    _logger.Info($"Swagger cache hit for '{definition.Name}' (version {catalogVersion.Version}): {ToRelativePath(cachePath)}");
+                        _logger.Info($"Swagger cache hit for '{definition.Name}' (version {catalogVersion.Version}): {ToRelativePath(cachePath)}");
                 }
+                operations.Add(new WorkflowPreflightOperationRecord
+                {
+                    OperationType = "SwaggerCache",
+                    DefinitionName = definition.Name,
+                    Target = swaggerUri.ToString(),
+                    Status = "Ok",
+                    Message = $"Cache hit: {ToRelativePath(cachePath)}",
+                    DurationMs = 0
+                });
                 continue;
             }
 
@@ -77,6 +89,15 @@ public sealed class ApiSwaggerCacheService
 
                 var payload = await File.ReadAllTextAsync(localPath, cancellationToken);
                 await File.WriteAllTextAsync(cachePath, payload, cancellationToken);
+                operations.Add(new WorkflowPreflightOperationRecord
+                {
+                    OperationType = "SwaggerCache",
+                    DefinitionName = definition.Name,
+                    Target = swaggerUri.ToString(),
+                    Status = "Ok",
+                    Message = $"Cached from file: {ToRelativePath(cachePath)}",
+                    DurationMs = 0
+                });
                 if (verbose)
                 {
                     _logger.Info($"Swagger cached for '{definition.Name}' (version {catalogVersion.Version}) from file: {ToRelativePath(cachePath)}");
@@ -84,26 +105,108 @@ public sealed class ApiSwaggerCacheService
             }
             else
             {
-                try
-                {
-                    var payload = await _httpClient.GetStringAsync(swaggerUri, cancellationToken);
-                    await File.WriteAllTextAsync(cachePath, payload, cancellationToken);
-                    if (verbose)
-                    {
-                        _logger.Info($"Swagger cached for '{definition.Name}' (version {catalogVersion.Version}) from url: {ToRelativePath(cachePath)}");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    if (verbose)
-                    {
-                        _logger.Info($"Swagger download failed: {swaggerUri}");
-                    }
-
-                    throw new InvalidOperationException($"Failed to download swagger for '{definition.Name}' from '{swaggerUri}': {ex.Message}", ex);
-                }
+                var operation = await DownloadSwaggerWithRetryAsync(definition, swaggerUri, cachePath, verbose, cancellationToken);
+                operations.Add(operation);
             }
         }
+
+        return operations;
+    }
+
+    private async Task<WorkflowPreflightOperationRecord> DownloadSwaggerWithRetryAsync(
+        ApiDefinition definition,
+        Uri swaggerUri,
+        string cachePath,
+        bool verbose,
+        CancellationToken cancellationToken)
+    {
+        var policy = ApiReadinessPolicyResolver.Resolve(definition);
+        var operation = new WorkflowPreflightOperationRecord
+        {
+            OperationType = "SwaggerCache",
+            DefinitionName = definition.Name,
+            Target = swaggerUri.ToString()
+        };
+        var operationTimer = Stopwatch.StartNew();
+
+        for (var attemptNumber = 1; attemptNumber <= policy.MaxRetries + 1; attemptNumber++)
+        {
+            var attemptTimer = Stopwatch.StartNew();
+            var attempt = new WorkflowPreflightAttemptRecord
+            {
+                AttemptNumber = attemptNumber,
+                RequestUri = swaggerUri.ToString(),
+                StartedAtUtc = DateTimeOffset.UtcNow
+            };
+
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get, swaggerUri);
+                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeoutCts.CancelAfter(policy.TimeoutMs);
+                using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeoutCts.Token);
+                var payload = await response.Content.ReadAsStringAsync(timeoutCts.Token);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    await File.WriteAllTextAsync(cachePath, payload, cancellationToken);
+                    attempt.Status = "Ok";
+                    attempt.HttpStatusCode = (int)response.StatusCode;
+                    attemptTimer.Stop();
+                    attempt.FinishedAtUtc = attempt.StartedAtUtc.AddMilliseconds(attemptTimer.ElapsedMilliseconds);
+                    attempt.DurationMs = attemptTimer.ElapsedMilliseconds;
+                    operation.Attempts.Add(attempt);
+                    operationTimer.Stop();
+                    operation.Status = "Ok";
+                    operation.Message = $"Cached from url: {ToRelativePath(cachePath)}";
+                    operation.RetryCount = operation.Attempts.Count - 1;
+                    operation.DurationMs = operationTimer.ElapsedMilliseconds;
+                    if (verbose)
+                    {
+                        _logger.Info($"Swagger cached for '{definition.Name}' from url: {ToRelativePath(cachePath)}");
+                    }
+
+                    return operation;
+                }
+
+                attempt.Status = "Error";
+                attempt.HttpStatusCode = (int)response.StatusCode;
+                attempt.ErrorMessage = $"Received HTTP {(int)response.StatusCode} ({response.StatusCode}).";
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                attempt.Status = "Error";
+                attempt.ErrorMessage = $"Swagger download timed out after {TimeSpan.FromMilliseconds(policy.TimeoutMs).TotalSeconds:F0} s.";
+            }
+            catch (Exception ex)
+            {
+                attempt.Status = "Error";
+                attempt.ErrorMessage = ex.Message;
+            }
+
+            attemptTimer.Stop();
+            attempt.FinishedAtUtc = attempt.StartedAtUtc.AddMilliseconds(attemptTimer.ElapsedMilliseconds);
+            attempt.DurationMs = attemptTimer.ElapsedMilliseconds;
+            operation.Attempts.Add(attempt);
+
+            if (attemptNumber <= policy.MaxRetries && policy.DelayMs > 0)
+            {
+                await Task.Delay(policy.DelayMs, cancellationToken);
+            }
+        }
+
+        operationTimer.Stop();
+        operation.Status = "Error";
+        operation.Message = operation.Attempts[^1].ErrorMessage;
+        operation.RetryCount = operation.Attempts.Count - 1;
+        operation.DurationMs = operationTimer.ElapsedMilliseconds;
+
+        if (verbose)
+        {
+            _logger.Info($"Swagger download failed: {swaggerUri}");
+        }
+
+        throw new InvalidOperationException($"Failed to download swagger for '{definition.Name}' from '{swaggerUri}': {operation.Message}");
     }
 
     private static string ToRelativePath(string path)

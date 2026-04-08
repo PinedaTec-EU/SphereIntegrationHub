@@ -229,7 +229,7 @@ Currently, creating a complex workflow in SphereIntegrationHub requires:
 | Tool | Parameters | Returns | Purpose |
 |------|------------|---------|---------|
 | `list_api_catalog_versions` | - | `Array<string>` | Lists available catalog versions (3.10, 3.11, etc.) |
-| `get_api_definitions` | `version: string` | `Array<ApiDefinition>` | Returns APIs in catalog with basePath, swagger URLs, and optional healthCheck |
+| `get_api_definitions` | `version: string` | `Array<ApiDefinition>` | Returns APIs in catalog with basePath, swagger URLs, optional healthCheck, and optional readiness policy |
 | `get_api_endpoints` | `version: string`<br>`apiName: string`<br>`httpVerb?: string` | `Array<EndpointInfo>` | Extracts endpoints from cached Swagger with schemas |
 | `get_endpoint_schema` | `version: string`<br>`apiName: string`<br>`endpoint: string`<br>`httpVerb: string` | `EndpointSchema` | Returns detailed schema (query, headers, body, responses) |
 

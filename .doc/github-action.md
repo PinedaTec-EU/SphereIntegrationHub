@@ -23,6 +23,10 @@ uses: PinedaTec-EU/SphereIntegrationHub/.github/actions/run-sphere-workflow@main
 3. If `tool-version` is not set → `dotnet tool update SphereIntegrationHub.Tool` (updates to latest).
 4. Runs `dotnet tool run sih --workflow <workflow-path> [cli-args]`.
 
+### Deployment readiness
+
+The action does not wait for infrastructure deployments to become ready. In CI/CD, gate this step behind the platform-native readiness signal first (`kubectl rollout status`, `kubectl wait`, container health checks, etc.). Once the action runs, SIH applies catalog-driven readiness retry/timeout rules for `healthCheck` probes and swagger downloads.
+
 ### Prerequisite
 
 The consuming repository must have a `.config/dotnet-tools.json` that includes `SphereIntegrationHub.Tool`. If the file exists but the tool is not listed, `dotnet tool update` will install it automatically. If the manifest does not exist at all, `dotnet tool restore` will fail — in that case initialize the manifest first with `dotnet new tool-manifest`.

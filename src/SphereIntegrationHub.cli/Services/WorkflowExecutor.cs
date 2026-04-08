@@ -185,10 +185,23 @@ public sealed class WorkflowExecutor
         bool verbose,
         bool debug,
         CancellationToken cancellationToken)
+        => await ExecuteAsync(document, catalogVersion, environment, inputs, varsOverrideActive, mocked, verbose, debug, null, cancellationToken);
+
+    public async Task<WorkflowExecutionResult> ExecuteAsync(
+        WorkflowDocument document,
+        ApiCatalogVersion catalogVersion,
+        string environment,
+        IReadOnlyDictionary<string, string> inputs,
+        bool varsOverrideActive,
+        bool mocked,
+        bool verbose,
+        bool debug,
+        WorkflowPreflightReport? preflightReport,
+        CancellationToken cancellationToken)
     {
         var context = new ExecutionContext(inputs, document.EnvironmentVariables);
         ApplyTypedInputs(document.Definition, context);
-        context.Report = BuildExecutionReport(document, environment, inputs, mocked);
+        context.Report = BuildExecutionReport(document, environment, inputs, mocked, preflightReport);
 
         try
         {
@@ -965,7 +978,8 @@ public sealed class WorkflowExecutor
         WorkflowDocument document,
         string environment,
         IReadOnlyDictionary<string, string> inputs,
-        bool mocked)
+        bool mocked,
+        WorkflowPreflightReport? preflightReport)
     {
         var secretInputKeys = document.Definition.Input?
             .Where(i => i.Secret)
@@ -988,7 +1002,8 @@ public sealed class WorkflowExecutor
             Mocked = mocked,
             DryRun = false,
             StartedAtUtc = _systemProvider.UtcNow,
-            Inputs = reportInputs
+            Inputs = reportInputs,
+            Preflight = preflightReport ?? new WorkflowPreflightReport()
         };
     }
 
@@ -1015,6 +1030,7 @@ public sealed class WorkflowExecutor
             context.Report.Output = WorkflowExecutionRedactor.ConvertOutputs(outputs, endStageSecretKeys, context.SecretValues);
             context.Report.OutputFilePath = context.OutputFilePath;
             context.Report.Metrics.TotalStages = context.Report.Stages.Count;
+            context.Report.Metrics.PreflightRetries = context.Report.Preflight.TotalRetries;
         }
 
         var artifacts = context.Report is null

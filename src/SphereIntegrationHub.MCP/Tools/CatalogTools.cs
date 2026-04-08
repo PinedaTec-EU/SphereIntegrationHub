@@ -82,7 +82,8 @@ public sealed class GetApiDefinitionsTool : IMcpTool
                 name = d.Name,
                 basePath = d.BasePath,
                 swaggerUrl = d.SwaggerUrl,
-                healthCheck = d.HealthCheck
+                healthCheck = d.HealthCheck,
+                readiness = d.Readiness
             }).ToList(),
             count = definitions.Count
         };

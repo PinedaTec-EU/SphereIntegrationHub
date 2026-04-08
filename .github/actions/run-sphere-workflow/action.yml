@@ -8,13 +8,6 @@ inputs:
     description: Path to the .workflow file to execute (relative to the repo root).
     required: true
 
-  tool-version:
-    description: >
-      Pin the tool to a specific version (e.g. "1.5.12.149").
-      If omitted, the tool is updated to the latest published version.
-    required: false
-    default: ''
-
   cli-args:
     description: >
       Additional arguments to pass to the `sih` command, e.g.
@@ -28,16 +21,6 @@ runs:
     - name: Restore dotnet tools
       shell: bash
       run: dotnet tool restore
-
-    - name: Pin tool to fixed version
-      if: ${{ inputs.tool-version != '' }}
-      shell: bash
-      run: dotnet tool update SphereIntegrationHub.Tool --version ${{ inputs.tool-version }}
-
-    - name: Update tool to latest version
-      if: ${{ inputs.tool-version == '' }}
-      shell: bash
-      run: dotnet tool update SphereIntegrationHub.Tool
 
     - name: Run workflow
       shell: bash

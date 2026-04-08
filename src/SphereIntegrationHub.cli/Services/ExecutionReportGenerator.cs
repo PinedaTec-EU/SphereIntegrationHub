@@ -167,7 +167,6 @@ internal sealed class ExecutionReportGenerator
   --header-bg:#f8fafc;--row-hover:#f0f9ff;--row-selected:#dbeafe;--row-border:#f1f5f9;
   --wf-row-bg:#f0f4ff;--wf-row-hover:#e0ebff;--wf-row-selected:#c7d9ff;
   --detail-bg:#eff6ff;--detail-border:#bfdbfe;
-  --tree-guide:rgba(59,130,246,.32);
   --code-bg:#f8fafc;--code-border:#e2e8f0;--code-text:#475569;
   --btn-bg:#1e293b;--btn-c:#94a3b8;--btn-border:#334155;--btn-hover-bg:#334155;--btn-hover-c:#f1f5f9;
   --chip-total-bg:#eef2ff;--chip-total-c:#4338ca;--chip-total-b:#c7d2fe;
@@ -185,7 +184,6 @@ internal sealed class ExecutionReportGenerator
   --header-bg:#1e293b;--row-hover:#172554;--row-selected:#1e3a5f;--row-border:#1e293b;
   --wf-row-bg:#1a2540;--wf-row-hover:#1e3060;--wf-row-selected:#1e3a6e;
   --detail-bg:#172554;--detail-border:#1e40af;
-  --tree-guide:rgba(96,165,250,.34);
   --code-bg:#0f172a;--code-border:#334155;--code-text:#94a3b8;
   --btn-bg:#334155;--btn-c:#94a3b8;--btn-border:#475569;--btn-hover-bg:#475569;--btn-hover-c:#f1f5f9;
   --chip-total-bg:#1e1b4b;--chip-total-c:#a5b4fc;--chip-total-b:#312e81;
@@ -246,11 +244,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 /* left cell */
 .trace-left{width:380px;min-width:380px;padding:4px 8px;display:flex;flex-direction:column;justify-content:center;gap:1px;overflow:hidden;border-right:1px solid var(--border);position:relative}
 .trace-left-top{display:flex;align-items:center;gap:5px;overflow:hidden;width:100%}
-.tree-indent{height:18px;display:flex;align-items:center;flex-shrink:0;pointer-events:none}
-.tree-guide-cell{width:18px;height:18px;position:relative;flex:0 0 18px}
-.tree-guide-cell::before{content:'';position:absolute;left:8px;top:-10px;bottom:-10px;width:1px;background:var(--tree-guide);opacity:.55}
-.tree-guide-cell.tree-guide-branch::after{content:'';position:absolute;left:8px;top:50%;width:10px;height:1px;background:var(--tree-guide);transform:translateY(-50%);opacity:.78}
-.tree-guide-cell.tree-guide-node .tree-guide-dot{position:absolute;left:5px;top:50%;width:7px;height:7px;border-radius:999px;background:var(--surface);border:1.5px solid var(--tree-guide);transform:translateY(-50%);box-shadow:0 0 0 1px rgba(59,130,246,.12)}
+.tree-indent{width:var(--tree-indent-width,0);height:18px;flex:0 0 var(--tree-indent-width,0);pointer-events:none}
 /* expand chevron */
 .expand-btn{width:18px;min-width:18px;height:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--expand-c);font-size:11px;font-weight:700;transition:transform .18s;line-height:1;border-radius:3px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.22)}
 .expand-btn:hover{background:rgba(99,102,241,.22)}
@@ -289,8 +283,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .timeline-span{position:absolute;top:13px;height:18px;min-width:3px;overflow:visible}
 .span-bar{position:absolute;inset:0;border-radius:4px;display:flex;align-items:center;padding:0 5px;font-size:10px;color:rgba(255,255,255,.9);white-space:nowrap;overflow:hidden;cursor:pointer;transition:filter .1s}
 .span-bar:hover{filter:brightness(1.12)}
-.span-bar-duration{position:absolute;top:0;left:calc(100% + 6px);height:18px;display:flex;align-items:center;font-size:10px;font-weight:600;color:var(--text-muted);white-space:nowrap;pointer-events:none}
-.timeline-span.is-before .span-bar-duration{left:auto;right:calc(100% + 6px)}
+.span-bar-duration{position:absolute;top:0;left:var(--timeline-label-offset,calc(100% + 6px));height:18px;display:flex;align-items:center;font-size:10px;font-weight:600;color:var(--text-muted);white-space:nowrap;pointer-events:none}
 .bar-ok{background:#22c55e}.bar-error{background:#ef4444}
 .bar-skipped{background:var(--chip-skip-bg);border:1px solid var(--chip-skip-b);padding:0}
 .bar-running{background:#3b82f6}.bar-mocked{background:#8b5cf6}
@@ -437,6 +430,9 @@ function barCls(stage) {
 function getDurationText(durationMs) {
   return durationMs > 0 ? fmtMs(durationMs) : '';
 }
+function getTimelineLabel(stage, durationText) {
+  return statusCls(stage.Status) === 'skipped' ? statusText(stage.Status) : durationText;
+}
 function isWfKind(stage) {
   return (stage.StageKind || '').toLowerCase().includes('workflow');
 }
@@ -567,7 +563,6 @@ function renderTree(roots, totalMs, startTs) {
 
 function syncTimelineLabels() {
   document.querySelectorAll('.timeline-span[data-duration-label]').forEach(span => {
-    span.classList.remove('is-before');
     const durationLabel = span.querySelector('.span-bar-duration');
     const lane = span.closest('.trace-right');
     if (!durationLabel || !lane) return;
@@ -576,17 +571,14 @@ function syncTimelineLabels() {
     const barWidth = span.clientWidth;
     const offsetLeft = span.offsetLeft;
     const laneWidth = lane.clientWidth;
+    const preferredLeft = offsetLeft + barWidth + 6;
+    const fallbackLeft = offsetLeft - labelWidth - 6;
+    const maxLeft = Math.max(laneWidth - labelWidth, 0);
+    const labelLeft = preferredLeft + labelWidth <= laneWidth
+      ? preferredLeft
+      : Math.max(Math.min(fallbackLeft, maxLeft), 0);
 
-    const outsideRightFits = offsetLeft + barWidth + 6 + labelWidth <= laneWidth;
-    if (outsideRightFits) {
-      return;
-    }
-
-    const outsideLeftFits = offsetLeft >= labelWidth + 6;
-    if (outsideLeftFits) {
-      span.classList.add('is-before');
-      return;
-    }
+    span.style.setProperty('--timeline-label-offset', `${labelLeft - offsetLeft}px`);
   });
 }
 
@@ -624,6 +616,7 @@ function buildRow(node, totalMs, startTs) {
   const lbl       = stage.Status === 'Error' ? 's-error' : stage.Status === 'Skipped' ? 's-skipped' : '';
   const bCls      = barCls(stage);
   const durationText = getDurationText(durMs);
+  const timelineLabel = getTimelineLabel(stage, durationText);
   const wfCls     = isWf ? ' wf-row' : '';
   const skippedCls = statusCls(stage.Status) === 'skipped' ? ' is-skipped' : '';
   const selCls    = _selected === idx ? ' selected' : '';
@@ -634,17 +627,7 @@ function buildRow(node, totalMs, startTs) {
   html += `<div class="trace-left" style="--uri-indent:${uriIndentPx}px">`;
   html += `<div class="trace-left-top">`;
   if (depth > 0) {
-    html += `<span class="tree-indent" style="width:${indentPx}px">`;
-    for (let level = 0; level < depth; level++) {
-      const isLastLevel = level === depth - 1;
-      const branchCls = isLastLevel ? ' tree-guide-branch tree-guide-node' : '';
-      html += `<span class="tree-guide-cell${branchCls}">`;
-      if (isLastLevel) {
-        html += `<span class="tree-guide-dot"></span>`;
-      }
-      html += `</span>`;
-    }
-    html += `</span>`;
+    html += `<span class="tree-indent" style="--tree-indent-width:${indentPx}px"></span>`;
   }
   // expand/collapse button or placeholder
   if (hasChildren) {
@@ -680,11 +663,11 @@ function buildRow(node, totalMs, startTs) {
 
   // Timeline bar
   html += `<div class="trace-right">`;
-  const barTitle = statusCls(stage.Status) === 'skipped' ? 'Not executed' : durationText;
-  html += `<div class="timeline-span" style="left:${offsetPct}%;width:${widthPct}%" title="${esc(barTitle)}"${durationText ? ` data-duration-label="${esc(durationText)}"` : ''}>`;
+  const barTitle = timelineLabel;
+  html += `<div class="timeline-span" style="left:${offsetPct}%;width:${widthPct}%" title="${esc(barTitle)}"${timelineLabel ? ` data-duration-label="${esc(timelineLabel)}"` : ''}>`;
   html += `<div class="span-bar ${bCls}"></div>`;
-  if (statusCls(stage.Status) !== 'skipped' && durationText) {
-    html += `<div class="span-bar-duration">${esc(durationText)}</div>`;
+  if (timelineLabel) {
+    html += `<div class="span-bar-duration">${esc(timelineLabel)}</div>`;
   }
   html += `</div>`;
   html += `</div>`;
@@ -717,6 +700,7 @@ function rowClick(idx) {
       const btn = domRow.querySelector('.expand-btn');
       if (btn) btn.classList.toggle('open', !wasOpen);
     }
+    syncTimelineLabels();
 
     if (_selected === idx) {
       return;

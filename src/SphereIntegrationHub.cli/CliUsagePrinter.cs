@@ -24,7 +24,7 @@ internal sealed class CliUsagePrinter : ICliUsagePrinter
         writer.WriteLine("      --mocked    Use mock payloads/outputs when defined.");
         writer.WriteLine("      --no-redact Disable redaction of sensitive headers and payload fields in reports.");
         writer.WriteLine("      --no-summary Disable the post-execution summary block.");
-        writer.WriteLine("      Preflight: validates environment, probes configured API healthCheck endpoints, refreshes swagger cache, and validates referenced endpoints before execution.");
+        writer.WriteLine("      Preflight: validates environment, waits for configured API healthCheck readiness (with catalog retry policy), refreshes swagger cache, and validates referenced endpoints before execution.");
         writer.WriteLine();
         writer.WriteLine("Report options:");
         writer.WriteLine("  sih report <path>  Generate an interactive HTML trace report from one execution JSON artifact or from a directory of report JSON files.");

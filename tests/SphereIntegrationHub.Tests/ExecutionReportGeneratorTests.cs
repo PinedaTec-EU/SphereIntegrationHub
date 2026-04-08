@@ -66,6 +66,8 @@ public sealed class ExecutionReportGeneratorTests
         var htmlPath = Path.Combine(root, $"{Path.GetFileName(root)}.reports.workflow.report.html");
         var html = await File.ReadAllTextAsync(htmlPath);
         Assert.Contains("Not executed", html, StringComparison.Ordinal);
+        Assert.Contains("getTimelineLabel(stage, durationText)", html, StringComparison.Ordinal);
+        Assert.Contains("data-duration-label=\"${esc(timelineLabel)}\"", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -93,8 +95,11 @@ public sealed class ExecutionReportGeneratorTests
         var html = await File.ReadAllTextAsync(htmlPath);
         Assert.Contains("if (_selected === idx && !hasChildren)", html, StringComparison.Ordinal);
         Assert.Contains("if (_selected === idx) {", html, StringComparison.Ordinal);
+        Assert.Contains("syncTimelineLabels();", html, StringComparison.Ordinal);
         Assert.Contains("class=\"tree-indent\"", html, StringComparison.Ordinal);
         Assert.Contains("--uri-indent:", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("tree-guide-cell", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("tree-guide-dot", html, StringComparison.Ordinal);
         Assert.Contains("return;", html, StringComparison.Ordinal);
     }
 
@@ -125,7 +130,10 @@ public sealed class ExecutionReportGeneratorTests
         Assert.Contains("getDurationText(durationMs)", html, StringComparison.Ordinal);
         Assert.Contains("class=\"timeline-span\"", html, StringComparison.Ordinal);
         Assert.Contains("span-bar-duration", html, StringComparison.Ordinal);
+        Assert.Contains("--timeline-label-offset", html, StringComparison.Ordinal);
+        Assert.Contains("span.style.setProperty('--timeline-label-offset'", html, StringComparison.Ordinal);
         Assert.DoesNotContain("is-inline", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("is-before", html, StringComparison.Ordinal);
         Assert.DoesNotContain("span-bar-label", html, StringComparison.Ordinal);
     }
 

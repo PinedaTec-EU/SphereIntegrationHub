@@ -111,6 +111,31 @@ pre { background: var(--pre-bg); border: 1px solid var(--pre-border); border-rad
         builder.AppendLine(Row("Output File", report.OutputFilePath ?? string.Empty));
         builder.AppendLine("</tbody></table>");
 
+        if (report.Preflight.Operations.Count > 0)
+        {
+            builder.AppendLine("<h2>Preflight</h2>");
+            builder.AppendLine("<table><tbody>");
+            builder.AppendLine(Row("Operations", report.Preflight.Operations.Count.ToString()));
+            builder.AppendLine(Row("Retries", report.Preflight.TotalRetries.ToString()));
+            builder.AppendLine(Row("Duration (ms)", report.Preflight.DurationMs.ToString()));
+            builder.AppendLine("</tbody></table>");
+
+            builder.AppendLine("<table><thead><tr><th>Type</th><th>Definition</th><th>Status</th><th>Target</th><th>Retries</th><th>Duration (ms)</th><th>Message</th></tr></thead><tbody>");
+            foreach (var operation in report.Preflight.Operations)
+            {
+                builder.AppendLine("<tr>");
+                builder.AppendLine(Cell(operation.OperationType));
+                builder.AppendLine(Cell(operation.DefinitionName));
+                builder.AppendLine(StatusCell(operation.Status));
+                builder.AppendLine(Cell(operation.Target ?? string.Empty));
+                builder.AppendLine(Cell(operation.RetryCount.ToString()));
+                builder.AppendLine(Cell(operation.DurationMs.ToString()));
+                builder.AppendLine(Cell(operation.Message ?? string.Empty));
+                builder.AppendLine("</tr>");
+            }
+            builder.AppendLine("</tbody></table>");
+        }
+
         builder.AppendLine("<h2>Metrics</h2>");
         builder.AppendLine("<table><tbody>");
         builder.AppendLine(Row("Total stages", report.Metrics.TotalStages.ToString()));
@@ -119,6 +144,7 @@ pre { background: var(--pre-bg); border: 1px solid var(--pre-border); border-rad
         builder.AppendLine(Row("Failed", report.Metrics.FailedStages.ToString()));
         builder.AppendLine(Row("Mocked", report.Metrics.MockedStages.ToString()));
         builder.AppendLine(Row("Retries", report.Metrics.TotalRetries.ToString()));
+        builder.AppendLine(Row("Preflight retries", report.Metrics.PreflightRetries.ToString()));
         builder.AppendLine("</tbody></table>");
 
         builder.AppendLine("<h2>Stages</h2>");
