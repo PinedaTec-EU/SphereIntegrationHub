@@ -193,7 +193,7 @@ The MCP surface is aligned with the current SIH runtime schema. Agents should pr
 - aggregated workflow `forEach` outputs: `foreach_items`, `foreach_results`, `foreach_success_count`, and `foreach_failed_count`
 - execution reporting controls such as `--report-format`, `--capture-http`, and `reporting.*` defaults in `workflows.config`
 - execution artifacts named as `{workflow-name}.{executionId}.workflow.output` and `{workflow-name}.{executionId}.workflow.report.{json|html}`
-- catalog definitions may include optional `healthCheck` URLs or relative paths for runtime preflight validation
+- catalog definitions may include optional `healthCheck` URLs or relative paths for runtime preflight validation, plus optional `readiness` retry/timeout rules with accepted health-check HTTP status codes
 
 Repository sample workflows to inspect alongside MCP authoring:
 

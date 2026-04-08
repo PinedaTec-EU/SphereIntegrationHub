@@ -38,8 +38,8 @@ public sealed class WorkflowLoaderCacheMetricsTests : IDisposable
 
         loader.Load(_workflowPath);
 
-        Assert.Equal(1, metrics.Sum(Misses));
-        Assert.Equal(0, metrics.Sum(Hits));
+        Assert.Contains(GetMeasurementsForWorkflow(metrics, Misses, _workflowPath), measurement => measurement.Value == 1);
+        Assert.Empty(GetMeasurementsForWorkflow(metrics, Hits, _workflowPath));
     }
 
     [Fact]
@@ -52,8 +52,8 @@ public sealed class WorkflowLoaderCacheMetricsTests : IDisposable
         using var metrics = new MetricsCollector(MeterName);
         loader.Load(_workflowPath);
 
-        Assert.Equal(1, metrics.Sum(Hits));
-        Assert.Equal(0, metrics.Sum(Misses));
+        Assert.Contains(GetMeasurementsForWorkflow(metrics, Hits, _workflowPath), measurement => measurement.Value == 1);
+        Assert.Empty(GetMeasurementsForWorkflow(metrics, Misses, _workflowPath));
     }
 
     [Fact]
@@ -63,33 +63,36 @@ public sealed class WorkflowLoaderCacheMetricsTests : IDisposable
         // Prime the cache
         loader.Load(_workflowPath);
 
-        // Modify the file (changes lastWriteTime)
+        // Ensure the filesystem timestamp changes before rewriting the file.
+        Thread.Sleep(1100);
         WriteWorkflow(_workflowPath, "ModifiedWorkflow");
 
         using var metrics = new MetricsCollector(MeterName);
         loader.Load(_workflowPath);
 
-        Assert.Equal(1, metrics.Sum(Misses));
-        Assert.Equal(0, metrics.Sum(Hits));
+        Assert.Contains(GetMeasurementsForWorkflow(metrics, Misses, _workflowPath), measurement => measurement.Value == 1);
+        Assert.Empty(GetMeasurementsForWorkflow(metrics, Hits, _workflowPath));
     }
 
     [Fact]
     public void Load_WithEnvFileOverride_NeverCaches()
     {
-        // A non-existent env file override causes a resolve-step error, so we
-        // test the no-caching contract by verifying two loads both record misses.
-        // Use a real (empty) env override file to avoid exceptions.
+        // A real env override file avoids resolve errors and forces the loader down
+        // the "never cache" path on every load.
         var envFile = Path.Combine(_tempDir, ".env");
         File.WriteAllText(envFile, string.Empty);
 
         var loader = new WorkflowLoader();
 
         using var metrics = new MetricsCollector(MeterName);
-        loader.Load(_workflowPath, envFileOverride: envFile);
-        loader.Load(_workflowPath, envFileOverride: envFile);
+        var first = loader.Load(_workflowPath, envFileOverride: envFile);
+        var second = loader.Load(_workflowPath, envFileOverride: envFile);
+        metrics.RecordObservableInstruments();
 
-        Assert.Equal(2, metrics.Sum(Misses));
-        Assert.Equal(0, metrics.Sum(Hits));
+        Assert.Equal(2, GetMeasurementsForWorkflow(metrics, Misses, _workflowPath).Count);
+        Assert.Empty(GetMeasurementsForWorkflow(metrics, Hits, _workflowPath));
+        Assert.NotSame(first, second);
+        Assert.Contains(metrics.GetValues(Size), value => value == 0);
     }
 
     [Fact]
@@ -112,12 +115,15 @@ public sealed class WorkflowLoaderCacheMetricsTests : IDisposable
         var loader = new WorkflowLoader();
         using var metrics = new MetricsCollector(MeterName);
 
-        loader.Load(wfWithEnvPath);
-        loader.Load(wfWithEnvPath);
+        var first = loader.Load(wfWithEnvPath);
+        var second = loader.Load(wfWithEnvPath);
+        metrics.RecordObservableInstruments();
 
         // Both loads must be misses — env-referencing workflows are never stored in cache
-        Assert.Equal(2, metrics.Sum(Misses));
-        Assert.Equal(0, metrics.Sum(Hits));
+        Assert.Equal(2, GetMeasurementsForWorkflow(metrics, Misses, wfWithEnvPath).Count);
+        Assert.Empty(GetMeasurementsForWorkflow(metrics, Hits, wfWithEnvPath));
+        Assert.NotSame(first, second);
+        Assert.Contains(metrics.GetValues(Size), value => value == 0);
     }
 
     [Fact]
@@ -131,6 +137,8 @@ public sealed class WorkflowLoaderCacheMetricsTests : IDisposable
         var durations = metrics.GetMeasurements(Duration);
         Assert.NotEmpty(durations);
         Assert.Contains(durations, d =>
+            d.Tags.TryGetValue("workflow.path", out var path) &&
+            string.Equals(path?.ToString(), Path.GetFullPath(_workflowPath), StringComparison.OrdinalIgnoreCase) &&
             d.Tags.TryGetValue("cache.hit", out var v) && v is false);
     }
 
@@ -147,6 +155,8 @@ public sealed class WorkflowLoaderCacheMetricsTests : IDisposable
         var durations = metrics.GetMeasurements(Duration);
         Assert.NotEmpty(durations);
         Assert.Contains(durations, d =>
+            d.Tags.TryGetValue("workflow.path", out var path) &&
+            string.Equals(path?.ToString(), Path.GetFullPath(_workflowPath), StringComparison.OrdinalIgnoreCase) &&
             d.Tags.TryGetValue("cache.hit", out var v) && v is true);
     }
 
@@ -197,5 +207,19 @@ public sealed class WorkflowLoaderCacheMetricsTests : IDisposable
             id: "{name.ToLowerInvariant()}-01"
             name: "{name}"
             """);
+    }
+
+    private static IReadOnlyList<(double Value, IReadOnlyDictionary<string, object?> Tags)> GetMeasurementsForWorkflow(
+        MetricsCollector metrics,
+        string instrumentName,
+        string workflowPath)
+    {
+        var fullPath = Path.GetFullPath(workflowPath);
+        return metrics
+            .GetMeasurements(instrumentName)
+            .Where(measurement =>
+                measurement.Tags.TryGetValue("workflow.path", out var path) &&
+                string.Equals(path?.ToString(), fullPath, StringComparison.OrdinalIgnoreCase))
+            .ToList();
     }
 }

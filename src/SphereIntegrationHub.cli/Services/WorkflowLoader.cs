@@ -61,7 +61,9 @@ public sealed class WorkflowLoader
             if (_documentCache.TryGetValue(fullPath, out var cached) && cached.LastWrite == lastWrite)
             {
                 sw.Stop();
-                Telemetry.WorkflowDocumentCacheHits.Add(1);
+                Telemetry.WorkflowDocumentCacheHits.Add(
+                    1,
+                    new KeyValuePair<string, object?>(TelemetryConstants.TagWorkflowPath, fullPath));
                 Telemetry.WorkflowLoadDuration.Record(
                     sw.Elapsed.TotalMilliseconds,
                     new KeyValuePair<string, object?>(TelemetryConstants.TagWorkflowPath, fullPath),
@@ -71,7 +73,9 @@ public sealed class WorkflowLoader
             }
         }
 
-        Telemetry.WorkflowDocumentCacheMisses.Add(1);
+        Telemetry.WorkflowDocumentCacheMisses.Add(
+            1,
+            new KeyValuePair<string, object?>(TelemetryConstants.TagWorkflowPath, fullPath));
         activity?.SetTag(TelemetryConstants.TagCacheHit, false);
 
         try

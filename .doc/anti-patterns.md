@@ -131,6 +131,39 @@ circuitBreaker:
 
 ---
 
+### Retrying business statuses such as `404` on lookup steps
+
+When a GET or search stage can legitimately return "not found", that is a business outcome, not a transient transport failure. Retrying it wastes time and hides intent.
+
+**Wrong:**
+
+```yaml
+- name: "lookup-account"
+  kind: "Endpoint"
+  httpVerb: "GET"
+  expectedStatus: 200
+  retry:
+    ref: "standard"
+    httpStatus: [404, 500, 503]
+```
+
+**Correct:**
+
+```yaml
+- name: "lookup-account"
+  kind: "Endpoint"
+  httpVerb: "GET"
+  expectedStatuses: [200, 404]
+  onStatus:
+    404:
+      output:
+        found: "false"
+```
+
+Reserve `retry` for transient failures, and handle domain-level misses with `expectedStatuses`, `onStatus`, or `ensure`.
+
+---
+
 ## Variable and context scoping
 
 ### Using `context` as a general-purpose store

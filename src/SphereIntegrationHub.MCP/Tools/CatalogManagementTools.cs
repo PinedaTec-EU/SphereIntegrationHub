@@ -244,6 +244,22 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
                                     port = new { type = "integer" },
                                     basePath = new { type = "string" },
                                     swaggerUrl = new { type = "string" },
+                                    healthCheck = new { type = "string" },
+                                    readiness = new
+                                    {
+                                        type = "object",
+                                        properties = new
+                                        {
+                                            maxRetries = new { type = "integer" },
+                                            delayMs = new { type = "integer" },
+                                            timeoutMs = new { type = "integer" },
+                                            httpStatus = new
+                                            {
+                                                type = "array",
+                                                items = new { type = "integer" }
+                                            }
+                                        }
+                                    },
                                     baseUrl = new
                                     {
                                         type = "object",
@@ -310,6 +326,7 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
 
                 var normalizedSwaggerUrl = CatalogSwaggerUrlNormalizer.NormalizeForCatalog(swaggerUrl!);
                 var definitionBaseUrl = ParseDefinitionBaseUrl(definitionItem);
+                var readiness = ParseReadinessFromElement(definitionItem);
 
                 // Use definition-level baseUrl if present; fall back to version-level baseUrl.
                 var effectiveBaseUrl = definitionBaseUrl.Count > 0 ? definitionBaseUrl : versionBaseUrl;
@@ -345,6 +362,7 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
                     BasePath = basePath!,
                     SwaggerUrl = normalizedSwaggerUrl,
                     HealthCheck = healthCheck,
+                    Readiness = readiness,
                     BaseUrl = definitionBaseUrl.Count > 0 ? definitionBaseUrl : null
                 });
             }
@@ -398,6 +416,54 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
 
     private static Dictionary<string, string> ParseDefinitionBaseUrl(JsonElement definitionItem)
         => ParseBaseUrlFromElement(definitionItem);
+
+    private static ApiReadinessPolicyDefinition? ParseReadinessFromElement(JsonElement element)
+    {
+        if (!element.TryGetProperty("readiness", out var readinessEl) ||
+            readinessEl.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        return ParseReadiness(readinessEl);
+    }
+
+    private static ApiReadinessPolicyDefinition? ParseReadiness(JsonElement readinessEl)
+    {
+        var hasValue = false;
+        var readiness = new ApiReadinessPolicyDefinition();
+
+        if (readinessEl.TryGetProperty("maxRetries", out var maxRetriesEl) && maxRetriesEl.TryGetInt32(out var maxRetries))
+        {
+            readiness.MaxRetries = maxRetries;
+            hasValue = true;
+        }
+
+        if (readinessEl.TryGetProperty("delayMs", out var delayMsEl) && delayMsEl.TryGetInt32(out var delayMs))
+        {
+            readiness.DelayMs = delayMs;
+            hasValue = true;
+        }
+
+        if (readinessEl.TryGetProperty("timeoutMs", out var timeoutMsEl) && timeoutMsEl.TryGetInt32(out var timeoutMs))
+        {
+            readiness.TimeoutMs = timeoutMs;
+            hasValue = true;
+        }
+
+        if (readinessEl.TryGetProperty("httpStatus", out var httpStatusEl) &&
+            httpStatusEl.ValueKind == JsonValueKind.Array)
+        {
+            readiness.HttpStatus = httpStatusEl
+                .EnumerateArray()
+                .Where(static item => item.TryGetInt32(out _))
+                .Select(static item => item.GetInt32())
+                .ToArray();
+            hasValue = true;
+        }
+
+        return hasValue ? readiness : null;
+    }
 
     private static Dictionary<string, string> ParseBaseUrlFromElement(JsonElement element)
     {
@@ -475,6 +541,23 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
             port = new { type = "integer", description = "Optional API port to apply on resolved baseUrl for runtime and swagger resolution" },
             basePath = new { type = "string", description = "API base path (e.g. /api/accounts)" },
             healthCheck = new { type = "string", description = "Optional health check path (e.g. /health)" },
+            readiness = new
+            {
+                type = "object",
+                description = "Optional readiness retry/timeout policy applied to health checks and swagger fetches.",
+                properties = new
+                {
+                    maxRetries = new { type = "integer" },
+                    delayMs = new { type = "integer" },
+                    timeoutMs = new { type = "integer" },
+                    httpStatus = new
+                    {
+                        type = "array",
+                        description = "Optional HTTP status codes accepted as healthy for healthCheck probes.",
+                        items = new { type = "integer" }
+                    }
+                }
+            },
             environment = new { type = "string", description = "Environment key to resolve relative swaggerUrl (default: pre)" },
             baseUrl = new
             {
@@ -502,6 +585,7 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
             : (int?)null;
         var basePath = arguments?.GetValueOrDefault("basePath")?.ToString();
         var healthCheck = arguments?.GetValueOrDefault("healthCheck")?.ToString();
+        var readiness = ParseReadiness(arguments);
         var environment = arguments?.GetValueOrDefault("environment")?.ToString() ?? DefaultEnvironment;
         var downloadCache = ToolArgumentParser.TryReadBool(arguments, "downloadCache", true);
         var overwriteDefinition = ToolArgumentParser.TryReadBool(arguments, "overwriteDefinition", true);
@@ -589,6 +673,7 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
                 BasePath = basePathValue,
                 SwaggerUrl = storedSwaggerUrl,
                 HealthCheck = healthCheck,
+                Readiness = readiness,
                 BaseUrl = MergeBaseUrls(
                     InferDefinitionBaseUrl(swaggerUrl, environment),
                     definitionBaseUrlOverrides)
@@ -604,6 +689,10 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
             if (!string.IsNullOrWhiteSpace(healthCheck))
             {
                 definition.HealthCheck = healthCheck;
+            }
+            if (readiness is not null)
+            {
+                definition.Readiness = readiness;
             }
 
             var mergedBaseUrl = MergeBaseUrls(
@@ -662,6 +751,53 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
         }
 
         return map;
+    }
+
+    private static ApiReadinessPolicyDefinition? ParseReadiness(Dictionary<string, object>? arguments)
+    {
+        if (arguments?.TryGetValue("readiness", out var readinessObj) != true)
+        {
+            return null;
+        }
+
+        if (readinessObj is not JsonElement readinessEl || readinessEl.ValueKind != JsonValueKind.Object)
+        {
+            throw new ArgumentException("readiness must be an object");
+        }
+
+        var hasValue = false;
+        var readiness = new ApiReadinessPolicyDefinition();
+
+        if (readinessEl.TryGetProperty("maxRetries", out var maxRetriesEl) && maxRetriesEl.TryGetInt32(out var maxRetries))
+        {
+            readiness.MaxRetries = maxRetries;
+            hasValue = true;
+        }
+
+        if (readinessEl.TryGetProperty("delayMs", out var delayMsEl) && delayMsEl.TryGetInt32(out var delayMs))
+        {
+            readiness.DelayMs = delayMs;
+            hasValue = true;
+        }
+
+        if (readinessEl.TryGetProperty("timeoutMs", out var timeoutMsEl) && timeoutMsEl.TryGetInt32(out var timeoutMs))
+        {
+            readiness.TimeoutMs = timeoutMs;
+            hasValue = true;
+        }
+
+        if (readinessEl.TryGetProperty("httpStatus", out var httpStatusEl) &&
+            httpStatusEl.ValueKind == JsonValueKind.Array)
+        {
+            readiness.HttpStatus = httpStatusEl
+                .EnumerateArray()
+                .Where(static item => item.TryGetInt32(out _))
+                .Select(static item => item.GetInt32())
+                .ToArray();
+            hasValue = true;
+        }
+
+        return hasValue ? readiness : null;
     }
 
     private static async Task<(List<ApiCatalogVersion> Catalog, bool Created)> LoadCatalogAsync(string catalogPath)

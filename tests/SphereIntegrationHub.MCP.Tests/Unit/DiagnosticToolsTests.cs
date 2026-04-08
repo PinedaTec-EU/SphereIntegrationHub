@@ -213,6 +213,44 @@ public class DiagnosticToolsTests : IDisposable
     }
 
     [Fact]
+    public async Task ReadExecutionReport_IncludesPreflightSummary()
+    {
+        var outputDir = Path.Combine(_mockFs.RootPath, "workflows", "output");
+        Directory.CreateDirectory(outputDir);
+        var reportPath = Path.Combine(outputDir, "sample.workflow.report.json");
+        await File.WriteAllTextAsync(reportPath, """
+        {
+          "ExecutionId": "exec-1",
+          "WorkflowName": "Sample",
+          "Result": "Ok",
+          "Preflight": {
+            "TotalRetries": 2,
+            "DurationMs": 1800,
+            "Operations": [
+              {
+                "OperationType": "HealthCheck",
+                "DefinitionName": "accounts",
+                "Status": "Ok",
+                "RetryCount": 2
+              }
+            ]
+          },
+          "Stages": []
+        }
+        """);
+
+        var tool = new ReadExecutionReportTool(_adapter);
+        var result = await tool.ExecuteAsync(new Dictionary<string, object>
+        {
+            ["reportPath"] = reportPath
+        });
+        var json = ToJson(result);
+
+        json.TryGetProperty("preflight", out var preflight).Should().BeTrue();
+        preflight.GetProperty("TotalRetries").GetInt32().Should().Be(2);
+    }
+
+    [Fact]
     public async Task GetPluginCapabilities_IncludesRequiredAndOptionalFields()
     {
         // Arrange

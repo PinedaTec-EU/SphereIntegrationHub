@@ -188,6 +188,7 @@ retry:
 - `delayMs`: override for delay between retries (uses `resilience.retries` when omitted).
 - `messages.onException`: optional message when the stage exhausts retries due to an exception.
 - Retries apply to matching HTTP statuses and exceptions thrown during invocation.
+- Do not use `retry.httpStatus` for business outcomes such as lookup `404`, validation `422`, or conflict `409`. Model those with `expectedStatuses`, `onStatus`, or `ensure`.
 - If defined on a workflow stage, it is ignored with a warning.
 
 #### Circuit breaker (endpoint only)
