@@ -152,9 +152,10 @@ internal sealed class CliPipeline : ICliPipeline
         }
 
         var withReadiness = withHealthCheck.Count(definition => definition.Readiness is not null);
+        AddInfo(messages, string.Empty);
         AddInfo(messages, "Features:");
         AddInfo(messages, $"- Health readiness retry: {(withReadiness > 0 ? $"enabled for {withReadiness}/{withHealthCheck.Count} API definitions (catalog-driven)" : $"disabled for 0/{withHealthCheck.Count} API definitions")}");
-        AddInfo(messages, $"- readiness: {(withReadiness > 0 ? "true" : "false")}");
+        AddInfo(messages, $"- Readiness protection: {(withReadiness > 0 ? "true" : "false")}");
     }
 
     private bool TryLoadWorkflow(
@@ -319,6 +320,7 @@ internal sealed class CliPipeline : ICliPipeline
             return;
         }
 
+        AddInfo(messages, string.Empty);
         AddInfo(messages, $"API endpoints (env={environment}):");
         foreach (var definition in referencedDefinitions.OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase))
         {
@@ -351,6 +353,7 @@ internal sealed class CliPipeline : ICliPipeline
             return true;
         }
 
+        AddInfo(messages, string.Empty);
         AddInfo(messages, "API health checks:");
         var hasFailures = false;
         foreach (var result in results)
