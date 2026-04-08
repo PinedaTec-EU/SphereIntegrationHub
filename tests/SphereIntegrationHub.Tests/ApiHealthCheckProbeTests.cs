@@ -16,12 +16,17 @@ public sealed class ApiHealthCheckProbeTests
     private static ApiCatalogVersion MakeCatalog(params ApiDefinition[] definitions) =>
         new() { Version = "1.0", Definitions = [.. definitions] };
 
-    private static ApiDefinition MakeDefinition(string name, string baseUrl, string? healthCheck = "/health") =>
+    private static ApiDefinition MakeDefinition(
+        string name,
+        string baseUrl,
+        string? healthCheck = "/health",
+        ApiReadinessPolicyDefinition? readiness = null) =>
         new()
         {
             Name = name,
             SwaggerUrl = $"{baseUrl}/swagger.json",
             HealthCheck = healthCheck,
+            Readiness = readiness,
             BaseUrl = new Dictionary<string, string> { [Environment] = baseUrl }
         };
 
@@ -88,6 +93,29 @@ public sealed class ApiHealthCheckProbeTests
         var result = Assert.Single(results);
         Assert.False(result.IsHealthy);
         Assert.Contains("503", result.Message);
+    }
+
+    [Fact]
+    public async Task ProbeAsync_CustomHealthyHttpStatus_ReturnsIsHealthyTrue()
+    {
+        using var server = WireMockServer.Start();
+        server.Given(Request.Create().WithPath("/health").UsingGet())
+              .RespondWith(Response.Create().WithStatusCode(204));
+
+        var catalog = MakeCatalog(MakeDefinition(
+            "accounts",
+            server.Url!,
+            readiness: new ApiReadinessPolicyDefinition { HttpStatus = [204] }));
+        var probe = new ApiHealthCheckProbe();
+        using var http = new HttpClient();
+
+        var results = await probe.ProbeAsync(http, catalog, catalog.Definitions, Environment, CancellationToken.None);
+
+        var result = Assert.Single(results);
+        Assert.True(result.IsHealthy);
+        Assert.Equal(0, result.RetryCount);
+        Assert.Single(result.Attempts);
+        Assert.Equal(204, result.Attempts[0].HttpStatusCode);
     }
 
     [Fact]
@@ -237,6 +265,42 @@ public sealed class ApiHealthCheckProbeTests
         var result = Assert.Single(results);
         Assert.False(result.IsHealthy);
         Assert.Contains("timed out", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ProbeAsync_WhenReadinessRetryConfigured_RetriesUntilHealthy()
+    {
+        using var server = WireMockServer.Start();
+        server
+            .Given(Request.Create().WithPath("/health").UsingGet())
+            .InScenario("health")
+            .WillSetStateTo("ready")
+            .RespondWith(Response.Create().WithStatusCode(503));
+        server
+            .Given(Request.Create().WithPath("/health").UsingGet())
+            .InScenario("health")
+            .WhenStateIs("ready")
+            .RespondWith(Response.Create().WithStatusCode(200));
+
+        var catalog = MakeCatalog(MakeDefinition(
+            "accounts",
+            server.Url!,
+            readiness: new ApiReadinessPolicyDefinition
+            {
+                MaxRetries = 2,
+                DelayMs = 1
+            }));
+        var probe = new ApiHealthCheckProbe();
+        using var http = new HttpClient();
+
+        var results = await probe.ProbeAsync(http, catalog, catalog.Definitions, Environment, CancellationToken.None);
+
+        var result = Assert.Single(results);
+        Assert.True(result.IsHealthy);
+        Assert.Equal(1, result.RetryCount);
+        Assert.Equal(2, result.Attempts.Count);
+        Assert.Equal(503, result.Attempts[0].HttpStatusCode);
+        Assert.Equal(200, result.Attempts[1].HttpStatusCode);
     }
 
     // -------------------------------------------------------------------------

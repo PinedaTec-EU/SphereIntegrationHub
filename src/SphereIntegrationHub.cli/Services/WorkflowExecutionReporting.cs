@@ -47,6 +47,7 @@ public sealed class WorkflowExecutionReport
     public bool DryRun { get; init; }
     public Dictionary<string, string> Inputs { get; init; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, object?> Output { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public WorkflowPreflightReport Preflight { get; init; } = new();
     public List<WorkflowStageExecutionRecord> Stages { get; } = [];
     public WorkflowExecutionMetrics Metrics { get; } = new();
     public string? OutputFilePath { get; set; }
@@ -63,6 +64,39 @@ public sealed class WorkflowExecutionMetrics
     public int WorkflowStages { get; set; }
     public int JumpedStages { get; set; }
     public int TotalRetries { get; set; }
+    public int PreflightRetries { get; set; }
+}
+
+public sealed class WorkflowPreflightReport
+{
+    public List<WorkflowPreflightOperationRecord> Operations { get; } = [];
+    public int TotalRetries { get; set; }
+    public long TotalDelayMs { get; set; }
+    public long DurationMs { get; set; }
+}
+
+public sealed class WorkflowPreflightOperationRecord
+{
+    public string OperationType { get; set; } = string.Empty;
+    public string DefinitionName { get; set; } = string.Empty;
+    public string? Target { get; set; }
+    public string Status { get; set; } = "Pending";
+    public string? Message { get; set; }
+    public int RetryCount { get; set; }
+    public long DurationMs { get; set; }
+    public List<WorkflowPreflightAttemptRecord> Attempts { get; } = [];
+}
+
+public sealed class WorkflowPreflightAttemptRecord
+{
+    public int AttemptNumber { get; set; }
+    public string? RequestUri { get; set; }
+    public string Status { get; set; } = "Pending";
+    public int? HttpStatusCode { get; set; }
+    public string? ErrorMessage { get; set; }
+    public DateTimeOffset StartedAtUtc { get; set; }
+    public DateTimeOffset? FinishedAtUtc { get; set; }
+    public long DurationMs { get; set; }
 }
 
 public sealed class WorkflowStageExecutionRecord
