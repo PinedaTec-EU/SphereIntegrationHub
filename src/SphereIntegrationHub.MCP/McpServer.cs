@@ -390,8 +390,9 @@ public sealed class McpServer
                 arguments = JsonSerializer.Deserialize<Dictionary<string, object>>(argsJson, _jsonOptions);
                 return true;
             }
-            catch (JsonException)
+            catch (JsonException ex)
             {
+                Console.Error.WriteLine($"[McpServer] Failed to deserialize tool arguments: {ex.Message}");
                 errorMessage = "Tool arguments payload is not a valid JSON object.";
                 return false;
             }
