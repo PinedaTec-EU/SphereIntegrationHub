@@ -34,6 +34,7 @@ public sealed class VariableScopeAnalyzer
 
         var yamlContent = await File.ReadAllTextAsync(workflowPath);
         var workflow = _yamlDeserializer.Deserialize<Dictionary<string, object>>(yamlContent);
+        var environmentVariables = LoadEnvironmentVariables(workflow, workflowPath);
 
         var scope = new VariableScope();
 
@@ -93,7 +94,7 @@ public sealed class VariableScopeAnalyzer
         scope.System.AddRange(GetSystemVariables());
 
         // Add environment variables
-        scope.Env.AddRange(GetEnvironmentVariables());
+        scope.Env.AddRange(GetEnvironmentVariables(environmentVariables));
 
         // Add stage outputs up to the specified stage
         var stageFound = false;
@@ -145,8 +146,11 @@ public sealed class VariableScopeAnalyzer
         // Remove {{ }} if present
         token = token.Trim().TrimStart('{').TrimEnd('}').Trim();
 
+        var normalizedToken = token.Replace("env:", "env.", StringComparison.OrdinalIgnoreCase);
+        normalizedToken = normalizedToken.Replace("stage:", "stage.", StringComparison.OrdinalIgnoreCase);
+
         // Parse token parts
-        var parts = token.Split('.');
+        var parts = normalizedToken.Split('.');
 
         if (parts.Length == 0)
         {
@@ -267,13 +271,134 @@ public sealed class VariableScopeAnalyzer
         ];
     }
 
-    private static List<EnvironmentVariable> GetEnvironmentVariables()
+    private static List<EnvironmentVariable> GetEnvironmentVariables(IReadOnlyDictionary<string, string> environmentVariables)
     {
-        return
-        [
-            new EnvironmentVariable { Name = "ENVIRONMENT", Value = "local" },
-            new EnvironmentVariable { Name = "API_BASE_URL", Value = "http://localhost" }
-        ];
+        return environmentVariables
+            .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(pair => new EnvironmentVariable { Name = pair.Key, Value = pair.Value })
+            .ToList();
+    }
+
+    private static IReadOnlyDictionary<string, string> LoadEnvironmentVariables(
+        Dictionary<string, object> workflow,
+        string workflowPath)
+    {
+        if (!workflow.TryGetValue("references", out var referencesObj) ||
+            referencesObj is not Dictionary<object, object> referencesDict)
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var references = referencesDict.ToDictionary(
+            kvp => kvp.Key.ToString() ?? "",
+            kvp => kvp.Value);
+
+        var environmentFile = references.GetValueOrDefault("environmentFile")?.ToString();
+        if (string.IsNullOrWhiteSpace(environmentFile))
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var resolvedPath = Path.IsPathRooted(environmentFile)
+            ? environmentFile
+            : Path.GetFullPath(Path.Combine(Path.GetDirectoryName(workflowPath) ?? string.Empty, environmentFile));
+
+        if (!File.Exists(resolvedPath))
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var rawValues = ParseKeyValueFile(resolvedPath);
+        return ResolveEnvironmentValues(rawValues);
+    }
+
+    private static IReadOnlyDictionary<string, string> ParseKeyValueFile(string filePath)
+    {
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var line in File.ReadAllLines(filePath))
+        {
+            var trimmedLine = line.Trim();
+            if (string.IsNullOrWhiteSpace(trimmedLine) || trimmedLine.StartsWith("#", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (trimmedLine.StartsWith("export ", StringComparison.OrdinalIgnoreCase))
+            {
+                trimmedLine = trimmedLine["export ".Length..].Trim();
+            }
+
+            var separatorIndex = trimmedLine.IndexOf('=');
+            if (separatorIndex <= 0)
+            {
+                continue;
+            }
+
+            var key = trimmedLine[..separatorIndex].Trim();
+            var value = trimmedLine[(separatorIndex + 1)..].Trim();
+            if ((value.StartsWith('"') && value.EndsWith('"')) ||
+                (value.StartsWith('\'') && value.EndsWith('\'')))
+            {
+                value = value[1..^1];
+            }
+
+            values[key] = value;
+        }
+
+        return values;
+    }
+
+    private static IReadOnlyDictionary<string, string> ResolveEnvironmentValues(IReadOnlyDictionary<string, string> rawValues)
+    {
+        var resolved = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var pending = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var key in rawValues.Keys)
+        {
+            ResolveValue(key);
+        }
+
+        return resolved;
+
+        string ResolveValue(string key)
+        {
+            if (resolved.TryGetValue(key, out var existing))
+            {
+                return existing;
+            }
+
+            if (!rawValues.TryGetValue(key, out var rawValue))
+            {
+                var processValue = Environment.GetEnvironmentVariable(key);
+                if (processValue is not null)
+                {
+                    return processValue;
+                }
+
+                throw new InvalidOperationException($"Environment variable '{key}' was not found.");
+            }
+
+            if (!pending.Add(key))
+            {
+                throw new InvalidOperationException($"Environment variable '{key}' has a circular reference.");
+            }
+
+            try
+            {
+                var resolvedValue = System.Text.RegularExpressions.Regex.Replace(
+                    rawValue,
+                    @"\{\{\s*env:(?<name>[^}]+)\s*\}\}",
+                    match => ResolveValue(match.Groups["name"].Value.Trim()),
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+                resolved[key] = resolvedValue;
+                return resolvedValue;
+            }
+            finally
+            {
+                pending.Remove(key);
+            }
+        }
     }
 
     private static List<OutputField> InferStageOutputs(Dictionary<string, object> stage)

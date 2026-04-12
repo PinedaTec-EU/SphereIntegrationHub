@@ -78,8 +78,19 @@ public class AnalysisToolsTests : IDisposable
     public async Task GetAvailableVariables_WithEnvironmentVariables_IncludesEnvScope()
     {
         // Arrange
-        var workflow = TestDataBuilder.CreateSampleWorkflow();
+        var workflow = """
+version: "1.0"
+id: "env-test"
+name: "Env Test"
+references:
+  environmentFile: "./.env"
+stages: []
+""";
         _mockFs.AddWorkflow("env-test.workflow", workflow);
+        _mockFs.AddFile("src/resources/workflows/.env", """
+BASE_PATH=./tenant-a
+CHILD_PATH={{env:BASE_PATH}}/child
+""");
 
         var tool = new GetAvailableVariablesTool(_adapter);
         var args = new Dictionary<string, object>
@@ -94,6 +105,9 @@ public class AnalysisToolsTests : IDisposable
         // Assert
         json.TryGetProperty("env", out var env).Should().BeTrue();
         env.ValueKind.Should().NotBe(JsonValueKind.Null);
+        env.EnumerateArray().Any(item =>
+            item.GetProperty("name").GetString() == "CHILD_PATH" &&
+            item.GetProperty("value").GetString() == "./tenant-a/child").Should().BeTrue();
     }
 
     [Fact]
@@ -139,6 +153,35 @@ public class AnalysisToolsTests : IDisposable
         scope.GetString().Should().Be("input");
         variable.GetString().Should().Be("userId");
         isAvailable.GetBoolean().Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ResolveTemplateToken_WithEnvColonToken_ReturnsEnvironmentScope()
+    {
+        var workflow = """
+version: "1.0"
+id: "env-token-test"
+name: "Env Token Test"
+references:
+  environmentFile: "./.env"
+stages: []
+""";
+        _mockFs.AddWorkflow("env-token-test.workflow", workflow);
+        _mockFs.AddFile("src/resources/workflows/.env", "API_BASE_URL=https://example.test");
+
+        var tool = new ResolveTemplateTokenTool(_adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["workflowPath"] = "env-token-test.workflow",
+            ["token"] = "{{env:API_BASE_URL}}"
+        };
+
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        json.GetProperty("scope").GetString().Should().Be("env");
+        json.GetProperty("variable").GetString().Should().Be("API_BASE_URL");
+        json.GetProperty("isAvailable").GetBoolean().Should().BeTrue();
     }
 
     [Fact]
