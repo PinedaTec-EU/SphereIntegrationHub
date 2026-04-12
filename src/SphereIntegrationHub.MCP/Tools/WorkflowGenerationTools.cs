@@ -19,8 +19,12 @@ public sealed class GenerateEndpointStageTool : IMcpTool
     private readonly IStageGenerator _generator;
 
     public GenerateEndpointStageTool(SihServicesAdapter adapter)
+        : this(adapter, new StageGenerator(adapter)) { }
+
+    internal GenerateEndpointStageTool(SihServicesAdapter adapter, IStageGenerator generator)
     {
-        _generator = new StageGenerator(adapter);
+        _ = adapter;
+        _generator = generator;
     }
 
     public string Name => "generate_endpoint_stage";
@@ -74,12 +78,10 @@ public sealed class GenerateEndpointStageTool : IMcpTool
             stageName,
             fallbackEndpoint);
 
-        return new
-        {
-            stageName = stageName ?? "generated-stage",
-            yaml,
-            source = fallbackEndpoint == null ? "swagger-cache" : "endpoint-schema-fallback"
-        };
+        return new GenerateStageResult(
+            StageName: stageName ?? "generated-stage",
+            Yaml: yaml,
+            Source: fallbackEndpoint == null ? "swagger-cache" : "endpoint-schema-fallback");
     }
 
 }
@@ -94,8 +96,11 @@ public sealed class GenerateWorkflowSkeletonTool : IMcpTool
     private readonly ApiCatalogReader _catalogReader;
 
     public GenerateWorkflowSkeletonTool(SihServicesAdapter adapter)
+        : this(adapter, new StageGenerator(adapter)) { }
+
+    internal GenerateWorkflowSkeletonTool(SihServicesAdapter adapter, IStageGenerator generator)
     {
-        _generator = new StageGenerator(adapter);
+        _generator = generator;
         _catalogReader = new ApiCatalogReader(adapter);
     }
 
@@ -161,21 +166,19 @@ public sealed class GenerateWorkflowSkeletonTool : IMcpTool
 
         var yaml = _generator.GenerateWorkflowSkeleton(name, description, inputParameters, objectInputParameters, arrayInputParameters, version);
         var wfvars = WorkflowArtifactHelper.GenerateWfvars(yaml);
-        return new
-        {
-            name,
-            version,
-            yaml,
-            wfvars,
-            authoringHints = new[]
-            {
+        return new WorkflowSkeletonResult(
+            Name: name,
+            Version: version,
+            Yaml: yaml,
+            Wfvars: wfvars,
+            AuthoringHints:
+            [
                 "Prefer ensure for create-if-missing or bootstrap HTTP stages.",
                 "Use expectedStatuses plus onStatus/jumpOnStatus when branching needs explicit status control.",
                 "Use bodyFile for large request payloads and dataFile + forEach for seed collections.",
                 "Use Object/Array input types when the workflow consumes structured JSON."
-            },
-            warnings = warningMessages
-        };
+            ],
+            Warnings: warningMessages);
     }
 
     private static List<string> ReadStringList(object source)
@@ -206,8 +209,12 @@ public sealed class GenerateMockPayloadTool : IMcpTool
     private readonly IStageGenerator _generator;
 
     public GenerateMockPayloadTool(SihServicesAdapter adapter)
+        : this(adapter, new StageGenerator(adapter)) { }
+
+    internal GenerateMockPayloadTool(SihServicesAdapter adapter, IStageGenerator generator)
     {
-        _generator = new StageGenerator(adapter);
+        _ = adapter;
+        _generator = generator;
     }
 
     public string Name => "generate_mock_payload";
@@ -273,8 +280,11 @@ public sealed class GenerateWorkflowBundleTool : IMcpTool
     private readonly ApiCatalogReader _catalogReader;
 
     public GenerateWorkflowBundleTool(SihServicesAdapter adapter)
+        : this(adapter, new StageGenerator(adapter)) { }
+
+    internal GenerateWorkflowBundleTool(SihServicesAdapter adapter, IStageGenerator generator)
     {
-        _generator = new StageGenerator(adapter);
+        _generator = generator;
         _catalogReader = new ApiCatalogReader(adapter);
     }
 
@@ -836,28 +846,8 @@ public sealed class RepairWorkflowArtifactsTool : IMcpTool
         };
     }
 
-    private static object ToValidationContract(ValidationResult result)
-    {
-        return new
-        {
-            isValid = result.Valid,
-            errors = result.Errors.Select(e => new
-            {
-                category = e.Category,
-                stage = e.Stage,
-                field = e.Field,
-                message = e.Message,
-                suggestion = e.Suggestion,
-                location = e.Location
-            }).ToList(),
-            warnings = result.Warnings.Select(w => new
-            {
-                category = w.Category,
-                message = w.Message,
-                suggestion = w.Suggestion
-            }).ToList()
-        };
-    }
+    private static object ToValidationContract(ValidationResult result) =>
+        ValidationResultMapper.ToContract(result);
 
     private static List<(string Name, bool Required)> ExtractWorkflowInputs(string workflowYaml)
     {

@@ -338,11 +338,14 @@ public sealed class SuggestWorkflowFromGoalTool : IMcpTool
     private readonly IStageGenerator _stageGenerator;
 
     public SuggestWorkflowFromGoalTool(SihServicesAdapter adapter)
+        : this(adapter, new StageGenerator(adapter)) { }
+
+    internal SuggestWorkflowFromGoalTool(SihServicesAdapter adapter, IStageGenerator stageGenerator)
     {
         _analyzer = new SwaggerSemanticAnalyzer(adapter);
         _catalogReader = new ApiCatalogReader(adapter);
         _swaggerReader = new SwaggerReader(adapter);
-        _stageGenerator = new StageGenerator(adapter);
+        _stageGenerator = stageGenerator;
     }
 
     public string Name => "suggest_workflow_from_goal";

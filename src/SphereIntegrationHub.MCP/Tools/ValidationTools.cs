@@ -1,6 +1,7 @@
 using SphereIntegrationHub.MCP.Core;
 using SphereIntegrationHub.MCP.Services.Integration;
 using SphereIntegrationHub.MCP.Services.Validation;
+using SphereIntegrationHub.MCP.Models;
 using System.Text.Json;
 using System.Text;
 
@@ -83,26 +84,7 @@ public sealed class ValidateWorkflowTool : IMcpTool
 
             var result = await _validator.ValidateWorkflowAsync(workflowPath!);
 
-            // Return as camelCase anonymous object for test compatibility
-            return new
-            {
-                isValid = result.Valid,
-                errors = result.Errors.Select(e => new
-                {
-                    category = e.Category,
-                    stage = e.Stage,
-                    field = e.Field,
-                    message = e.Message,
-                    suggestion = e.Suggestion,
-                    location = e.Location
-                }).ToList(),
-                warnings = result.Warnings.Select(w => new
-                {
-                    category = w.Category,
-                    message = w.Message,
-                    suggestion = w.Suggestion
-                }).ToList()
-            };
+            return ValidationResultMapper.ToContract(result);
         }
         finally
         {
@@ -169,26 +151,7 @@ public sealed class ValidateStageTool : IMcpTool
 
         var result = _validator.ValidateStage(stageDef);
 
-        // Return as camelCase anonymous object for test compatibility
-        return Task.FromResult<object>(new
-        {
-            isValid = result.Valid,
-            errors = result.Errors.Select(e => new
-            {
-                category = e.Category,
-                stage = e.Stage,
-                field = e.Field,
-                message = e.Message,
-                suggestion = e.Suggestion,
-                location = e.Location
-            }).ToList(),
-            warnings = result.Warnings.Select(w => new
-            {
-                category = w.Category,
-                message = w.Message,
-                suggestion = w.Suggestion
-            }).ToList()
-        });
+        return Task.FromResult<object>(ValidationResultMapper.ToContract(result));
     }
 }
 
@@ -276,4 +239,19 @@ public sealed class PlanWorkflowExecutionTool : IMcpTool
         }
     }
 
+}
+
+/// <summary>
+/// Shared projection from ValidationResult to the camelCase MCP contract shape.
+/// Used by ValidateWorkflowTool, ValidateStageTool, and RepairWorkflowArtifactsTool.
+/// </summary>
+internal static class ValidationResultMapper
+{
+    internal static McpValidationResult ToContract(ValidationResult result) => new(
+        IsValid: result.Valid,
+        Errors: result.Errors.Select(e => new McpValidationError(
+            e.Category, e.Stage, e.Field, e.Message, e.Suggestion, e.Location)).ToList(),
+        Warnings: result.Warnings.Select(w => new McpValidationWarning(
+            w.Category, w.Message, w.Suggestion)).ToList()
+    );
 }

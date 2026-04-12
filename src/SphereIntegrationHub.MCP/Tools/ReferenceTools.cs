@@ -11,6 +11,11 @@ namespace SphereIntegrationHub.MCP.Tools;
 [McpTool("list_available_workflows", "Lists all available workflow files in the project", Category = "Reference", Level = "L1")]
 public sealed class ListAvailableWorkflowsTool : IMcpTool
 {
+    private static readonly IDeserializer _deserializer = new DeserializerBuilder()
+        .WithNamingConvention(CamelCaseNamingConvention.Instance)
+        .IgnoreUnmatchedProperties()
+        .Build();
+
     private readonly SihServicesAdapter _adapter;
 
     public ListAvailableWorkflowsTool(SihServicesAdapter adapter)
@@ -47,17 +52,13 @@ public sealed class ListAvailableWorkflowsTool : IMcpTool
             .ToList();
 
         var workflows = new List<object>();
-        var deserializer = new DeserializerBuilder()
-            .WithNamingConvention(CamelCaseNamingConvention.Instance)
-            .IgnoreUnmatchedProperties()
-            .Build();
 
         foreach (var file in workflowFiles)
         {
             try
             {
                 var content = File.ReadAllText(file);
-                var workflow = deserializer.Deserialize<Dictionary<string, object>>(content);
+                var workflow = _deserializer.Deserialize<Dictionary<string, object>>(content);
 
                 workflows.Add(new
                 {
@@ -96,6 +97,11 @@ public sealed class ListAvailableWorkflowsTool : IMcpTool
 [McpTool("get_workflow_inputs_outputs", "Gets the input parameters and output schema for a workflow", Category = "Reference", Level = "L1")]
 public sealed class GetWorkflowInputsOutputsTool : IMcpTool
 {
+    private static readonly IDeserializer _deserializer = new DeserializerBuilder()
+        .WithNamingConvention(CamelCaseNamingConvention.Instance)
+        .IgnoreUnmatchedProperties()
+        .Build();
+
     private readonly SihServicesAdapter _adapter;
 
     public GetWorkflowInputsOutputsTool(SihServicesAdapter adapter)
@@ -127,12 +133,7 @@ public sealed class GetWorkflowInputsOutputsTool : IMcpTool
         var workflowPath = WorkflowPathResolver.ResolveExistingWorkflowPath(_adapter, workflowPathArg);
 
         var content = await File.ReadAllTextAsync(workflowPath);
-        var deserializer = new DeserializerBuilder()
-            .WithNamingConvention(CamelCaseNamingConvention.Instance)
-            .IgnoreUnmatchedProperties()
-            .Build();
-
-        var workflow = deserializer.Deserialize<Dictionary<string, object>>(content);
+        var workflow = _deserializer.Deserialize<Dictionary<string, object>>(content);
 
         // Extract inputs
         var inputs = new List<object>();
