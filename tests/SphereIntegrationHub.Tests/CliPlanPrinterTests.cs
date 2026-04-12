@@ -14,6 +14,7 @@ public sealed class CliPlanPrinterTests
             "id",
             "1.0",
             "/tmp/workflow.yaml",
+            new Dictionary<string, string>(),
             new List<WorkflowInputDefinition>
             {
                 new() { Name = "inputA", Type = RandomValueType.Text, Required = true }
@@ -27,6 +28,7 @@ public sealed class CliPlanPrinterTests
                     "/endpoint",
                     "GET",
                     200,
+                    null,
                     null,
                     null,
                     null,

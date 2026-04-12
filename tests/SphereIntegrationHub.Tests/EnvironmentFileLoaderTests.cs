@@ -46,4 +46,74 @@ public sealed class EnvironmentFileLoaderTests
             File.Delete(tempPath);
         }
     }
+
+    [Fact]
+    public void Load_ResolvesReferencedEnvironmentVariables()
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.env");
+        File.WriteAllText(tempPath, """
+        BASE_PATH=./tenant-a
+        CHILD_PATH={{env:BASE_PATH}}/child
+        """);
+
+        try
+        {
+            var loader = new EnvironmentFileLoader();
+            var values = loader.Load(tempPath);
+
+            Assert.Equal("./tenant-a", values["BASE_PATH"]);
+            Assert.Equal("./tenant-a/child", values["CHILD_PATH"]);
+        }
+        finally
+        {
+            File.Delete(tempPath);
+        }
+    }
+
+    [Fact]
+    public void Load_ResolvesReferencedInheritedEnvironmentVariables()
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.env");
+        File.WriteAllText(tempPath, "CHILD_PATH={{env:BASE_PATH}}/child");
+
+        try
+        {
+            var loader = new EnvironmentFileLoader();
+            var values = loader.Load(
+                tempPath,
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["BASE_PATH"] = "./tenant-a"
+                });
+
+            Assert.Equal("./tenant-a/child", values["CHILD_PATH"]);
+        }
+        finally
+        {
+            File.Delete(tempPath);
+        }
+    }
+
+    [Fact]
+    public void Load_CircularReference_Throws()
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.env");
+        File.WriteAllText(tempPath, """
+        BASE_PATH={{env:CHILD_PATH}}
+        CHILD_PATH={{env:BASE_PATH}}
+        """);
+
+        try
+        {
+            var loader = new EnvironmentFileLoader();
+
+            var ex = Assert.Throws<InvalidOperationException>(() => loader.Load(tempPath));
+
+            Assert.Contains("circular reference", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            File.Delete(tempPath);
+        }
+    }
 }

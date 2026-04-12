@@ -30,6 +30,8 @@ All template tokens are validated for existence:
 - `{{global.*}}` must exist in `initStage.variables`.
 - `{{context.*}}` must be syntactically valid.
 - `{{env:*}}` must exist in the workflow `.env` (if configured) or the process environment.
+- `.env` values are resolved recursively when possible, so chained values such as `CHILD={{env:BASE}}/child` are validated during dry-run.
+- Circular or undefined `.env` references fail validation before execution.
 - `{{stage:stage.output.key}}` must refer to a stage output key.
 - `{{response.*}}` is only allowed inside endpoint stage `output` mappings and endpoint stage `message` templates.
 - Token visibility rules are defined in `.doc/workflow-schema.md` (Token visibility by section).
@@ -50,6 +52,7 @@ Validated locations:
 
 - Root workflow uses `references.environmentFile` unless `--envfile` is provided.
 - Child workflow `.env` files are merged with the parent (parent values win).
+- Child and root `.env` values can reference other `.env` values or inherited parent values with `{{env:NAME}}`.
 
 ### 4) Endpoint validation
 
@@ -87,6 +90,7 @@ In `--dry-run --verbose`, the CLI prints:
 
 - Workflow summary (version, id, file)
 - Stage list, including headers/query/body
+- Resolved workflow reference paths and effective `.env` values when `--verbose` is enabled
 - Stage outputs, `set`, and `context`
 - Init-stage and end-stage context
 - Endpoint validation details

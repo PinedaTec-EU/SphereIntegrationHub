@@ -21,6 +21,10 @@ internal sealed class CliPlanPrinter : ICliPlanPrinter
         }
 
         writer.WriteLine($"{prefix}File: {plan.FilePath}");
+        if (verbose)
+        {
+            PrintKeyValues($"{prefix}Resolved env:", plan.EnvironmentVariables, writer);
+        }
 
         if (plan.Inputs.Count > 0)
         {
@@ -65,6 +69,10 @@ internal sealed class CliPlanPrinter : ICliPlanPrinter
                 else
                 {
                     writer.WriteLine($"{prefix}    Workflow: {stage.WorkflowRef}");
+                    if (!string.IsNullOrWhiteSpace(stage.ResolvedWorkflowPath))
+                    {
+                        writer.WriteLine($"{prefix}    Resolved path: {stage.ResolvedWorkflowPath}");
+                    }
                     if (stage.Inputs is not null && stage.Inputs.Count > 0)
                     {
                         writer.WriteLine($"{prefix}    Inputs:");
@@ -137,9 +145,10 @@ internal sealed class CliPlanPrinter : ICliPlanPrinter
         }
 
         writer.WriteLine(title);
+        var itemPrefix = new string(' ', title.TakeWhile(char.IsWhiteSpace).Count());
         foreach (var pair in values)
         {
-            writer.WriteLine($"  {pair.Key}: {pair.Value}");
+            writer.WriteLine($"{itemPrefix}  {pair.Key}: {pair.Value}");
         }
     }
 }

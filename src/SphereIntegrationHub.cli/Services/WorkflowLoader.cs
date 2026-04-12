@@ -128,7 +128,7 @@ public sealed class WorkflowLoader
         {
             var resolvedPath = ResolveEnvironmentFilePath(envFile, workflowPath, parentEnvironment, envFileOverride is not null);
 
-            foreach (var pair in _envLoader.Load(resolvedPath))
+            foreach (var pair in _envLoader.Load(resolvedPath, parentEnvironment))
             {
                 variables[pair.Key] = pair.Value;
             }
