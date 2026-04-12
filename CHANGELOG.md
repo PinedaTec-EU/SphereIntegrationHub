@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.6.14.204] – 2026-04
+
+- **Stronger CLI preflight and readiness reporting**:
+  - `CliPipeline` now reports readiness and health-check state more clearly before workflow execution.
+  - Preflight output makes it clearer which APIs have readiness policies enabled and how endpoints are resolved per environment.
+  - Console reporting for health checks, Swagger download/refresh, and preflight failures was improved.
+- **Clearer runtime errors and logging**:
+  - Improved CLI error handling during preflight and execution.
+  - Added a clearer final execution summary.
+  - Failure messages are now more precise for health-check issues, Swagger download problems, and related validation failures.
+- **Template resolution and validation improvements**:
+  - Improved template resolution for environment-variable scenarios.
+  - Tightened validation checks around template resolution and resource loading.
+- **Telemetry and cache metrics**:
+  - Adjusted cache metrics in `WorkflowLoader` and related tests to better reflect real hit/miss behavior.
+- **MCP and tooling cleanup**:
+  - Removed obsolete MCP server configuration.
+  - Removed tool-version pinning logic from the GitHub Action workflow runner.
+- **Documentation and samples**:
+  - Updated README, docs, and samples to reflect readiness preflight, health checks, and the non-retriable `404` lookup case.
+- **Published version line in this range**:
+  - Includes the intermediate releases up to `1.6.14.202`.
+
 ## [1.6.13] – 2026-04
 
 - **Validation caching** (three in-memory levels):
