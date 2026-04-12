@@ -389,6 +389,7 @@ stages:
 
 `references.workflows[].path` can be templated, so child workflows can vary by environment or business input while keeping the same `workflowRef`.
 The same applies to `references.environmentFile`, `bodyFile`, `dataFile`, and `mock.payloadFile` when those paths need to vary by tenant or environment.
+`.env` values can also be chained with `{{env:NAME}}`, so shared base paths can be centralized once and reused by other environment variables.
 Execution resolves child workflow paths right before a workflow stage runs. Validation and `--dry-run` may inspect them earlier; if a path still depends on business values, `--dry-run` reports a warning and leaves the final resolution to runtime, where failures are reported with the original path expression and stage context.
 
 #### 🛡️ 2. Contract-First Validation

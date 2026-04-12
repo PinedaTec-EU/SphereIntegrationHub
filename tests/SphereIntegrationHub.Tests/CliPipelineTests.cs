@@ -461,6 +461,67 @@ stages:
     }
 
     [Fact]
+    public async Task RunAsync_DryRun_ResolvesWorkflowReferencePathFromDerivedEnvironmentVariables()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aos-cli-derived-ref-{Guid.NewGuid():N}");
+        var workflows = Path.Combine(root, "workflows");
+        var tenantWorkflows = Path.Combine(workflows, "tenant-a");
+        Directory.CreateDirectory(tenantWorkflows);
+
+        var workflowPath = Path.Combine(workflows, "main.workflow");
+        var childWorkflowPath = Path.Combine(tenantWorkflows, "child.workflow");
+        var envFilePath = Path.Combine(workflows, ".env");
+        var catalogPath = Path.Combine(root, "api-catalog.json");
+
+        File.WriteAllText(catalogPath, """
+        [
+          {
+            "version": "1.0",
+            "definitions": []
+          }
+        ]
+        """);
+
+        File.WriteAllText(envFilePath, """
+        BASE_WORKFLOWS=./tenant-a
+        CHILD_WORKFLOW_DIR={{env:BASE_WORKFLOWS}}
+        """);
+        File.WriteAllText(childWorkflowPath, """
+version: "1.0"
+id: "child-1"
+name: "Child"
+stages: []
+""");
+
+        File.WriteAllText(workflowPath, """
+version: "1.0"
+id: "wf-1"
+name: "Test"
+references:
+  environmentFile: "./.env"
+  workflows:
+    - name: "child"
+      path: "{{env:CHILD_WORKFLOW_DIR}}/child.workflow"
+stages:
+  - name: "child"
+    kind: "Workflow"
+    workflowRef: "child"
+""");
+
+        var pipeline = CreatePipeline();
+        var result = await pipeline.RunAsync(new InlineArguments(
+            WorkflowPath: workflowPath,
+            Environment: "dev",
+            CatalogPath: catalogPath,
+            DryRun: true,
+            Verbose: true), CancellationToken.None);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains(result.Messages, message => message.Text.Contains("CHILD_WORKFLOW_DIR: ./tenant-a", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains(childWorkflowPath, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task RunAsync_DryRun_WarnsWhenWorkflowPathDependsOnDeferredBusinessVariable()
     {
         var root = Path.Combine(Path.GetTempPath(), $"aos-cli-dynamic-warning-{Guid.NewGuid():N}");
