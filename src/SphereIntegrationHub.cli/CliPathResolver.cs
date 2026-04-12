@@ -5,7 +5,6 @@ namespace SphereIntegrationHub.cli;
 internal sealed class CliPathResolver : ICliPathResolver
 {
     private const string WorkflowsFolderName = "workflows";
-    private const string ApiCatalogFileName = "api-catalog.json";
     private const string CacheFolderName = "cache";
 
     public string FormatPath(string? path)
@@ -63,7 +62,7 @@ internal sealed class CliPathResolver : ICliPathResolver
     public string ResolveDefaultCatalogPath(string? workflowPath)
     {
         var resourcesRoot = ResolveDefaultResourcesRoot(workflowPath);
-        return Path.Combine(resourcesRoot ?? AppContext.BaseDirectory, ApiCatalogFileName);
+        return ApiCatalogFile.ResolvePath(resourcesRoot ?? AppContext.BaseDirectory);
     }
 
     public string ResolveDefaultCacheRoot(string? workflowPath)
@@ -99,7 +98,8 @@ internal sealed class CliPathResolver : ICliPathResolver
                 return directory.Parent.FullName;
             }
 
-            if (File.Exists(Path.Combine(directory.FullName, ApiCatalogFileName)))
+            var catalogPath = ApiCatalogFile.ResolvePath(directory.FullName);
+            if (File.Exists(catalogPath))
             {
                 return directory.FullName;
             }

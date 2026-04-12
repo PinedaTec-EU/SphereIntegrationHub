@@ -100,8 +100,21 @@ Generates startup bootstrap artifacts for API projects:
 
 ### `generate_api_catalog_file`
 
-Generates `api-catalog.json` content and can write it directly to disk.
+Generates API catalog content and can write it directly to disk, preferring `api.catalog` YAML output.
 Use this first when onboarding MCP in repositories that do not have catalog files yet.
+
+### `migrate_api_catalog`
+
+Migrates an existing catalog file to another supported path without changing its data model.
+
+Use this when:
+- the repository already has a previous catalog file and should be normalized to `api.catalog`
+- you want to move from legacy JSON/YAML naming to the canonical catalog name
+
+Transition notes:
+- Legacy JSON catalog support remains for the `1.7` line as a compatibility bridge.
+- From `1.8`, this MCP tool is the preferred migration path for existing repositories.
+- Legacy JSON support is transitional and expected to be removed after that compatibility window.
 
 ## Execution Report Tools
 

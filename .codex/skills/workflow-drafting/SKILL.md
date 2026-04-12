@@ -19,7 +19,8 @@ Follow this sequence and ask short clarifying questions when you cannot complete
    - Ask for environment/version preferences if not provided.
 
 2. Locate the endpoint(s).
-   - Read `src/resources/api-catalog.json` to find the API definition name and version.
+   - Read `src/resources/api.catalog` (or existing legacy catalog files) to find the API definition name and version.
+   - If the repository still uses a previous catalog file, prefer migrating it to `api.catalog` before producing new long-lived artifacts.
    - Use cached swagger: `src/resources/cache/<version>/<definition>.json` to find method/path, auth, and request/response schemas.
    - If no cached swagger exists, ask the user for the swagger source or to provide the endpoint details.
 
@@ -55,6 +56,7 @@ Always return two drafts, labeled clearly:
 ## Implementation Notes
 
 - Use existing workflows in `src/resources/workflows/` as stylistic and structural references.
+- Treat `api.catalog` as the target format for new work. Legacy JSON catalog support is transitional through `1.7`; from `1.8` the MCP migration tool is the preferred upgrade path for existing repositories.
 - Keep references relative to the workflow file location.
 - Ensure stage names are unique and stable (used by output tokens).
 - If you include `output: true`, ensure `endStage.output` is populated.
@@ -62,7 +64,7 @@ Always return two drafts, labeled clearly:
 
 ## Questions to Ask When Blocked
 
-- Which API definition/version should I target from `api-catalog.json`?
+- Which API definition/version should I target from `api.catalog`?
 - Which endpoint path and HTTP verb should be used for the action?
 - What auth mechanism applies (JWT from login, other token)?
 - Are there required organization/account prerequisites beyond login?

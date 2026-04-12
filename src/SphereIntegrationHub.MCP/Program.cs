@@ -1,3 +1,4 @@
+using SphereIntegrationHub.Definitions;
 using SphereIntegrationHub.MCP;
 using SphereIntegrationHub.MCP.Services.Catalog;
 using SphereIntegrationHub.MCP.Services.Integration;
@@ -65,11 +66,7 @@ static async Task WarnIfCatalogContainsHtmlSwaggerUrlsAsync(string catalogPath)
 {
     try
     {
-        var json = await File.ReadAllTextAsync(catalogPath);
-        var catalog = JsonSerializer.Deserialize<List<ApiCatalogVersion>>(json, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        }) ?? [];
+        var catalog = (await ApiCatalogFile.LoadAsync(catalogPath)).ToList();
 
         var htmlEntries = catalog
             .SelectMany(v => v.Definitions.Select(d => new { v.Version, d.Name, d.SwaggerUrl }))

@@ -78,15 +78,23 @@ sih --version
 
 ## Catalog
 
-The API catalog is a fixed JSON file with versions and API definitions. Each definition provides its own environment base URLs and a relative swagger path. An optional `healthCheck` probes the API before swagger caching and workflow execution, and an optional `readiness` policy controls retries/timeouts and accepted HTTP status codes:
+The API catalog is a fixed file with versions and API definitions. `api.catalog` is the preferred name and is stored as YAML, though existing legacy JSON/YAML catalog files are still supported during the transition. Each definition provides its own environment base URLs and a relative swagger path. An optional `healthCheck` probes the API before swagger caching and workflow execution, and an optional `readiness` policy controls retries/timeouts and accepted HTTP status codes:
 
-`src/resources/api-catalog.json`
+`src/resources/api.catalog`
+
+If your repository already has a previous catalog file, migrate it to `api.catalog` instead of keeping both names in parallel.
+
+Compatibility policy:
+
+- Legacy JSON catalog files remain supported through the `1.7` line for backward compatibility.
+- Starting in `1.8`, the recommended migration path is the MCP tool `migrate_api_catalog`.
+- Legacy JSON support is transitional and will be removed after that compatibility window, so new catalog authoring should target `api.catalog` directly.
 
 Swagger definitions are cached per version in:
 
 `src/resources/cache/{version}/{definition}.json`
 
-When the CLI resolves default paths from a workflow location, it treats the nearest ancestor `workflows/` folder as shared root. That keeps `api-catalog.json` and `cache/` centralized even if workflows are organized in nested subfolders under `workflows/`.
+When the CLI resolves default paths from a workflow location, it treats the nearest ancestor `workflows/` folder as shared root. That keeps `api.catalog` and `cache/` centralized even if workflows are organized in nested subfolders under `workflows/`.
 
 ## GitHub Action
 
@@ -96,7 +104,7 @@ The `run-sphere-workflow` composite action lets you install the SphereIntegratio
 - uses: PinedaTec-EU/SphereIntegrationHub/.github/actions/run-sphere-workflow@main
   with:
     workflow-path: ./workflows/create-account.workflow
-    cli-args: --env prod --catalog ./api-catalog.json
+    cli-args: --env prod --catalog ./api.catalog
 ```
 
 The action always runs `dotnet tool restore` first (so other tools in your manifest are not affected) and then updates `SphereIntegrationHub.Tool` — to the latest version by default, or to the exact version you specify via `tool-version`.
@@ -117,7 +125,7 @@ The action always runs `dotnet tool restore` first (so other tools in your manif
   with:
     workflow-path: ./workflows/onboard-customer.workflow
     tool-version: '1.5.12.149'
-    cli-args: --env prod --catalog ./api-catalog.json --varsfile ./prod.wfvars
+    cli-args: --env prod --catalog ./api.catalog --varsfile ./prod.wfvars
 ```
 
 **Upload execution report as a CI artifact:**
@@ -287,7 +295,7 @@ The repository includes reference workflows under `samples/`:
 - `sample-lookup-no-retry.workflow`: focused example for GET/lookup stages where `404` is a business result, not a retriable transport failure.
 - `sample-parent.wfvars`: companion input example for the parent/child sample.
 - `payloads/bootstrap-account.json` and `seed/accounts.json`: file-backed request and collection samples used by `sample-bootstrap.workflow`.
-- `api-catalog.json`: reference catalog for the sample workflows — defines the `accounts` API with per-environment base URLs, `healthCheck`, and `readiness` policy for strict preflight.
+- `api.catalog`: reference catalog for the sample workflows — defines the `accounts` API with per-environment base URLs, `healthCheck`, and `readiness` policy for strict preflight.
 
 Use these files directly when authoring new workflows or when prompting MCP-based generation.
 
