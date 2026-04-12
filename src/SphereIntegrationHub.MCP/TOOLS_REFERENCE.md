@@ -154,3 +154,68 @@ The server supports configurable project paths via env vars:
 - `SIH_WORKFLOWS_PATH`
 
 This enables running MCP against repositories that do not use `src/resources`.
+
+### Variable Analysis Notes
+
+- `get_available_variables` reports the effective `.env` values resolved for the workflow, including chained `{{env:NAME}}` references when they can be computed statically.
+- `resolve_template_token` accepts environment tokens using the runtime syntax `{{env:NAME}}`.
+
+## L2 Tools — Semantic Analysis
+
+### `analyze_endpoint_dependencies`
+
+Analyzes Swagger schemas to detect which endpoints need to be called before a target endpoint.
+
+Required parameters: `version: string`, `apiName: string`, `endpoint: string`, `httpVerb: string`
+
+### `infer_data_flow`
+
+Analyzes multiple endpoints and maps response fields to request fields, building a data flow graph with stage bindings.
+
+Required parameters: `version: string`, `endpoints: Array<{apiName, endpoint, httpVerb}>`
+
+### `suggest_workflow_from_goal`
+
+Generates a complete workflow YAML from a natural language goal using semantic analysis and endpoint relevance scoring.
+
+Required parameters: `goal: string`
+Optional parameters: `version: string`, `includeAuth: boolean` (default: true)
+
+## L2 Tools — Pattern Detection
+
+### `detect_api_patterns`
+
+Detects common API patterns (OAuth, CRUD, pagination, filtering, batch) in an API specification.
+
+Required parameters: `version: string`, `apiName: string`
+
+### `generate_crud_workflow`
+
+Generates a complete CRUD workflow for a resource based on detected patterns.
+
+Required parameters: `apiName: string`, `resource: string`, `operations: Array<string>` (create, read, update, delete, list)
+Optional parameters: `version: string`
+
+## L3 Tools — Synthesis
+
+### `synthesize_system_from_description`
+
+Full autonomous system generation from a natural language description. Produces multiple workflow YAMLs, dependency graph, test scenarios, and API usage breakdown.
+
+Required parameters: `description: string`
+Optional parameters: `version: string`, `requirements: object` (`requiredApis`, `preferredApis`, `maxStagesPerWorkflow`, `includeAuthentication`, `includeErrorHandling`, `includeRetries`, `excludeEndpoints`, `performanceTarget`)
+
+## L4 Tools — Optimization
+
+### `suggest_optimizations`
+
+Analyzes a workflow YAML and suggests improvements for parallelization, redundancy, resilience, caching, and batching. Returns current metrics, projected metrics, and prioritized recommendations.
+
+Required parameters: `workflowYaml: string`
+Optional parameters: `constraints: object` (`maxParallelism`, `prioritizeSpeed`, `prioritizeReliability`)
+
+### `analyze_swagger_coverage`
+
+Shows which API endpoints are used across all workflows and suggests use cases for unused endpoints. Returns coverage statistics broken down by API.
+
+Required parameters: `version: string`

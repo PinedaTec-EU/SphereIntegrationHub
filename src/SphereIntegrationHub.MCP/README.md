@@ -92,8 +92,8 @@ Current implemented surface:
 
 ### Analysis Tools (3)
 
-- `get_available_variables` - Shows available variables at a point
-- `resolve_template_token` - Resolves template tokens
+- `get_available_variables` - Shows available variables at a point, including resolved `.env` values for the workflow
+- `resolve_template_token` - Resolves template tokens, including `{{env:NAME}}`
 - `analyze_context_flow` - Analyzes context flow
 
 ### Reference Tools (2)
@@ -108,6 +108,32 @@ Current implemented surface:
 - `suggest_resilience_config` - Suggests retry/timeout config
 - `list_execution_reports` - Lists available report artifacts
 - `read_execution_report` - Reads a report artifact with structured summary
+
+## Level 2 Tools (5 implemented)
+
+### Semantic Tools (3)
+
+- `analyze_endpoint_dependencies` - Detects which endpoints must be called before a target endpoint (`version`, `apiName`, `endpoint`, `httpVerb`)
+- `infer_data_flow` - Maps response fields to request fields across a list of endpoints (`version`, `endpoints: Array<{apiName, endpoint, httpVerb}>`)
+- `suggest_workflow_from_goal` - Generates workflow YAML from a natural language goal (`goal`; optional: `version`, `includeAuth`)
+
+### Pattern Tools (2)
+
+- `detect_api_patterns` - Detects OAuth, CRUD, pagination, filtering, and batch patterns in an API (`version`, `apiName`)
+- `generate_crud_workflow` - Generates a full CRUD workflow for a resource based on detected patterns (`apiName`, `resource`, `operations`; optional: `version`)
+
+## Level 3 Tools (1 implemented)
+
+### Synthesis Tools (1)
+
+- `synthesize_system_from_description` - Full autonomous system generation from natural language: produces multiple workflow YAMLs, dependency graph, and test scenarios (`description`; optional: `version`, `requirements`)
+
+## Level 4 Tools (2 implemented)
+
+### Optimization Tools (2)
+
+- `suggest_optimizations` - Analyzes a workflow YAML and suggests parallelization, resilience, caching, and batching improvements (`workflowYaml`; optional: `constraints`)
+- `analyze_swagger_coverage` - Shows endpoint usage statistics across all workflows and suggests use cases for unused endpoints (`version`)
 
 ## Community
 

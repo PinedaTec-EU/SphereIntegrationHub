@@ -112,6 +112,7 @@ public sealed class WorkflowValidatorService
         }
         catch (Exception ex)
         {
+            Console.Error.WriteLine($"[WorkflowValidatorService] Validation failed: {ex.Message}");
             return new ValidationResult
             {
                 Valid = false,

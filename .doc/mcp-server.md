@@ -170,8 +170,8 @@ Currently, creating a complex workflow in SphereIntegrationHub requires:
 │  │  - get_api_endpoints                                      │  │
 │  │  - validate_workflow                                      │  │
 │  │  - generate_workflow_skeleton                             │  │
-│  │  - suggest_workflow_from_goal (L3)                        │  │
-│  │  - analyze_endpoint_dependencies (L3)                     │  │
+│  │  - suggest_workflow_from_goal (L2)                        │  │
+│  │  - analyze_endpoint_dependencies (L2)                     │  │
 │  │  - ... (35 tools total across all levels)                 │  │
 │  └───────────────────────────────────────────────────────────┘  │
 │                                                                   │
@@ -400,7 +400,7 @@ New runtime authoring features exposed through MCP:
 
 | Tool | Parameters | Returns | Purpose |
 |------|------------|---------|---------|
-| `analyze_endpoint_dependencies` | `version: string`<br>`targetEndpoint: string`<br>`httpVerb: string`<br>`apiName: string` | `EndpointDependencies` | Detects required prerequisite calls |
+| `analyze_endpoint_dependencies` | `version: string`<br>`endpoint: string`<br>`httpVerb: string`<br>`apiName: string` | `EndpointDependencies` | Detects required prerequisite calls |
 | `infer_data_flow` | `version: string`<br>`endpoints: Array<EndpointSpec>` | `DataFlowGraph` | Maps response fields to request fields |
 | `suggest_workflow_from_goal` | `version: string`<br>`goal: string`<br>`includeAuth: boolean` | `WorkflowSuggestion` | Generates workflow from natural language |
 

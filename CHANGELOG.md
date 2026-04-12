@@ -59,7 +59,7 @@
 - **Offset support in date/time tokens**: `{{system:datetime.now+P1D}}`, `{{system:date.today-PT2H}}` with ISO 8601 durations.
 - Fix MCP: fallback to version-level `baseUrl` when generating the catalog.
 - MCP exposes the `Secret` flag in variable scope analysis and plugin capabilities.
-- MCP documentation updated: real status (37 tools, all production levels).
+- MCP documentation updated: real status (35 tools, all production levels).
 
 ## [1.5.9 – 1.5.11] – 2026-03
 
