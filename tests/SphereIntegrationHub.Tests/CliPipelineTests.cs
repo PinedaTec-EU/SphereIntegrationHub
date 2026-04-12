@@ -24,6 +24,7 @@ public sealed class CliPipelineTests
         Assert.Equal(0, result.ExitCode);
         Assert.Contains(result.Messages, message => message.Text.Contains("Dry-run completed", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Messages, message => message.Text.Contains("Workflow:", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains("Workflow version: 1.0", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -42,7 +43,7 @@ public sealed class CliPipelineTests
     }
 
     [Fact]
-    public async Task RunAsync_CatalogVersionNotFound_ReturnsError()
+    public async Task RunAsync_CatalogVersionNotFound_UsesFirstCatalogVersion()
     {
         var fixture = CreateFixture(swaggerHasEndpoint: true, includeMock: true, catalogVersion: "2.0", baseUrls: new Dictionary<string, string> { ["dev"] = "http://example.test" });
         var pipeline = CreatePipeline();
@@ -50,10 +51,12 @@ public sealed class CliPipelineTests
         var result = await pipeline.RunAsync(new InlineArguments(
             WorkflowPath: fixture.WorkflowPath,
             Environment: "dev",
-            CatalogPath: null), CancellationToken.None);
+            CatalogPath: null,
+            DryRun: true), CancellationToken.None);
 
-        Assert.Equal(1, result.ExitCode);
-        Assert.Contains(result.Messages, message => message.Text.Contains("Catalog version", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains(result.Messages, message => message.Text.Contains("workflow version '1.0' was not found in catalog", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains("Using catalog version '2.0'", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

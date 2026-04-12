@@ -220,6 +220,57 @@ endStage:
     }
 
     [Fact]
+    public void Validate_WarnsWhenReferencedWorkflowVersionDiffers()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"workflow-validator-version-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+        var childPath = Path.Combine(tempRoot, "child.workflow");
+        File.WriteAllText(childPath, """
+version: "2.0"
+id: "child"
+name: "child"
+""");
+
+        var definition = new WorkflowDefinition
+        {
+            Version = "1.0",
+            Id = "01",
+            Name = "parent",
+            References = new WorkflowReference
+            {
+                Workflows = new List<WorkflowReferenceItem>
+                {
+                    new() { Name = "child", Path = "./child.workflow" }
+                }
+            },
+            Stages = new List<WorkflowStageDefinition>
+            {
+                new()
+                {
+                    Name = "run-child",
+                    Kind = WorkflowStageKind.Workflow,
+                    WorkflowRef = "child"
+                }
+            }
+        };
+
+        try
+        {
+            var document = new WorkflowDocument(definition, Path.Combine(tempRoot, "parent.workflow"), new Dictionary<string, string>());
+            var validator = new WorkflowValidator(new WorkflowLoader());
+
+            var result = validator.ValidateWithDetails(document);
+
+            Assert.DoesNotContain(result.Errors, e => e.Contains("differs from parent version", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(result.Warnings, e => e.Contains("differs from parent version", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, true);
+        }
+    }
+
+    [Fact]
     public void Validate_AllowsOptionalResponsePathMissingFromMockPayload()
     {
         var definition = new WorkflowDefinition
