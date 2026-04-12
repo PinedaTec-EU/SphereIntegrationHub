@@ -168,6 +168,7 @@ internal sealed class CliPipeline : ICliPipeline
         {
             workflowDocument = workflowLoader.Load(parseResult.WorkflowPath!, null, parseResult.EnvFileOverride);
             AddInfo(messages, $"Workflow [{workflowDocument.Definition.Name}] loaded successfully.");
+            AddInfo(messages, $"Workflow version: {workflowDocument.Definition.Version}");
             return true;
         }
         catch (Exception ex)
@@ -281,18 +282,28 @@ internal sealed class CliPipeline : ICliPipeline
             return false;
         }
 
-        var workflowVersion = workflowDocument.Definition.Version;
-        selectedVersion = catalog.FirstOrDefault(item =>
-            string.Equals(item.Version, workflowVersion, StringComparison.OrdinalIgnoreCase))!;
-
-        if (selectedVersion is null)
+        if (catalog.Count == 0)
         {
-            AddError(messages, $"Catalog version '{workflowVersion}' was not found.");
-            AddError(messages, $"Available versions: {string.Join(", ", catalog.Select(item => item.Version))}");
+            selectedVersion = null!;
+            AddError(messages, "Catalog does not contain any versions.");
             return false;
         }
 
-        AddInfo(messages, $"Version: {selectedVersion.Version}");
+        var workflowVersion = workflowDocument.Definition.Version;
+        selectedVersion = catalog.FirstOrDefault(item =>
+            string.Equals(item.Version, workflowVersion, StringComparison.OrdinalIgnoreCase))
+            ?? catalog[0];
+
+        if (!string.Equals(selectedVersion.Version, workflowVersion, StringComparison.OrdinalIgnoreCase))
+        {
+            AddInfo(messages, $"Warning: workflow version '{workflowVersion}' was not found in catalog. Using catalog version '{selectedVersion.Version}'.");
+            AddInfo(messages, $"Available catalog versions: {string.Join(", ", catalog.Select(item => item.Version))}");
+        }
+        else
+        {
+            AddInfo(messages, $"Catalog version: {selectedVersion.Version}");
+        }
+
         return true;
     }
 

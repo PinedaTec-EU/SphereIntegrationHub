@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FluentAssertions;
+using SphereIntegrationHub.Definitions;
 using SphereIntegrationHub.MCP.Services.Integration;
 using SphereIntegrationHub.MCP.Tests.TestHelpers;
 using SphereIntegrationHub.MCP.Tools;
@@ -67,6 +68,31 @@ public class CatalogToolsTests : IDisposable
 
         versionsEl.GetArrayLength().Should().Be(0);
         countEl.GetInt32().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task ListApiCatalogVersions_WithYamlCatalog_ReturnsVersionList()
+    {
+        using var yamlFs = new MockFileSystem();
+        yamlFs.AddFile("src/resources/api.catalog", """
+- version: "4.0"
+  definitions:
+    - name: AccountsAPI
+      basePath: /api/accounts
+      swaggerUrl: /swagger/v1/swagger.json
+      baseUrl:
+        local: http://localhost:5000
+""");
+
+        var adapter = new SihServicesAdapter(yamlFs.RootPath);
+        var tool = new ListApiCatalogVersionsTool(adapter);
+
+        var result = await tool.ExecuteAsync(new Dictionary<string, object>());
+        var json = ToJson(result);
+
+        json.GetProperty("versions")[0].GetString().Should().Be("4.0");
+        json.GetProperty("count").GetInt32().Should().Be(1);
+        adapter.ApiCatalogPath.Should().Be(Path.Combine(yamlFs.ResourcesPath, ApiCatalogFile.CanonicalFileName));
     }
 
     [Fact]

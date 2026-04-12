@@ -1,0 +1,21 @@
+- version: 3.11
+  definitions:
+  - name: accounts
+    basePath: /api/accounts
+    swaggerUrl: /swagger/v1/swagger.json
+    healthCheck: /health
+    readiness:
+      maxRetries: 12
+      delayMs: 5000
+      timeoutMs: 2000
+      httpStatus:
+      - 200
+      - 204
+    baseUrl:
+      local: http://localhost:5000
+      pre: https://pre.api.example.com
+      prod: https://api.example.com
+  - name: mcp
+    basePath: /
+    baseUrl:
+      local: http://localhost:5100

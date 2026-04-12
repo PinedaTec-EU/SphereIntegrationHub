@@ -8,4 +8,7 @@
     <Version>$(ReleaseVersion)</Version>
     <LangVersion>12</LangVersion>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" />
+  </ItemGroup>
 </Project>
