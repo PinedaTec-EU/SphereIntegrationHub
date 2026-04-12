@@ -4,7 +4,7 @@ Model Context Protocol (MCP) server for SphereIntegrationHub providing AI-assist
 
 ## Overview
 
-This MCP server exposes 35 tools organized in 4 levels (L1-L4) that enable LLMs to:
+This MCP server exposes 36 tools organized in 4 levels (L1-L4) that enable LLMs to:
 
 - Explore API catalogs and generate workflow stages
 - Validate and analyze workflows
@@ -39,7 +39,7 @@ McpServer (stdio JSON-RPC)
     ├── CatalogTools.cs       - 4 catalog exploration tools
     ├── ValidationTools.cs    - 3 validation tools
     ├── WorkflowGenerationTools.cs - 7 workflow generation tools
-    ├── CatalogManagementTools.cs  - 3 catalog management tools
+    ├── CatalogManagementTools.cs  - 4 catalog management tools
     ├── AnalysisTools.cs      - 3 analysis tools
     ├── ReferenceTools.cs     - 2 reference tools
     ├── DiagnosticTools.cs    - 5 diagnostic/report tools
@@ -57,7 +57,7 @@ Current implemented surface:
 - L2: 5 tools
 - L3: 1 tool
 - L4: 2 tools
-- Total: 35 tools
+- Total: 36 tools
 
 ## Level 1 Tools (27 implemented)
 
@@ -84,11 +84,19 @@ Current implemented surface:
 - `repair_workflow_artifacts` - Validates workflow and creates/repairs `.wfvars`
 - `generate_startup_bootstrap` - Generates startup integration for app boot
 
-### Catalog Management Tools (3)
+### Catalog Management Tools (4)
 
-- `generate_api_catalog_file` - Generates/writes `api-catalog.json`
+- `generate_api_catalog_file` - Generates/writes the API catalog, preferring `api.catalog`
+- `migrate_api_catalog` - Migrates an existing catalog file to `api.catalog` or another supported path
 - `upsert_api_catalog_and_cache` - Creates/updates catalog from swagger URL and downloads cache
 - `refresh_swagger_cache_from_catalog` - Downloads cache files from existing catalog
+
+Catalog transition policy:
+
+- If a repository already contains a previous catalog file, migrate it instead of maintaining duplicate catalog names.
+- Legacy JSON catalog support remains for the `1.7` line as a compatibility bridge.
+- From `1.8`, prefer using `migrate_api_catalog` to move existing catalogs to `api.catalog`.
+- Legacy JSON support is transitional and planned for removal after that compatibility window.
 
 ### Analysis Tools (3)
 
@@ -328,7 +336,7 @@ MCP can run against any repository layout by setting environment variables:
 
 - `SIH_PROJECT_ROOT`: base path used to resolve relative values.
 - `SIH_RESOURCES_PATH`: optional resources root.
-- `SIH_API_CATALOG_PATH`: explicit `api-catalog.json` path.
+- `SIH_API_CATALOG_PATH`: explicit catalog path, typically `api.catalog`.
 - `SIH_CACHE_PATH`: explicit swagger cache folder.
 - `SIH_WORKFLOWS_PATH`: explicit workflows folder.
 - `SIH_MCP_PROFILE`: optional MCP tool profile (`full` default, `cache` for cache-only toolset).
@@ -340,7 +348,7 @@ Default resolution when env vars are not provided:
 
 Inside the selected resources root:
 
-- catalog: `<resources>/api-catalog.json`
+- catalog: `<resources>/api.catalog`
 - cache: `<resources>/cache`
 - workflows: `<resources>/workflows`
 
@@ -374,7 +382,7 @@ Example (`.vscode/mcp.json`) for a different repository:
       ],
       "env": {
         "SIH_PROJECT_ROOT": "${workspaceFolder}",
-        "SIH_API_CATALOG_PATH": "${workspaceFolder}/automation/catalog/api-catalog.json",
+        "SIH_API_CATALOG_PATH": "${workspaceFolder}/automation/catalog/api.catalog",
         "SIH_CACHE_PATH": "${workspaceFolder}/automation/cache",
         "SIH_WORKFLOWS_PATH": "${workspaceFolder}/automation/workflows"
       }
@@ -387,7 +395,7 @@ Example (`.vscode/mcp.json`) for a different repository:
 
 For MCP to generate workflows autonomously (discover APIs/endpoints and build drafts), you must have:
 
-- `api-catalog.json` available.
+- `api.catalog` available.
 - Swagger cache files available in the configured cache path.
 
 Without cache, MCP cannot inspect endpoint catalogs/schemas directly. In that case, generation only works if the model receives manual `endpointSchema` input.
@@ -462,14 +470,14 @@ If none of those return a valid OpenAPI document, the tool fails with a clear er
 
 MCP also emits warnings to stderr when HTML is detected:
 
-- On startup: if `api-catalog.json` already contains `swaggerUrl` entries that look like HTML/UI URLs.
+- On startup: if the catalog already contains `swaggerUrl` entries that look like HTML/UI URLs.
 - During cache download: when an HTML response is received and fallback resolution starts.
 
 When using `upsert_api_catalog_and_cache`, if `apiName` looks generic (for example `api-5009`), MCP tries to infer a better name from OpenAPI `info.title` so catalog entries and cache filenames are more readable.
 
 ## No Catalog Bootstrap
 
-If `api-catalog.json` does not exist, server startup no longer fails. Use:
+If the catalog file does not exist, server startup no longer fails. Use:
 
 - `generate_api_catalog_file`
 
