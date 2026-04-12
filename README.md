@@ -380,12 +380,16 @@ Unlike Postman's monolithic collections, workflows can reference other workflows
 references:
   workflows:
     - name: "login"
-      path: "./login.workflow"
+      path: "./{{env:TENANT}}/login.workflow"
 stages:
   - name: "authenticate"
     kind: "Workflow"
     workflowRef: "login"  # Reuse login workflow
 ```
+
+`references.workflows[].path` can be templated, so child workflows can vary by environment or business input while keeping the same `workflowRef`.
+The same applies to `references.environmentFile`, `bodyFile`, `dataFile`, and `mock.payloadFile` when those paths need to vary by tenant or environment.
+Execution resolves child workflow paths right before a workflow stage runs. Validation and `--dry-run` may inspect them earlier; if a path still depends on business values, `--dry-run` reports a warning and leaves the final resolution to runtime, where failures are reported with the original path expression and stage context.
 
 #### 🛡️ 2. Contract-First Validation
 

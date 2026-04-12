@@ -6,6 +6,7 @@ output: true
 references:
   workflows:
     - name: "sample-child"
+      # Paths can also use tokens, e.g. "./{{env:TENANT}}/sample-child.workflow".
       path: "./sample-child.workflow"
   apis:
     - name: "accounts"

@@ -23,17 +23,23 @@ references:
   workflows:
     - name: "login"
       path: "./login.workflow"
+    - name: "tenant-login"
+      path: "./{{env:TENANT}}/login.workflow"
   apis:
     - name: "example-service"
       definition: "example-service"
   environmentFile: "./.env"
 ```
 
-- `workflows`: list of referenced workflows (name + relative path).
+- `workflows`: list of referenced workflows (name + path).
+- `workflows[].path`: supports relative paths, absolute paths, and template tokens such as `{{env:NAME}}`, `{{input.name}}`, `{{global.name}}`, `{{context.name}}`, and `{{system:date.utcnow}}`.
 - `apis`: list of API definitions (name + definition in catalog).
 - `environmentFile`: optional `.env` file (key=value) loaded for `{{env:NAME}}` resolution.
+- `environmentFile`: also supports template tokens in the path. In practice, `{{env:NAME}}` and `{{system:*}}` are the safest options because the file is resolved while the workflow is loading.
 
 Child workflows can define their own `environmentFile`; parent values override child values on conflicts.
+Workflow reference paths are resolved relative to the current workflow file after template expansion.
+For `kind: Workflow` stages, the referenced child workflow is resolved and loaded at execution time when the stage runs. Validation and `--dry-run` can also inspect child workflows earlier; when a path depends on business values that are still unavailable, `--dry-run` emits a warning and defers the final resolution to runtime instead of failing immediately.
 
 ## input
 
@@ -119,6 +125,7 @@ stages:
     body: |
       { "name": "{{global:accountName}}" }
     # or: bodyFile: "./payloads/create-account.json"
+    # bodyFile also supports templates, e.g. "./payloads/{{input.tenant}}/create-account.json"
     debug:
       user: "{{input.username}}"
       token: "{{context.tokenId}}"
@@ -131,6 +138,7 @@ stages:
     # optional collection iteration
     # forEach: "{{input.items}}"
     # dataFile: "./seed/accounts.json"
+    # dataFile also supports templates
     # itemName: "item"
     # indexName: "index"
     retry:
@@ -154,6 +162,7 @@ stages:
     mock:
       status: 201
       payloadFile: "./mocks/create-account.json"
+      # payloadFile also supports templates
 ```
 
 Inline JSON payloads are also supported:

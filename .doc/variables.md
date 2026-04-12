@@ -156,6 +156,41 @@ Environment file resolution:
 - If a key is missing in `.env`, the process environment is used as a fallback.
 - The CLI `--envfile` option overrides the root workflow's `references.environmentFile`.
 
+### Variable-based workflow paths
+
+Referenced workflow paths also support template resolution. This allows selecting child workflows by environment or business inputs:
+
+```yaml
+references:
+  environmentFile: "./.env"
+  workflows:
+    - name: "tenant-child"
+      path: "./{{env:TENANT}}/child.workflow"
+```
+
+```yaml
+references:
+  workflows:
+    - name: "tenant-child"
+      path: "./{{input.tenant}}/child.workflow"
+```
+
+Notes:
+
+- Path templates are expanded before resolving the final path relative to the current workflow file.
+- `{{env:NAME}}` works during load/validation when the environment value is already available.
+- `{{input.*}}`, `{{global.*}}`, and `{{context.*}}` are supported at runtime for nested workflow execution. For CLI validation, `{{input.*}}` requires that the value is already provided, for example via `.wfvars` or `--varsfile`.
+- The same approach also applies to `bodyFile`, `dataFile`, and `mock.payloadFile`.
+- `references.environmentFile` also supports templates, but it is resolved earlier in the lifecycle, so in practice it should depend on values already available at load time, typically `env` or `system`.
+
+Resolution timing matters:
+
+- `references.workflows[].path` in a `kind: Workflow` stage is resolved again at execution time, right before the child workflow is loaded. That means runtime values such as `input`, `global`, and `context` can be used for real execution.
+- Validation and `--dry-run` may also resolve and load referenced workflows earlier to inspect inputs, versions, nested plans, and referenced files.
+- When a path depends on business values that are not available yet, `--dry-run` does not fail just because of that. Instead, it emits a warning saying that the path will be resolved at runtime.
+- Runtime is still strict: if the path cannot be resolved when the stage actually runs, execution fails with a stage-specific error that includes the original path expression.
+- Because of that, `env` tokens are the safest choice for reusable paths. `input` is also valid when the caller has already provided the value. `global` and `context` remain runtime-oriented values.
+
 ### System datetime tokens
 
 Use `{{system:datetime.now}}` or `{{system:datetime.utcnow}}` to insert the current timestamp (ISO 8601 format).
