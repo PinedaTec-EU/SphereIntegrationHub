@@ -61,7 +61,7 @@ public sealed class WorkflowExecutor
     private static string FormatStageTag(string workflowName, string stageName)
         => $"{FormatWorkflowTag(workflowName)}#{stageName}";
 
-    private static string FormatWorkflowHeader(string name) => $"workflow {FormatWorkflowTag(name)}";
+    private static string FormatWorkflowHeader(string name, string version) => $"workflow {FormatWorkflowTag(name)} (version {version})";
 
     private static string FormatStepEntry(string stageName) => $"- step: {stageName}";
 
@@ -256,7 +256,7 @@ public sealed class WorkflowExecutor
                 ValidateInputs(definition, context.Inputs);
             }
             InitializeGlobals(definition, context);
-            _logger.Info($"{indent}{FormatWorkflowHeader(definition.Name)}");
+            _logger.Info($"{indent}{FormatWorkflowHeader(definition.Name, definition.Version)}");
 
             if (definition.Stages is not null)
             {
@@ -564,7 +564,7 @@ public sealed class WorkflowExecutor
 
         if (verbose)
         {
-            _logger.Info($"{GetIndent(context.IndentLevel + 1)}Workflow loaded: {nestedDocument.Definition.Name} ({nestedDocument.Definition.Id}).");
+            _logger.Info($"{GetIndent(context.IndentLevel + 1)}Workflow loaded: {nestedDocument.Definition.Name} ({nestedDocument.Definition.Id}) version {nestedDocument.Definition.Version}.");
         }
 
         var nestedInputs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

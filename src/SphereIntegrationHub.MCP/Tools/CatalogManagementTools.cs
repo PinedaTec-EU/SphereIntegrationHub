@@ -1,8 +1,10 @@
 using System.Text.RegularExpressions;
+using SphereIntegrationHub.Definitions;
 using SphereIntegrationHub.MCP.Core;
 using SphereIntegrationHub.MCP.Services.Catalog;
 using SphereIntegrationHub.MCP.Services.Integration;
 using System.Text.Json;
+using YamlDotNet.Serialization;
 
 namespace SphereIntegrationHub.MCP.Tools;
 
@@ -204,7 +206,7 @@ internal static class CatalogSwaggerTemplateBuilder
 /// <summary>
 /// Generates and optionally writes an API catalog file for the target project.
 /// </summary>
-[McpTool("generate_api_catalog_file", "Generates api-catalog.json content and can write it to disk", Category = "Generation", Level = "L1")]
+[McpTool("generate_api_catalog_file", "Generates API catalog content and can write it to disk", Category = "Generation", Level = "L1")]
 public sealed class GenerateApiCatalogFileTool : IMcpTool
 {
     private readonly SihServicesAdapter _adapter;
@@ -215,7 +217,7 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
     }
 
     public string Name => "generate_api_catalog_file";
-    public string Description => "Creates API catalog JSON for new projects. Use this when api-catalog.json does not exist yet.";
+    public string Description => "Creates an API catalog for new projects. Writes YAML by default and also supports JSON output paths.";
 
     public object InputSchema => new
     {
@@ -374,10 +376,10 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
             });
         }
 
-        var json = JsonSerializer.Serialize(versions, CreateCatalogJsonOptions());
         var writeToDisk = ToolArgumentParser.TryReadBool(arguments, "writeToDisk", true);
         var outputPath = arguments?.GetValueOrDefault("outputPath")?.ToString();
         outputPath = ResolveOutputPath(outputPath);
+        var catalogContent = ApiCatalogFile.Serialize(versions, outputPath);
 
         if (writeToDisk)
         {
@@ -387,14 +389,15 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
                 Directory.CreateDirectory(directory);
             }
 
-            File.WriteAllText(outputPath, json);
+            File.WriteAllText(outputPath, catalogContent);
         }
 
         return Task.FromResult<object>(new
         {
             outputPath,
             writeToDisk,
-            catalogJson = json,
+            catalogContent,
+            catalogFormat = ApiCatalogFile.GetFormat(outputPath).ToString().ToLowerInvariant(),
             versionsCount = versions.Count
         });
     }
@@ -502,19 +505,146 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
         };
     }
 
-    private static JsonSerializerOptions CreateCatalogJsonOptions()
+}
+
+/// <summary>
+/// Migrates an existing catalog file to another supported path/format without changing its data.
+/// </summary>
+[McpTool("migrate_api_catalog", "Migrates an existing API catalog to another path/format", Category = "Generation", Level = "L1")]
+public sealed class MigrateApiCatalogTool : IMcpTool
+{
+    private readonly SihServicesAdapter _adapter;
+    private static readonly IDeserializer YamlDeserializer = new DeserializerBuilder().Build();
+    private static readonly ISerializer YamlSerializer = new SerializerBuilder()
+        .ConfigureDefaultValuesHandling(DefaultValuesHandling.OmitNull)
+        .Build();
+
+    public MigrateApiCatalogTool(SihServicesAdapter adapter)
     {
-        return new JsonSerializerOptions
+        _adapter = adapter;
+    }
+
+    public string Name => "migrate_api_catalog";
+    public string Description => "Loads an existing API catalog and rewrites it to another supported path such as api.catalog.";
+
+    public object InputSchema => new
+    {
+        type = "object",
+        properties = new
         {
-            WriteIndented = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+            sourcePath = new { type = "string", description = "Source catalog path. Defaults to configured catalog path." },
+            outputPath = new { type = "string", description = "Target catalog path. Defaults to configured catalog path." },
+            writeToDisk = new { type = "boolean", description = "Write the migrated catalog to disk (default: true)." }
+        }
+    };
+
+    public async Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
+    {
+        var sourcePath = ResolvePath(arguments?.GetValueOrDefault("sourcePath")?.ToString() ?? _adapter.ApiCatalogPath);
+        var outputPath = ResolvePath(arguments?.GetValueOrDefault("outputPath")?.ToString() ?? _adapter.ApiCatalogPath);
+        var writeToDisk = ToolArgumentParser.TryReadBool(arguments, "writeToDisk", true);
+
+        var sourceFormat = ApiCatalogFile.GetFormat(sourcePath);
+        var outputFormat = ApiCatalogFile.GetFormat(outputPath);
+        var sourceContent = await File.ReadAllTextAsync(sourcePath);
+        var document = DeserializeCatalogDocument(sourceContent, sourceFormat);
+        var content = SerializeCatalogDocument(document, outputFormat);
+
+        if (writeToDisk)
+        {
+            var directory = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            await File.WriteAllTextAsync(outputPath, content);
+        }
+
+        return new
+        {
+            sourcePath,
+            outputPath,
+            sourceFormat = sourceFormat.ToString().ToLowerInvariant(),
+            outputFormat = outputFormat.ToString().ToLowerInvariant(),
+            writeToDisk,
+            versionsCount = CountVersions(document),
+            catalogContent = content
+        };
+    }
+
+    private string ResolvePath(string path)
+    {
+        if (Path.IsPathRooted(path))
+        {
+            return Path.GetFullPath(path);
+        }
+
+        return Path.GetFullPath(Path.Combine(_adapter.ProjectRoot, path));
+    }
+
+    private static object? DeserializeCatalogDocument(string content, ApiCatalogFormat format)
+    {
+        return format switch
+        {
+            ApiCatalogFormat.Json => DeserializeJsonDocument(content),
+            ApiCatalogFormat.Yaml => YamlDeserializer.Deserialize<object>(content),
+            _ => throw new ArgumentOutOfRangeException(nameof(format), format, "Unsupported catalog format.")
+        };
+    }
+
+    private static string SerializeCatalogDocument(object? document, ApiCatalogFormat format)
+    {
+        return format switch
+        {
+            ApiCatalogFormat.Json => JsonSerializer.Serialize(document, new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+            }),
+            ApiCatalogFormat.Yaml => YamlSerializer.Serialize(document),
+            _ => throw new ArgumentOutOfRangeException(nameof(format), format, "Unsupported catalog format.")
+        };
+    }
+
+    private static object? DeserializeJsonDocument(string content)
+    {
+        using var document = JsonDocument.Parse(content);
+        return ConvertJsonElement(document.RootElement);
+    }
+
+    private static object? ConvertJsonElement(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.Object => element.EnumerateObject()
+                .ToDictionary(property => property.Name, property => ConvertJsonElement(property.Value)),
+            JsonValueKind.Array => element.EnumerateArray()
+                .Select(ConvertJsonElement)
+                .ToList(),
+            JsonValueKind.String => element.GetString(),
+            JsonValueKind.Number when element.TryGetInt64(out var longValue) => longValue,
+            JsonValueKind.Number => element.GetDouble(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Null => null,
+            _ => element.GetRawText()
+        };
+    }
+
+    private static int CountVersions(object? document)
+    {
+        return document switch
+        {
+            IList<object> list => list.Count,
+            _ => 0
         };
     }
 }
 
 /// <summary>
-/// Creates or updates a single API definition in api-catalog.json and optionally downloads swagger cache.
+/// Creates or updates a single API definition in the API catalog and optionally downloads swagger cache.
 /// </summary>
 [McpTool("upsert_api_catalog_and_cache", "Creates/updates catalog definition from swagger URL and downloads cache file", Category = "Generation", Level = "L1")]
 public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
@@ -528,7 +658,7 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
     }
 
     public string Name => "upsert_api_catalog_and_cache";
-    public string Description => "Upserts one definition into api-catalog.json (create if missing) and downloads swagger cache for it.";
+    public string Description => "Upserts one definition into the API catalog (create if missing) and downloads swagger cache for it.";
 
     public object InputSchema => new
     {
@@ -807,35 +937,12 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
             return ([], true);
         }
 
-        var json = await File.ReadAllTextAsync(catalogPath);
-        var catalog = JsonSerializer.Deserialize<List<ApiCatalogVersion>>(json, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        }) ?? [];
-
-        return (catalog, false);
+        return ((await ApiCatalogFile.LoadAsync(catalogPath)).ToList(), false);
     }
 
     private static async Task SaveCatalogAsync(string catalogPath, List<ApiCatalogVersion> catalog)
     {
-        var directory = Path.GetDirectoryName(catalogPath);
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        var json = JsonSerializer.Serialize(catalog, CreateCatalogJsonOptions());
-        await File.WriteAllTextAsync(catalogPath, json);
-    }
-
-    private static JsonSerializerOptions CreateCatalogJsonOptions()
-    {
-        return new JsonSerializerOptions
-        {
-            WriteIndented = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
-        };
+        await ApiCatalogFile.SaveAsync(catalogPath, catalog);
     }
 
     private async Task<string> DownloadSwaggerToCacheAsync(
@@ -974,7 +1081,7 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
 }
 
 /// <summary>
-/// Downloads swagger cache files for one version from an existing api-catalog.json.
+/// Downloads swagger cache files for one version from an existing API catalog.
 /// </summary>
 [McpTool("refresh_swagger_cache_from_catalog", "Downloads swagger files from api-catalog definitions into cache (defaults: version=0.1, environment=local, refresh=true)", Category = "Generation", Level = "L1")]
 public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
@@ -1019,11 +1126,7 @@ public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
             throw new FileNotFoundException($"Catalog file not found: {_adapter.ApiCatalogPath}");
         }
 
-        var json = await File.ReadAllTextAsync(_adapter.ApiCatalogPath);
-        var catalog = JsonSerializer.Deserialize<List<ApiCatalogVersion>>(json, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        }) ?? [];
+        var catalog = (await ApiCatalogFile.LoadAsync(_adapter.ApiCatalogPath)).ToList();
 
         var versionEntry = catalog.FirstOrDefault(v =>
             v.Version.Equals(version, StringComparison.OrdinalIgnoreCase))
@@ -1097,8 +1200,7 @@ public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
 
         if (renamedDefinitions.Count > 0)
         {
-            var updatedCatalogJson = JsonSerializer.Serialize(catalog, CreateCatalogJsonOptions());
-            await File.WriteAllTextAsync(_adapter.ApiCatalogPath, updatedCatalogJson);
+            await ApiCatalogFile.SaveAsync(_adapter.ApiCatalogPath, catalog);
         }
 
         return new
@@ -1204,13 +1306,4 @@ public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
         return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 
-    private static JsonSerializerOptions CreateCatalogJsonOptions()
-    {
-        return new JsonSerializerOptions
-        {
-            WriteIndented = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
-        };
-    }
 }

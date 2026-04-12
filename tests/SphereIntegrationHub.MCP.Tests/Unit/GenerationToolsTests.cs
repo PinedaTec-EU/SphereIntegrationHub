@@ -866,6 +866,67 @@ endStage:
     }
 
     [Fact]
+    public async Task GenerateApiCatalogFile_WritesYamlCatalog_WhenOutputPathUsesYamlExtension()
+    {
+        var tool = new GenerateApiCatalogFileTool(_adapter);
+        var payload = new[]
+        {
+            new
+            {
+                version = "1.0",
+                definitions = new[]
+                {
+                    new
+                    {
+                        name = "orders",
+                        basePath = "/ordersapi",
+                        swaggerUrl = "/ordersapi/swagger/v1/swagger.json"
+                    }
+                }
+            }
+        };
+
+        var outputPath = Path.Combine(_mockFs.RootPath, "src", "resources", "api.catalog");
+        var args = new Dictionary<string, object>
+        {
+            ["versions"] = JsonSerializer.SerializeToElement(payload),
+            ["outputPath"] = outputPath,
+            ["writeToDisk"] = true
+        };
+
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+        var storedYaml = await File.ReadAllTextAsync(outputPath);
+
+        json.GetProperty("catalogFormat").GetString().Should().Be("yaml");
+        storedYaml.Should().Contain("version: 1.0");
+        storedYaml.Should().Contain("definitions:");
+        storedYaml.Should().Contain("swaggerUrl: /ordersapi/swagger/v1/swagger.json");
+    }
+
+    [Fact]
+    public async Task MigrateApiCatalog_WritesCanonicalCatalog_FromLegacyJson()
+    {
+        var tool = new MigrateApiCatalogTool(_adapter);
+        var outputPath = Path.Combine(_mockFs.RootPath, "src", "resources", "api.catalog");
+        var args = new Dictionary<string, object>
+        {
+            ["sourcePath"] = "src/resources/api-catalog.json",
+            ["outputPath"] = outputPath,
+            ["writeToDisk"] = true
+        };
+
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+        var storedYaml = await File.ReadAllTextAsync(outputPath);
+
+        json.GetProperty("outputFormat").GetString().Should().Be("yaml");
+        storedYaml.Should().Contain("3.10");
+        storedYaml.Should().Contain("AccountsAPI");
+        storedYaml.Should().Contain("api/accounts");
+    }
+
+    [Fact]
     public async Task GenerateApiCatalogFile_WithAbsoluteSwaggerUrl_BuildsTemplateAndPort()
     {
         // Arrange

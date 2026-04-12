@@ -323,7 +323,7 @@ public sealed class WorkflowValidator
                 {
                     var referencedWorkflow = _loader.Load(referencePath, environmentVariables);
                     ValidateWorkflowStageInputs(stage, referencedWorkflow.Definition, errors);
-                    ValidateWorkflowVersion(stage, definition.Version, referencedWorkflow.Definition.Version, errors);
+                    ValidateWorkflowVersion(stage, definition.Version, referencedWorkflow.Definition.Version, warnings);
                 }
                 catch (Exception ex)
                 {
@@ -449,7 +449,7 @@ public sealed class WorkflowValidator
         WorkflowStageDefinition stage,
         string parentVersion,
         string referencedVersion,
-        List<string> errors)
+        List<string> warnings)
     {
         if (string.IsNullOrWhiteSpace(referencedVersion) || string.IsNullOrWhiteSpace(parentVersion))
         {
@@ -467,7 +467,7 @@ public sealed class WorkflowValidator
             return;
         }
 
-        errors.Add($"Stage '{stage.Name}' references workflow version '{referencedVersion}' which differs from parent version '{parentVersion}'.");
+        warnings.Add($"Stage '{stage.Name}' references workflow version '{referencedVersion}' which differs from parent version '{parentVersion}'.");
     }
 
     private void ValidateVariableReferences(

@@ -8,7 +8,6 @@ public sealed class SihServicesAdapter
 {
     private const string SphereFolderName = ".sphere";
     private const string LegacyResourcesRelativePath = "src/resources";
-    private const string ApiCatalogFileName = "api-catalog.json";
     private const string CacheFolderName = "cache";
     private const string WorkflowsFolderName = "workflows";
 
@@ -37,7 +36,7 @@ public sealed class SihServicesAdapter
         ResourcesPath = ResolvePath(options.ResourcesPath ?? defaultResourcesPath);
         CachePath = ResolvePath(options.CachePath ?? Path.Combine(ResourcesPath, CacheFolderName));
         WorkflowsPath = ResolvePath(options.WorkflowsPath ?? Path.Combine(ResourcesPath, WorkflowsFolderName));
-        ApiCatalogPath = ResolvePath(options.ApiCatalogPath ?? Path.Combine(ResourcesPath, ApiCatalogFileName));
+        ApiCatalogPath = ResolvePath(options.ApiCatalogPath ?? ApiCatalogFile.ResolvePath(ResourcesPath));
 
         EnsureWorkflowConfigExists();
         ApiCatalogExists = File.Exists(ApiCatalogPath);
@@ -126,7 +125,7 @@ public sealed class SihServicesAdapter
 
         var spherePath = Path.Combine(_projectRoot, SphereFolderName);
         var legacyPath = Path.Combine(_projectRoot, LegacyResourcesRelativePath);
-        var legacyCatalogPath = Path.Combine(legacyPath, ApiCatalogFileName);
+        var legacyCatalogPath = ApiCatalogFile.ResolvePath(legacyPath);
 
         // Backward compatibility:
         // if a legacy resources structure exists and .sphere is not present yet, keep using legacy.

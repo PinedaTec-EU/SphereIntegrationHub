@@ -1,4 +1,3 @@
-using System.Text.Json;
 using SphereIntegrationHub.MCP.Services.Integration;
 
 namespace SphereIntegrationHub.MCP.Services.Catalog;
@@ -28,11 +27,14 @@ public sealed class ApiCatalogReader : IDisposable
             if (_cachedCatalog != null)
                 return _cachedCatalog;
 
-            var json = await File.ReadAllTextAsync(_adapter.ApiCatalogPath);
-            _cachedCatalog = JsonSerializer.Deserialize<List<ApiCatalogVersion>>(json, new JsonSerializerOptions
+            try
             {
-                PropertyNameCaseInsensitive = true
-            }) ?? [];
+                _cachedCatalog = (await ApiCatalogFile.LoadAsync(_adapter.ApiCatalogPath)).ToList();
+            }
+            catch (InvalidOperationException)
+            {
+                _cachedCatalog = [];
+            }
         }
         finally
         {
