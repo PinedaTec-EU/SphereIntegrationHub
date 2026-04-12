@@ -12,6 +12,8 @@ public sealed class WorkflowOutputWriter : IWorkflowOutputWriter
         WorkflowDocument document,
         string executionId,
         IReadOnlyDictionary<string, string> outputs,
+        IReadOnlySet<string>? secretKeys,
+        IReadOnlySet<string>? secretValues,
         CancellationToken cancellationToken)
     {
         using var activity = Telemetry.ActivitySource.StartActivity(TelemetryConstants.ActivityWorkflowOutputWrite);
@@ -28,7 +30,7 @@ public sealed class WorkflowOutputWriter : IWorkflowOutputWriter
         var fileName = $"{safeName}.{executionId}.workflow.output";
         var outputFilePath = Path.Combine(outputDirectory, fileName);
 
-        var outputPayload = BuildOutputPayload(outputs, definition.EndStage?.OutputJson ?? true);
+        var outputPayload = BuildOutputPayload(outputs, definition.EndStage?.OutputJson ?? true, secretKeys, secretValues);
         var json = JsonSerializer.Serialize(outputPayload, new JsonSerializerOptions { WriteIndented = true });
         await File.WriteAllTextAsync(outputFilePath, json, cancellationToken);
         return outputFilePath;
@@ -36,10 +38,12 @@ public sealed class WorkflowOutputWriter : IWorkflowOutputWriter
 
     private static IReadOnlyDictionary<string, object?> BuildOutputPayload(
         IReadOnlyDictionary<string, string> outputs,
-        bool outputJson)
+        bool outputJson,
+        IReadOnlySet<string>? secretKeys,
+        IReadOnlySet<string>? secretValues)
     {
         var payload = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        foreach (var pair in outputs)
+        foreach (var pair in WorkflowExecutionRedactor.RedactOutputStrings(outputs, secretKeys, secretValues))
         {
             if (outputJson && TryParseJsonValue(pair.Value, out var parsed))
             {

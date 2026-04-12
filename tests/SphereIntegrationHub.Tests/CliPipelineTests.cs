@@ -183,8 +183,8 @@ public sealed class CliPipelineTests
 
         Assert.Equal(0, result.ExitCode);
         Assert.Contains(result.Messages, message => message.Text.Contains("Features:", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(result.Messages, message => message.Text.Contains("Health readiness retry: enabled for 1/1 API definitions", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(result.Messages, message => message.Text.Contains("readiness: true", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains("Health check retry policy: enabled for 1/1 APIs", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains("Startup guard: enabled", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Messages, message => message.Text.Contains("API health checks:", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Messages, message => message.Text.Contains("Policy accounts: retries=2, delay=10ms, timeout=2000ms, healthyStatus=[200]", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Messages, message => message.Text.Contains($"OK accounts -> {server.Url}/health after 1 attempt(s)", StringComparison.OrdinalIgnoreCase));
@@ -302,8 +302,8 @@ public sealed class CliPipelineTests
 
         Assert.Equal(0, result.ExitCode);
         Assert.Contains(result.Messages, message => message.Text.Contains("Features:", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(result.Messages, message => message.Text.Contains("Health readiness retry: disabled for 0/1 API definitions", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(result.Messages, message => message.Text.Contains("readiness: false", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains("Health check retry policy: not configured for 1 APIs", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains("Startup guard: disabled", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

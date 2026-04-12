@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 using SphereIntegrationHub.Services;
 
 namespace SphereIntegrationHub.Tests;
@@ -103,6 +105,37 @@ public sealed class WorkflowExecutionRedactorTests
 
         Assert.Equal("*****", result["nonce"]);
         Assert.Equal("usr-001", result["userId"]);
+    }
+
+    [Fact]
+    public void ConvertOutputs_WithSecretValueEmbeddedInComposedString_MasksOnlyTheSecretFragment()
+    {
+        const string secretValue = "super-secret-token";
+        var outputs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["combined"] = $"visible=usr-001; secret={secretValue}"
+        };
+        var secretValues = new HashSet<string>(StringComparer.Ordinal) { secretValue };
+
+        var result = WorkflowExecutionRedactor.ConvertOutputs(outputs, secretValues: secretValues);
+
+        Assert.Equal("visible=usr-001; secret=*****", result["combined"]);
+    }
+
+    [Fact]
+    public void ConvertOutputs_WithSecretValueEmbeddedInJson_MasksOnlyTheSecretFragment()
+    {
+        const string secretValue = "super-secret-token";
+        var outputs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["payload"] = $$"""{"combined":"visible=usr-001; secret={{secretValue}}"}"""
+        };
+        var secretValues = new HashSet<string>(StringComparer.Ordinal) { secretValue };
+
+        var result = WorkflowExecutionRedactor.ConvertOutputs(outputs, secretValues: secretValues);
+        var payload = Assert.IsType<JsonElement>(result["payload"]);
+
+        Assert.Equal("visible=usr-001; secret=*****", payload.GetProperty("combined").GetString());
     }
 
     [Fact]
