@@ -35,7 +35,7 @@ public sealed class WorkflowOutputWriterTests
         var writer = new WorkflowOutputWriter();
         const string executionId = "exec-1";
 
-        var outputFilePath = await writer.WriteOutputAsync(definition, document, executionId, outputs, CancellationToken.None);
+        var outputFilePath = await writer.WriteOutputAsync(definition, document, executionId, outputs, secretKeys: null, secretValues: null, CancellationToken.None);
 
         Assert.False(string.IsNullOrWhiteSpace(outputFilePath));
         Assert.True(File.Exists(outputFilePath));
@@ -46,5 +46,52 @@ public sealed class WorkflowOutputWriterTests
         Assert.Equal("value", parsed.RootElement.GetProperty("name").GetString());
         Assert.Equal(JsonValueKind.Object, parsed.RootElement.GetProperty("payload").ValueKind);
         Assert.Equal(1, parsed.RootElement.GetProperty("payload").GetProperty("id").GetInt32());
+    }
+
+    [Fact]
+    public async Task WriteOutputAsync_RedactsSecretKeysAndEmbeddedSecretValues()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"aos-output-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+        var workflowPath = Path.Combine(tempRoot, "workflow.yaml");
+
+        var definition = new WorkflowDefinition
+        {
+            Id = "test",
+            Name = "test workflow",
+            Output = true,
+            EndStage = new WorkflowEndStage
+            {
+                OutputJson = true
+            }
+        };
+
+        const string secretValue = "super-secret-token";
+        var outputs = new Dictionary<string, string>
+        {
+            ["secretKey"] = secretValue,
+            ["combined"] = $"visible=value; secret={secretValue}",
+            ["payload"] = $$"""{"combined":"visible=value; secret={{secretValue}}"}"""
+        };
+
+        var document = new WorkflowDocument(definition, workflowPath, new Dictionary<string, string>());
+        var writer = new WorkflowOutputWriter();
+        const string executionId = "exec-1";
+
+        var outputFilePath = await writer.WriteOutputAsync(
+            definition,
+            document,
+            executionId,
+            outputs,
+            secretKeys: new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "secretKey" },
+            secretValues: new HashSet<string>(StringComparer.Ordinal) { secretValue },
+            CancellationToken.None);
+
+        var json = await File.ReadAllTextAsync(outputFilePath!);
+        using var parsed = JsonDocument.Parse(json);
+
+        Assert.Equal("*****", parsed.RootElement.GetProperty("secretKey").GetString());
+        Assert.Equal("visible=value; secret=*****", parsed.RootElement.GetProperty("combined").GetString());
+        Assert.Equal("visible=value; secret=*****", parsed.RootElement.GetProperty("payload").GetProperty("combined").GetString());
     }
 }

@@ -179,6 +179,7 @@ internal static class WorkflowExecutionReportOptionsResolver
 
 internal static class WorkflowExecutionRedactor
 {
+    private const string MaskedValue = "*****";
     private static readonly string[] SensitiveKeys = ["authorization", "cookie", "set-cookie", "token", "secret", "password", "apikey", "api-key"];
 
     public static Dictionary<string, string>? RedactHeaders(IReadOnlyDictionary<string, string>? headers, bool enabled)
@@ -218,14 +219,8 @@ internal static class WorkflowExecutionRedactor
         IReadOnlySet<string>? secretValues = null)
     {
         var result = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        foreach (var pair in outputs)
+        foreach (var pair in RedactOutputStrings(outputs, secretKeys, secretValues))
         {
-            if (secretKeys?.Contains(pair.Key) == true || (secretValues?.Count > 0 && !string.IsNullOrEmpty(pair.Value) && secretValues.Contains(pair.Value)))
-            {
-                result[pair.Key] = "*****";
-                continue;
-            }
-
             if (JsonValueHelper.TryParse(pair.Value, out var json))
             {
                 result[pair.Key] = json;
@@ -239,8 +234,55 @@ internal static class WorkflowExecutionRedactor
         return result;
     }
 
+    public static Dictionary<string, string> RedactOutputStrings(
+        IReadOnlyDictionary<string, string> outputs,
+        IReadOnlySet<string>? secretKeys = null,
+        IReadOnlySet<string>? secretValues = null)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in outputs)
+        {
+            result[pair.Key] = RedactOutputValue(pair.Key, pair.Value, secretKeys, secretValues);
+        }
+
+        return result;
+    }
+
+    public static string RedactOutputValue(
+        string key,
+        string value,
+        IReadOnlySet<string>? secretKeys = null,
+        IReadOnlySet<string>? secretValues = null)
+    {
+        if (secretKeys?.Contains(key) == true)
+        {
+            return MaskedValue;
+        }
+
+        return ReplaceSecretValues(value, secretValues);
+    }
+
     private static bool IsSensitive(string key)
         => SensitiveKeys.Any(fragment => key.Contains(fragment, StringComparison.OrdinalIgnoreCase));
+
+    private static string ReplaceSecretValues(string value, IReadOnlySet<string>? secretValues)
+    {
+        if (string.IsNullOrEmpty(value) || secretValues is null || secretValues.Count == 0)
+        {
+            return value;
+        }
+
+        var redacted = value;
+        foreach (var secretValue in secretValues
+                     .Where(static value => !string.IsNullOrEmpty(value))
+                     .Distinct(StringComparer.Ordinal)
+                     .OrderByDescending(static value => value.Length))
+        {
+            redacted = redacted.Replace(secretValue, MaskedValue, StringComparison.Ordinal);
+        }
+
+        return redacted;
+    }
 
     private static JsonElement RedactJsonElement(JsonElement element)
     {

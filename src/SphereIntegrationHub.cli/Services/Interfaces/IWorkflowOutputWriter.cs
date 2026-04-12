@@ -9,5 +9,7 @@ public interface IWorkflowOutputWriter
         WorkflowDocument document,
         string executionId,
         IReadOnlyDictionary<string, string> outputs,
+        IReadOnlySet<string>? secretKeys,
+        IReadOnlySet<string>? secretValues,
         CancellationToken cancellationToken);
 }

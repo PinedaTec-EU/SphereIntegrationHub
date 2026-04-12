@@ -421,6 +421,9 @@ public sealed class WorkflowExecutor
             context.WorkflowOutputsJson[definition.Name] = BuildJsonMap(workflowOutput);
 
             ApplyEndStageContext(definition, context);
+            var endStageSecretKeys = definition.EndStage?.SecretOutputs is { Count: > 0 }
+                ? new HashSet<string>(definition.EndStage.SecretOutputs, StringComparer.OrdinalIgnoreCase)
+                : null;
             if (definition.Output)
             {
                 context.OutputFilePath = await _outputWriter.WriteOutputAsync(
@@ -428,6 +431,8 @@ public sealed class WorkflowExecutor
                     document,
                     context.Report?.ExecutionId ?? Ulid.NewUlid().ToString(),
                     workflowOutput,
+                    endStageSecretKeys,
+                    context.SecretValues,
                     cancellationToken);
             }
 
@@ -1034,6 +1039,10 @@ public sealed class WorkflowExecutor
         var outputs = context.WorkflowOutputs.TryGetValue(document.Definition.Name, out var workflowOutputs)
             ? workflowOutputs
             : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var endStageSecretKeys = document.Definition.EndStage?.SecretOutputs is { Count: > 0 }
+            ? new HashSet<string>(document.Definition.EndStage.SecretOutputs, StringComparer.OrdinalIgnoreCase)
+            : null;
+        var redactedOutputs = WorkflowExecutionRedactor.RedactOutputStrings(outputs, endStageSecretKeys, context.SecretValues);
 
         if (context.Report is not null)
         {
@@ -1041,9 +1050,6 @@ public sealed class WorkflowExecutor
             context.Report.ErrorMessage = errorMessage;
             context.Report.FinishedAtUtc = _systemProvider.UtcNow;
             context.Report.DurationMs = (long)(context.Report.FinishedAtUtc.Value - context.Report.StartedAtUtc).TotalMilliseconds;
-            var endStageSecretKeys = document.Definition.EndStage?.SecretOutputs is { Count: > 0 }
-                ? new HashSet<string>(document.Definition.EndStage.SecretOutputs, StringComparer.OrdinalIgnoreCase)
-                : null;
             context.Report.Output = WorkflowExecutionRedactor.ConvertOutputs(outputs, endStageSecretKeys, context.SecretValues);
             context.Report.OutputFilePath = context.OutputFilePath;
             context.Report.Metrics.TotalStages = context.Report.Stages.Count;
@@ -1054,7 +1060,7 @@ public sealed class WorkflowExecutor
             ? new WorkflowExecutionArtifacts(null, null)
             : await _reportWriter.WriteAsync(context.Report, document, _reportOptions, cancellationToken);
 
-        return new WorkflowExecutionResult(outputs, context.OutputFilePath, artifacts.JsonReportPath, artifacts.HtmlReportPath, context.Report?.ExecutionId);
+        return new WorkflowExecutionResult(redactedOutputs, context.OutputFilePath, artifacts.JsonReportPath, artifacts.HtmlReportPath, context.Report?.ExecutionId);
     }
 
     private WorkflowStageExecutionRecord BeginStageRecord(string workflowName, WorkflowStageDefinition stage, ExecutionContext context, bool isMocked)
