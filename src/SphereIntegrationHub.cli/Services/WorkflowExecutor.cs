@@ -533,8 +533,25 @@ public sealed class WorkflowExecutor
             throw new InvalidOperationException($"Workflow reference '{stage.WorkflowRef}' was not found.");
         }
 
-        var nestedPath = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(document.FilePath) ?? string.Empty, reference.Path));
-        var nestedDocument = _workflowLoader.Load(nestedPath, context.EnvironmentVariables);
+        string nestedPath;
+        WorkflowDocument nestedDocument;
+        try
+        {
+            nestedPath = WorkflowReferencePathResolver.ResolvePath(
+                reference.Path,
+                document.FilePath,
+                context.EnvironmentVariables,
+                context.Inputs,
+                context.Globals,
+                context.Context);
+            nestedDocument = _workflowLoader.Load(nestedPath, context.EnvironmentVariables);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"Stage '{stage.Name}' workflowRef '{stage.WorkflowRef}' could not load path '{reference.Path}': {ex.Message}",
+                ex);
+        }
         if (verbose)
         {
             _logger.Info($"{GetIndent(context)}{FormatStageTag(document.Definition.Name, stage.Name)} resolved workflow '{nestedDocument.Definition.Name}' at '{nestedDocument.FilePath}'.");
@@ -1143,8 +1160,21 @@ public sealed class WorkflowExecutor
         JsonElement source;
         if (!string.IsNullOrWhiteSpace(stage.DataFile))
         {
-            var resolvedDataFile = _templateResolver.ResolveTemplate(stage.DataFile, context.BuildTemplateContext(workflowPath));
-            var rawContent = _dataFileService.LoadText(resolvedDataFile, workflowPath);
+            var templateContext = context.BuildTemplateContext(workflowPath);
+            string resolvedDataFile;
+            string rawContent;
+            try
+            {
+                resolvedDataFile = WorkflowReferencePathResolver.ResolvePath(stage.DataFile, templateContext);
+                rawContent = _dataFileService.LoadText(resolvedDataFile, workflowPath);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(
+                    $"Stage '{stage.Name}' dataFile '{stage.DataFile}' could not be loaded: {ex.Message}",
+                    ex);
+            }
+
             var resolvedContent = _templateResolver.ResolveTemplate(rawContent, context.BuildTemplateContext(workflowPath));
             source = _dataFileService.ParseStructured(resolvedContent, resolvedDataFile);
             if (!string.IsNullOrWhiteSpace(stage.ForEach))
@@ -1755,11 +1785,19 @@ public sealed class WorkflowExecutor
             throw new InvalidOperationException($"Stage '{stage.Name}' mock cannot define both payload and payloadFile.");
         }
 
-        var rawPayload = string.IsNullOrWhiteSpace(stage.Mock?.PayloadFile)
-            ? _mockPayloadService.LoadRawPayload(stage.Mock?.Payload ?? string.Empty, workflowPath)
-            : _mockPayloadService.LoadRawPayloadFromFile(
-                _templateResolver.ResolveTemplate(stage.Mock.PayloadFile, context.BuildTemplateContext()),
-                workflowPath);
+        string rawPayload;
+        try
+        {
+            rawPayload = string.IsNullOrWhiteSpace(stage.Mock?.PayloadFile)
+                ? _mockPayloadService.LoadRawPayload(stage.Mock?.Payload ?? string.Empty, workflowPath)
+                : _mockPayloadService.LoadRawPayloadFromFile(stage.Mock.PayloadFile, context.BuildTemplateContext(workflowPath));
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"Stage '{stage.Name}' mock payload source could not be loaded: {ex.Message}",
+                ex);
+        }
 
         if (string.IsNullOrWhiteSpace(rawPayload))
         {

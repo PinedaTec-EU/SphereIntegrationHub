@@ -37,6 +37,42 @@ public sealed class MockPayloadServiceTests
     }
 
     [Fact]
+    public void LoadRawPayloadFromFile_ResolvesTemplatePath()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        var tenantDir = Path.Combine(tempDir, "tenant-a");
+        Directory.CreateDirectory(tenantDir);
+        var payloadPath = Path.Combine(tenantDir, "payload.json");
+        File.WriteAllText(payloadPath, "{\"id\":\"abc\"}");
+
+        try
+        {
+            var service = new MockPayloadService();
+            var workflowPath = Path.Combine(tempDir, "workflow.workflow");
+            var context = new TemplateContext(
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["tenant"] = "tenant-a"
+                },
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase),
+                new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase),
+                new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase),
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                WorkflowPath: workflowPath);
+
+            var result = service.LoadRawPayloadFromFile("./{{input.tenant}}/payload.json", context);
+
+            Assert.Equal("{\"id\":\"abc\"}", result);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
     public void TryParseJson_RejectsInvalidJson()
     {
         var ok = MockPayloadService.TryParseJson("{\"id\":1}", out var error);

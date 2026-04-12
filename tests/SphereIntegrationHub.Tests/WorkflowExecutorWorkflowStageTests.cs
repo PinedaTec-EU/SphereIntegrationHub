@@ -406,6 +406,139 @@ endStage:
         }
     }
 
+    [Fact]
+    public async Task ExecuteAsync_ResolvesWorkflowReferencePathFromInputVariables()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"sih-dynamic-workflow-ref-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+        var tenantDirectory = Path.Combine(tempRoot, "tenant-a");
+        Directory.CreateDirectory(tenantDirectory);
+        var parentPath = Path.Combine(tempRoot, "parent.workflow");
+        var childPath = Path.Combine(tenantDirectory, "child.workflow");
+
+        File.WriteAllText(childPath, """
+version: "1.0"
+id: "child"
+name: "child"
+output: true
+input:
+  - name: "tenant"
+    type: "Text"
+    required: true
+endStage:
+  output:
+    selectedTenant: "{{input.tenant}}"
+""");
+
+        File.WriteAllText(parentPath, """
+version: "1.0"
+id: "parent"
+name: "parent"
+output: true
+input:
+  - name: "tenant"
+    type: "Text"
+    required: true
+references:
+  workflows:
+    - name: "child"
+      path: "./{{input.tenant}}/child.workflow"
+stages:
+  - name: "run-child"
+    kind: "Workflow"
+    workflowRef: "child"
+    inputs:
+      tenant: "{{input.tenant}}"
+endStage:
+  output:
+    selectedTenant: "{{workflow:run-child.output.selectedTenant}}"
+""");
+
+        try
+        {
+            using var httpClient = new HttpClient();
+            var executor = new WorkflowExecutor(httpClient, new DynamicValueService());
+            var loader = new WorkflowLoader();
+            var document = loader.Load(parentPath);
+
+            var result = await executor.ExecuteAsync(
+                document,
+                new ApiCatalogVersion
+                {
+                    Version = "test",
+                    Definitions = new List<ApiDefinition>()
+                },
+                "test",
+                new Dictionary<string, string>
+                {
+                    ["tenant"] = "tenant-a"
+                },
+                varsOverrideActive: false,
+                mocked: false,
+                verbose: false,
+                debug: false,
+                cancellationToken: CancellationToken.None);
+
+            Assert.Equal("tenant-a", result.Output["selectedTenant"]);
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, true);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_FailsClearlyWhenWorkflowReferencePathCannotBeResolvedAtRuntime()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"sih-dynamic-workflow-ref-error-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+        var parentPath = Path.Combine(tempRoot, "parent.workflow");
+
+        File.WriteAllText(parentPath, """
+version: "1.0"
+id: "parent"
+name: "parent"
+output: true
+references:
+  workflows:
+    - name: "child"
+      path: "./{{input.tenant}}/child.workflow"
+stages:
+  - name: "run-child"
+    kind: "Workflow"
+    workflowRef: "child"
+""");
+
+        try
+        {
+            using var httpClient = new HttpClient();
+            var executor = new WorkflowExecutor(httpClient, new DynamicValueService());
+            var loader = new WorkflowLoader();
+            var document = loader.Load(parentPath);
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => executor.ExecuteAsync(
+                document,
+                new ApiCatalogVersion
+                {
+                    Version = "test",
+                    Definitions = new List<ApiDefinition>()
+                },
+                "test",
+                new Dictionary<string, string>(),
+                varsOverrideActive: false,
+                mocked: false,
+                verbose: false,
+                debug: false,
+                cancellationToken: CancellationToken.None));
+
+            Assert.Contains("workflowRef 'child' could not load path './{{input.tenant}}/child.workflow'", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, true);
+        }
+    }
+
     private sealed class TestReportWriter : IWorkflowExecutionReportWriter
     {
         public WorkflowExecutionReport? CapturedReport { get; private set; }

@@ -6,6 +6,9 @@ namespace SphereIntegrationHub.Services;
 
 public sealed class WorkflowValidator
 {
+    private static readonly IReadOnlyDictionary<string, string> EmptyEnvironmentVariables =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
     private readonly WorkflowLoader _loader;
     private readonly MockPayloadService _mockPayloadService;
 
@@ -15,11 +18,19 @@ public sealed class WorkflowValidator
         _mockPayloadService = new MockPayloadService();
     }
 
-    public IReadOnlyList<string> Validate(WorkflowDocument document)
+    public IReadOnlyList<string> Validate(
+        WorkflowDocument document,
+        IReadOnlyDictionary<string, string>? runtimeInputs = null)
+        => ValidateWithDetails(document, runtimeInputs).Errors;
+
+    public WorkflowValidationResult ValidateWithDetails(
+        WorkflowDocument document,
+        IReadOnlyDictionary<string, string>? runtimeInputs = null)
     {
         using var activity = Telemetry.ActivitySource.StartActivity(TelemetryConstants.ActivityWorkflowValidate);
         activity?.SetTag(TelemetryConstants.TagWorkflowName, document.Definition.Name);
         var errors = new List<string>();
+        var warnings = new List<string>();
         var definition = document.Definition;
 
         if (string.IsNullOrWhiteSpace(definition.Version))
@@ -39,11 +50,11 @@ public sealed class WorkflowValidator
 
         ValidateInputs(definition.Input, errors);
         ValidateInitStage(definition.InitStage, errors);
-        ValidateStages(definition, document.FilePath, document.EnvironmentVariables, errors);
+        ValidateStages(definition, document.FilePath, document.EnvironmentVariables, runtimeInputs, errors, warnings);
         ValidateEndStage(definition, errors);
-        ValidateVariableReferences(definition, document.FilePath, document.EnvironmentVariables, errors);
+        ValidateVariableReferences(definition, document.FilePath, document.EnvironmentVariables, runtimeInputs, errors, warnings);
 
-        return errors;
+        return new WorkflowValidationResult(errors, warnings);
     }
 
     private static void ValidateInputs(IReadOnlyList<WorkflowInputDefinition>? inputs, List<string> errors)
@@ -128,7 +139,9 @@ public sealed class WorkflowValidator
         WorkflowDefinition definition,
         string workflowPath,
         IReadOnlyDictionary<string, string> environmentVariables,
-        List<string> errors)
+        IReadOnlyDictionary<string, string>? runtimeInputs,
+        List<string> errors,
+        List<string> warnings)
     {
         if (definition.Stages is null || definition.Stages.Count == 0)
         {
@@ -140,7 +153,13 @@ public sealed class WorkflowValidator
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var stageNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var references = definition.References;
-        var workflowLookup = BuildWorkflowReferenceLookup(references?.Workflows, workflowPath, errors);
+        var workflowLookup = BuildWorkflowLookupForValidation(
+            references?.Workflows,
+            workflowPath,
+            environmentVariables,
+            runtimeInputs,
+            errors,
+            warnings);
         var apiLookup = BuildApiReferenceLookup(references?.Apis, errors);
 
         foreach (var stage in definition.Stages)
@@ -279,9 +298,18 @@ public sealed class WorkflowValidator
                     continue;
                 }
 
-                if (!workflowLookup.TryGetValue(stage.WorkflowRef, out var referencePath))
+                var declaredReference = references?.Workflows?.FirstOrDefault(reference =>
+                    string.Equals(reference.Name, stage.WorkflowRef, StringComparison.OrdinalIgnoreCase));
+
+                if (declaredReference is null)
                 {
                     errors.Add($"Stage '{stage.Name}' workflowRef '{stage.WorkflowRef}' is not declared in references.");
+                    continue;
+                }
+
+                if (!workflowLookup.TryGetValue(stage.WorkflowRef, out var referencePath))
+                {
+                    warnings.Add($"Stage '{stage.Name}' workflowRef '{stage.WorkflowRef}' will be validated fully at runtime because its path depends on deferred values.");
                     continue;
                 }
 
@@ -446,7 +474,9 @@ public sealed class WorkflowValidator
         WorkflowDefinition definition,
         string workflowPath,
         IReadOnlyDictionary<string, string> environmentVariables,
-        List<string> errors)
+        IReadOnlyDictionary<string, string>? runtimeInputs,
+        List<string> errors,
+        List<string> warnings)
     {
         var inputNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (definition.Input is not null)
@@ -479,7 +509,13 @@ public sealed class WorkflowValidator
         var endpointOutputs = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         var workflowOutputs = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
 
-        var workflowRefs = BuildWorkflowReferenceLookup(definition.References?.Workflows, workflowPath, errors);
+        var workflowRefs = BuildWorkflowLookupForValidation(
+            definition.References?.Workflows,
+            workflowPath,
+            environmentVariables,
+            runtimeInputs,
+            errors,
+            warnings);
 
         if (definition.Stages is not null)
         {
@@ -542,7 +578,7 @@ public sealed class WorkflowValidator
         {
             foreach (var stage in definition.Stages)
             {
-                var responseSample = TryLoadEndpointMockResponseSample(stage, workflowPath);
+                var responseSample = TryLoadEndpointMockResponseSample(stage, workflowPath, environmentVariables, runtimeInputs);
 
                 if (stage.Headers is not null)
                 {
@@ -567,9 +603,8 @@ public sealed class WorkflowValidator
 
                 if (!string.IsNullOrWhiteSpace(stage.BodyFile))
                 {
-                    if (!stage.BodyFile.Contains("{{", StringComparison.Ordinal))
+                    if (TryResolvePathForValidation(stage.BodyFile, workflowPath, environmentVariables, runtimeInputs, out var resolvedPath, out var resolutionError, out var resolutionWarning))
                     {
-                        var resolvedPath = ResolveRelativePath(stage.BodyFile, workflowPath);
                         if (!File.Exists(resolvedPath))
                         {
                             errors.Add($"Stage '{stage.Name}' bodyFile '{stage.BodyFile}' was not found.");
@@ -579,17 +614,32 @@ public sealed class WorkflowValidator
                             ValidateTemplate(File.ReadAllText(resolvedPath), inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' bodyFile", errors);
                         }
                     }
+                    else if (resolutionWarning is not null)
+                    {
+                        warnings.Add($"Stage '{stage.Name}' bodyFile '{stage.BodyFile}' will be resolved at runtime: {resolutionWarning}");
+                    }
+                    else if (resolutionError is not null)
+                    {
+                        errors.Add($"Stage '{stage.Name}' bodyFile '{stage.BodyFile}' could not be resolved: {resolutionError}");
+                    }
                 }
 
                 if (!string.IsNullOrWhiteSpace(stage.DataFile))
                 {
-                    if (!stage.DataFile.Contains("{{", StringComparison.Ordinal))
+                    if (TryResolvePathForValidation(stage.DataFile, workflowPath, environmentVariables, runtimeInputs, out var resolvedPath, out var resolutionError, out var resolutionWarning))
                     {
-                        var resolvedPath = ResolveRelativePath(stage.DataFile, workflowPath);
                         if (!File.Exists(resolvedPath))
                         {
                             errors.Add($"Stage '{stage.Name}' dataFile '{stage.DataFile}' was not found.");
                         }
+                    }
+                    else if (resolutionWarning is not null)
+                    {
+                        warnings.Add($"Stage '{stage.Name}' dataFile '{stage.DataFile}' will be resolved at runtime: {resolutionWarning}");
+                    }
+                    else if (resolutionError is not null)
+                    {
+                        errors.Add($"Stage '{stage.Name}' dataFile '{stage.DataFile}' could not be resolved: {resolutionError}");
                     }
                 }
 
@@ -674,7 +724,7 @@ public sealed class WorkflowValidator
 
                 if (stage.Mock is not null)
                 {
-                    ValidateMockDefinition(stage, workflowPath, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, errors);
+                    ValidateMockDefinition(stage, workflowPath, inputNames, globalNames, environmentVariables, runtimeInputs, endpointOutputs, workflowOutputs, errors, warnings);
                 }
             }
         }
@@ -1060,12 +1110,125 @@ public sealed class WorkflowValidator
         }
     }
 
-    private static string ResolveRelativePath(string path, string workflowPath)
+    private string LoadMockPayloadForValidation(
+        WorkflowStageDefinition stage,
+        string workflowPath,
+        IReadOnlyDictionary<string, string> environmentVariables,
+        IReadOnlyDictionary<string, string>? runtimeInputs)
     {
-        var baseDirectory = Path.GetDirectoryName(workflowPath) ?? string.Empty;
-        return Path.IsPathRooted(path)
-            ? path
-            : Path.GetFullPath(Path.Combine(baseDirectory, path));
+        var payloadFile = stage.Mock?.PayloadFile ?? string.Empty;
+        if (TryResolvePathForValidation(payloadFile, workflowPath, environmentVariables, runtimeInputs, out _, out var resolutionError, out var resolutionWarning))
+        {
+            return _mockPayloadService.LoadRawPayloadFromFile(
+                payloadFile,
+                new TemplateContext(
+                    runtimeInputs ?? EmptyEnvironmentVariables,
+                    EmptyEnvironmentVariables,
+                    EmptyEnvironmentVariables,
+                    new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase),
+                    new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase),
+                    new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase),
+                    environmentVariables,
+                    WorkflowPath: workflowPath));
+        }
+
+        if (resolutionWarning is not null)
+        {
+            throw new DeferredPathResolutionException(resolutionWarning);
+        }
+
+        throw new InvalidOperationException(resolutionError ?? "Mock payload file path could not be resolved.");
+    }
+
+    private static Dictionary<string, string> BuildWorkflowLookupForValidation(
+        IReadOnlyList<WorkflowReferenceItem>? references,
+        string workflowPath,
+        IReadOnlyDictionary<string, string> environmentVariables,
+        IReadOnlyDictionary<string, string>? runtimeInputs,
+        List<string> errors,
+        List<string> warnings)
+    {
+        var lookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (references is null)
+        {
+            return lookup;
+        }
+
+        foreach (var reference in references)
+        {
+            if (string.IsNullOrWhiteSpace(reference.Name))
+            {
+                errors.Add("Reference name is required.");
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(reference.Path))
+            {
+                errors.Add($"Reference '{reference.Name}' path is required.");
+                continue;
+            }
+
+            if (lookup.ContainsKey(reference.Name))
+            {
+                errors.Add($"Duplicate reference name '{reference.Name}'.");
+                continue;
+            }
+
+            if (TryResolvePathForValidation(reference.Path, workflowPath, environmentVariables, runtimeInputs, out var resolvedPath, out var resolutionError, out var resolutionWarning))
+            {
+                lookup.Add(reference.Name, resolvedPath);
+                continue;
+            }
+
+            if (resolutionWarning is not null)
+            {
+                warnings.Add($"Reference '{reference.Name}' path '{reference.Path}' will be resolved at runtime: {resolutionWarning}");
+                continue;
+            }
+
+            errors.Add($"Reference '{reference.Name}' path '{reference.Path}' could not be resolved: {resolutionError}");
+        }
+
+        return lookup;
+    }
+
+    private static bool TryResolvePathForValidation(
+        string path,
+        string workflowPath,
+        IReadOnlyDictionary<string, string> environmentVariables,
+        IReadOnlyDictionary<string, string>? runtimeInputs,
+        out string resolvedPath,
+        out string? error,
+        out string? warning)
+    {
+        try
+        {
+            resolvedPath = WorkflowReferencePathResolver.ResolvePath(path, workflowPath, environmentVariables, runtimeInputs);
+            error = null;
+            warning = null;
+            return true;
+        }
+        catch (Exception ex) when (CanSkipPathResolution(ex))
+        {
+            resolvedPath = string.Empty;
+            error = null;
+            warning = ex.Message;
+            return false;
+        }
+        catch (Exception ex)
+        {
+            resolvedPath = string.Empty;
+            error = ex.Message;
+            warning = null;
+            return false;
+        }
+    }
+
+    private static bool CanSkipPathResolution(Exception ex)
+    {
+        var message = ex.Message;
+        return message.Contains("was not found", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("could not be resolved", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void ValidateResilienceDefinitions(WorkflowResilienceDefinition? resilience, List<string> errors)
@@ -1202,9 +1365,11 @@ public sealed class WorkflowValidator
         HashSet<string> inputs,
         HashSet<string> globals,
         IReadOnlyDictionary<string, string> environmentVariables,
+        IReadOnlyDictionary<string, string>? runtimeInputs,
         Dictionary<string, HashSet<string>> endpointOutputs,
         Dictionary<string, HashSet<string>> workflowOutputs,
-        List<string> errors)
+        List<string> errors,
+        List<string> warnings)
     {
         if (stage.Mock?.Status is <= 0)
         {
@@ -1230,20 +1395,17 @@ public sealed class WorkflowValidator
                 return;
             }
 
-            var payloadFileHasTokens = !string.IsNullOrWhiteSpace(stage.Mock?.PayloadFile)
-                && stage.Mock.PayloadFile.Contains("{{", StringComparison.Ordinal);
-
-            if (payloadFileHasTokens)
-            {
-                return;
-            }
-
             string rawPayload;
             try
             {
                 rawPayload = string.IsNullOrWhiteSpace(stage.Mock?.PayloadFile)
                     ? _mockPayloadService.LoadRawPayload(stage.Mock?.Payload ?? string.Empty, workflowPath)
-                    : _mockPayloadService.LoadRawPayloadFromFile(stage.Mock?.PayloadFile ?? string.Empty, workflowPath);
+                    : LoadMockPayloadForValidation(stage, workflowPath, environmentVariables, runtimeInputs);
+            }
+            catch (DeferredPathResolutionException ex)
+            {
+                warnings.Add($"Stage '{stage.Name}' mock payloadFile '{stage.Mock?.PayloadFile}' will be resolved at runtime: {ex.Message}");
+                return;
             }
             catch (Exception ex)
             {
@@ -1279,7 +1441,11 @@ public sealed class WorkflowValidator
         }
     }
 
-    private JsonElement? TryLoadEndpointMockResponseSample(WorkflowStageDefinition stage, string workflowPath)
+    private JsonElement? TryLoadEndpointMockResponseSample(
+        WorkflowStageDefinition stage,
+        string workflowPath,
+        IReadOnlyDictionary<string, string> environmentVariables,
+        IReadOnlyDictionary<string, string>? runtimeInputs)
     {
         if (stage.Kind != WorkflowStageKind.Endpoint)
         {
@@ -1295,7 +1461,7 @@ public sealed class WorkflowValidator
         {
             var rawPayload = string.IsNullOrWhiteSpace(stage.Mock?.PayloadFile)
                 ? _mockPayloadService.LoadRawPayload(stage.Mock?.Payload ?? string.Empty, workflowPath)
-                : _mockPayloadService.LoadRawPayloadFromFile(stage.Mock?.PayloadFile ?? string.Empty, workflowPath);
+                : LoadMockPayloadForValidation(stage, workflowPath, environmentVariables, runtimeInputs);
             var sanitized = MockPayloadService.SanitizeJsonForValidation(rawPayload);
             using var document = JsonDocument.Parse(sanitized);
             return document.RootElement.Clone();
@@ -1305,46 +1471,6 @@ public sealed class WorkflowValidator
             return null;
         }
     }
-
-    private static Dictionary<string, string> BuildWorkflowReferenceLookup(
-        IReadOnlyList<WorkflowReferenceItem>? references,
-        string workflowPath,
-        List<string> errors)
-    {
-        var lookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (references is null)
-        {
-            return lookup;
-        }
-
-        var baseDirectory = Path.GetDirectoryName(workflowPath) ?? string.Empty;
-        foreach (var reference in references)
-        {
-            if (string.IsNullOrWhiteSpace(reference.Name))
-            {
-                errors.Add("Reference name is required.");
-                continue;
-            }
-
-            if (string.IsNullOrWhiteSpace(reference.Path))
-            {
-                errors.Add($"Reference '{reference.Name}' path is required.");
-                continue;
-            }
-
-            if (lookup.ContainsKey(reference.Name))
-            {
-                errors.Add($"Duplicate reference name '{reference.Name}'.");
-                continue;
-            }
-
-            var resolvedPath = Path.GetFullPath(Path.Combine(baseDirectory, reference.Path));
-            lookup.Add(reference.Name, resolvedPath);
-        }
-
-        return lookup;
-    }
-
     private static HashSet<string> BuildApiReferenceLookup(
         IReadOnlyList<ApiReferenceItem>? references,
         List<string> errors)
@@ -1378,4 +1504,16 @@ public sealed class WorkflowValidator
         return lookup;
     }
 
+}
+
+public sealed record WorkflowValidationResult(
+    IReadOnlyList<string> Errors,
+    IReadOnlyList<string> Warnings);
+
+internal sealed class DeferredPathResolutionException : InvalidOperationException
+{
+    public DeferredPathResolutionException(string message)
+        : base(message)
+    {
+    }
 }

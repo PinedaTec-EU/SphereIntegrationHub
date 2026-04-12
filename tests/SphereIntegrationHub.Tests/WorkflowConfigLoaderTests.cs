@@ -30,4 +30,41 @@ public sealed class WorkflowConfigLoaderTests
         Assert.Contains("reporting:", yaml, StringComparison.OrdinalIgnoreCase);
         Assert.True(config.Reporting.Enabled);
     }
+
+    [Fact]
+    public void Load_ResolvesReferencedEnvironmentFileFromEnvironmentVariable()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"aos-workflow-config-{Guid.NewGuid():N}");
+        var workflowsPath = Path.Combine(tempRoot, "workflows");
+        var envsPath = Path.Combine(workflowsPath, "envs");
+        Directory.CreateDirectory(envsPath);
+
+        var workflowPath = Path.Combine(workflowsPath, "sample.workflow");
+        File.WriteAllText(workflowPath, """
+version: "1.0"
+id: "wf-1"
+name: "sample"
+references:
+  environmentFile: "./envs/{{env:TENANT}}.env"
+""");
+
+        var envPath = Path.Combine(envsPath, "tenant-a.env");
+        File.WriteAllText(envPath, "TENANT_NAME=tenant-a");
+
+        var previous = Environment.GetEnvironmentVariable("TENANT");
+        Environment.SetEnvironmentVariable("TENANT", "tenant-a");
+
+        try
+        {
+            var loader = new SphereIntegrationHub.Services.WorkflowLoader();
+            var document = loader.Load(workflowPath);
+
+            Assert.Equal("tenant-a", document.EnvironmentVariables["TENANT_NAME"]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("TENANT", previous);
+            Directory.Delete(tempRoot, true);
+        }
+    }
 }

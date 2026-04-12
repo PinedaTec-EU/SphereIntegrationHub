@@ -25,7 +25,12 @@ public sealed class WorkflowPlanner
         visited.Add(document.FilePath);
         var definition = document.Definition;
         var stages = new List<WorkflowStagePlan>();
-        var workflowRefs = BuildWorkflowReferenceLookup(definition.References?.Workflows, document.FilePath);
+        var resolutionErrors = new List<string>();
+        var workflowRefs = WorkflowReferencePathResolver.BuildLookup(
+            definition.References?.Workflows,
+            document.FilePath,
+            document.EnvironmentVariables,
+            errors: resolutionErrors);
 
         if (definition.Stages is not null)
         {
@@ -93,31 +98,6 @@ public sealed class WorkflowPlanner
             definition.Output,
             definition.InitStage?.Context,
             definition.EndStage?.Context);
-    }
-
-    private static Dictionary<string, string> BuildWorkflowReferenceLookup(
-        IReadOnlyList<WorkflowReferenceItem>? references,
-        string workflowPath)
-    {
-        var lookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (references is null)
-        {
-            return lookup;
-        }
-
-        var baseDirectory = Path.GetDirectoryName(workflowPath) ?? string.Empty;
-        foreach (var reference in references)
-        {
-            if (string.IsNullOrWhiteSpace(reference.Name) || string.IsNullOrWhiteSpace(reference.Path))
-            {
-                continue;
-            }
-
-            var resolvedPath = Path.GetFullPath(Path.Combine(baseDirectory, reference.Path));
-            lookup[reference.Name] = resolvedPath;
-        }
-
-        return lookup;
     }
 }
 
