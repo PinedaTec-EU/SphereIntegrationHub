@@ -108,6 +108,68 @@ public sealed class WorkflowValidatorTests
     }
 
     [Fact]
+    public void Validate_AllowsWorkflowReferencePathResolvedFromInputs()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"workflow-validator-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+        var childPath = Path.Combine(tempRoot, "tenant-a", "child.workflow");
+        Directory.CreateDirectory(Path.GetDirectoryName(childPath)!);
+        File.WriteAllText(childPath, """
+version: "1.0"
+id: "child"
+name: "child"
+output: true
+endStage:
+  output:
+    status: "ok"
+""");
+
+        var definition = new WorkflowDefinition
+        {
+            Version = "1.0",
+            Id = "01",
+            Name = "parent",
+            References = new WorkflowReference
+            {
+                Workflows = new List<WorkflowReferenceItem>
+                {
+                    new() { Name = "child", Path = "./{{input.tenant}}/child.workflow" }
+                }
+            },
+            Input = new List<WorkflowInputDefinition>
+            {
+                new() { Name = "tenant", Type = RandomValueType.Text, Required = true }
+            },
+            Stages = new List<WorkflowStageDefinition>
+            {
+                new()
+                {
+                    Name = "run-child",
+                    Kind = WorkflowStageKind.Workflow,
+                    WorkflowRef = "child"
+                }
+            }
+        };
+
+        try
+        {
+            var document = new WorkflowDocument(definition, Path.Combine(tempRoot, "parent.workflow"), new Dictionary<string, string>());
+            var validator = new WorkflowValidator(new WorkflowLoader());
+            var errors = validator.Validate(document, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["tenant"] = "tenant-a"
+            });
+
+            Assert.DoesNotContain(errors, e => e.Contains("workflowRef", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(errors, e => e.Contains("could not be resolved", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, true);
+        }
+    }
+
+    [Fact]
     public void Validate_FlagsResponsePathMissingFromMockPayload()
     {
         var definition = new WorkflowDefinition

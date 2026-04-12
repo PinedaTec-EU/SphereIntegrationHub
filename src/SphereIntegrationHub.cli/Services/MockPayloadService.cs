@@ -27,10 +27,27 @@ public sealed class MockPayloadService
             throw new InvalidOperationException("Mock payload file is required.");
         }
 
-        var baseDirectory = Path.GetDirectoryName(workflowPath) ?? string.Empty;
-        var resolvedPath = Path.IsPathRooted(payloadFile)
-            ? payloadFile
-            : Path.GetFullPath(Path.Combine(baseDirectory, payloadFile));
+        var resolvedPath = WorkflowReferencePathResolver.ResolvePath(payloadFile, workflowPath);
+
+        if (!File.Exists(resolvedPath))
+        {
+            throw new FileNotFoundException("Mock payload file was not found.", resolvedPath);
+        }
+
+        return File.ReadAllText(resolvedPath);
+    }
+
+    public string LoadRawPayloadFromFile(string payloadFile, TemplateContext templateContext)
+    {
+        using var activity = Telemetry.ActivitySource.StartActivity(TelemetryConstants.ActivityMockPayloadLoadFromFile);
+        activity?.SetTag(TelemetryConstants.TagFilePath, payloadFile);
+
+        if (string.IsNullOrWhiteSpace(payloadFile))
+        {
+            throw new InvalidOperationException("Mock payload file is required.");
+        }
+
+        var resolvedPath = WorkflowReferencePathResolver.ResolvePath(payloadFile, templateContext);
 
         if (!File.Exists(resolvedPath))
         {

@@ -126,12 +126,7 @@ public sealed class WorkflowLoader
         var envFile = envFileOverride ?? definition.References?.EnvironmentFile;
         if (!string.IsNullOrWhiteSpace(envFile))
         {
-            var baseDirectory = envFileOverride is null
-                ? Path.GetDirectoryName(workflowPath) ?? string.Empty
-                : Directory.GetCurrentDirectory();
-            var resolvedPath = Path.IsPathRooted(envFile)
-                ? envFile
-                : Path.GetFullPath(Path.Combine(baseDirectory, envFile));
+            var resolvedPath = ResolveEnvironmentFilePath(envFile, workflowPath, parentEnvironment, envFileOverride is not null);
 
             foreach (var pair in _envLoader.Load(resolvedPath))
             {
@@ -148,5 +143,24 @@ public sealed class WorkflowLoader
         }
 
         return variables;
+    }
+
+    private static string ResolveEnvironmentFilePath(
+        string envFile,
+        string workflowPath,
+        IReadOnlyDictionary<string, string>? parentEnvironment,
+        bool isOverride)
+    {
+        if (isOverride)
+        {
+            return Path.IsPathRooted(envFile)
+                ? envFile
+                : Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), envFile));
+        }
+
+        return WorkflowReferencePathResolver.ResolvePath(
+            envFile,
+            workflowPath,
+            parentEnvironment);
     }
 }

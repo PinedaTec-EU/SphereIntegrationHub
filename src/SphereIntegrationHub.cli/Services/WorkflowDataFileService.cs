@@ -19,7 +19,18 @@ public sealed class WorkflowDataFileService
 
     public string LoadText(string path, string workflowPath)
     {
-        var resolvedPath = ResolvePath(path, workflowPath);
+        var resolvedPath = WorkflowReferencePathResolver.ResolvePath(path, workflowPath);
+        if (!File.Exists(resolvedPath))
+        {
+            throw new FileNotFoundException("Workflow data file was not found.", resolvedPath);
+        }
+
+        return File.ReadAllText(resolvedPath);
+    }
+
+    public string LoadText(string path, TemplateContext templateContext)
+    {
+        var resolvedPath = WorkflowReferencePathResolver.ResolvePath(path, templateContext);
         if (!File.Exists(resolvedPath))
         {
             throw new FileNotFoundException("Workflow data file was not found.", resolvedPath);
@@ -51,13 +62,5 @@ public sealed class WorkflowDataFileService
 
         var generic = _yamlDeserializer.Deserialize<object>(content);
         return JsonSerializer.SerializeToElement(generic);
-    }
-
-    private static string ResolvePath(string path, string workflowPath)
-    {
-        var baseDirectory = Path.GetDirectoryName(workflowPath) ?? string.Empty;
-        return Path.IsPathRooted(path)
-            ? path
-            : Path.GetFullPath(Path.Combine(baseDirectory, path));
     }
 }

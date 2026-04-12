@@ -377,6 +377,133 @@ public sealed class CliPipelineTests
         Assert.True(File.Exists(Path.Combine(cacheRoot, "orders.json")));
     }
 
+    [Fact]
+    public async Task RunAsync_DryRun_ResolvesWorkflowReferencePathFromEnvironmentVariables()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aos-cli-dynamic-ref-{Guid.NewGuid():N}");
+        var workflows = Path.Combine(root, "workflows");
+        var tenantWorkflows = Path.Combine(workflows, "tenant-a");
+        Directory.CreateDirectory(tenantWorkflows);
+
+        var workflowPath = Path.Combine(workflows, "main.workflow");
+        var childWorkflowPath = Path.Combine(tenantWorkflows, "child.workflow");
+        var envFilePath = Path.Combine(workflows, ".env");
+        var catalogPath = Path.Combine(root, "api-catalog.json");
+        var swaggerPath = Path.Combine(root, "accounts.swagger.json");
+
+        File.WriteAllText(swaggerPath, "{\"paths\":{\"/api/accounts\":{\"get\":{\"parameters\":[]}}}}");
+        File.WriteAllText(catalogPath, $$"""
+        [
+          {
+            "version": "1.0",
+            "definitions": [
+              {
+                "name": "accounts",
+                "swaggerUrl": "{{new Uri(swaggerPath).AbsoluteUri}}",
+                "healthCheck": null,
+                "readiness": null,
+                "baseUrl": {
+                  "dev": "http://example.test"
+                },
+                "basePath": null
+              }
+            ]
+          }
+        ]
+        """);
+
+        File.WriteAllText(envFilePath, "CHILD_TENANT=tenant-a");
+        File.WriteAllText(childWorkflowPath, """
+version: "1.0"
+id: "child-1"
+name: "Child"
+references:
+  apis:
+    - name: "accounts"
+      definition: "accounts"
+stages:
+  - name: "list"
+    kind: "Endpoint"
+    apiRef: "accounts"
+    endpoint: "/api/accounts"
+    httpVerb: "GET"
+    expectedStatus: 200
+    mock:
+      payload: |
+        { "ok": true }
+""");
+
+        File.WriteAllText(workflowPath, """
+version: "1.0"
+id: "wf-1"
+name: "Test"
+references:
+  environmentFile: "./.env"
+  workflows:
+    - name: "child"
+      path: "./{{env:CHILD_TENANT}}/child.workflow"
+stages:
+  - name: "child"
+    kind: "Workflow"
+    workflowRef: "child"
+""");
+
+        var pipeline = CreatePipeline();
+        var result = await pipeline.RunAsync(new InlineArguments(
+            WorkflowPath: workflowPath,
+            Environment: "dev",
+            CatalogPath: null,
+            DryRun: true,
+            Mocked: true), CancellationToken.None);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains(result.Messages, message => message.Text.Contains("Dry-run completed", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task RunAsync_DryRun_WarnsWhenWorkflowPathDependsOnDeferredBusinessVariable()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aos-cli-dynamic-warning-{Guid.NewGuid():N}");
+        var workflows = Path.Combine(root, "workflows");
+        Directory.CreateDirectory(workflows);
+
+        var workflowPath = Path.Combine(workflows, "main.workflow");
+        var catalogPath = Path.Combine(root, "api-catalog.json");
+        File.WriteAllText(catalogPath, """
+        [
+          {
+            "version": "1.0",
+            "definitions": []
+          }
+        ]
+        """);
+
+        File.WriteAllText(workflowPath, """
+version: "1.0"
+id: "wf-1"
+name: "Test"
+references:
+  workflows:
+    - name: "child"
+      path: "./{{input.tenant}}/child.workflow"
+stages:
+  - name: "child"
+    kind: "Workflow"
+    workflowRef: "child"
+""");
+
+        var pipeline = CreatePipeline();
+        var result = await pipeline.RunAsync(new InlineArguments(
+            WorkflowPath: workflowPath,
+            Environment: "dev",
+            CatalogPath: catalogPath,
+            DryRun: true), CancellationToken.None);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains(result.Messages, message => message.Text.Contains("Warning:", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains("will be resolved at runtime", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static CliPipeline CreatePipeline()
     {
         var output = new TestOutputProvider();

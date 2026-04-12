@@ -232,11 +232,19 @@ internal sealed class CliPipeline : ICliPipeline
         List<CliRunMessage> messages)
     {
         var validator = _serviceFactory.CreateWorkflowValidator(workflowLoader);
-        var validationErrors = validator.Validate(workflowDocument);
-        if (validationErrors.Count > 0)
+        var validation = validator.ValidateWithDetails(workflowDocument, parseResult.Inputs);
+        if (parseResult.DryRun && validation.Warnings.Count > 0)
+        {
+            foreach (var warning in validation.Warnings)
+            {
+                AddInfo(messages, $"Warning: {warning}");
+            }
+        }
+
+        if (validation.Errors.Count > 0)
         {
             AddError(messages, "Workflow validation failed:");
-            foreach (var error in validationErrors)
+            foreach (var error in validation.Errors)
             {
                 AddError(messages, $"- {error}");
             }
