@@ -126,7 +126,9 @@ public sealed class ResolveTemplateTokenTool : IMcpTool
 
         // Parse the token to extract scope and variable
         var cleanToken = token.Trim().TrimStart('{').TrimEnd('}').Trim();
-        var parts = cleanToken.Split('.');
+        var normalizedToken = cleanToken.Replace("env:", "env.", StringComparison.OrdinalIgnoreCase);
+        normalizedToken = normalizedToken.Replace("stage:", "stage.", StringComparison.OrdinalIgnoreCase);
+        var parts = normalizedToken.Split('.');
         var scope = parts.Length > 0 ? parts[0] : "unknown";
         var variable = parts.Length > 1 ? parts[1] : "";
 
