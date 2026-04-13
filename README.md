@@ -6,11 +6,11 @@
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/PinedaTec-EU/SphereIntegrationHub)
 [![License MIT](https://img.shields.io/badge/MIT_license-blue)](https://opensource.org/licenses/MIT)
-[![DotNet 10](https://img.shields.io/badge/dotnet_10-green)](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
+[![npm](https://img.shields.io/npm/v/sphere-integration-hub?label=npm)](https://www.npmjs.com/package/sphere-integration-hub)
+[![npm downloads](https://img.shields.io/npm/dm/sphere-integration-hub)](https://www.npmjs.com/package/sphere-integration-hub)
 ![MCP](https://img.shields.io/badge/MCP-35_tools-purple)
-[![NuGet Version](https://img.shields.io/nuget/v/SphereIntegrationHub.Tool.svg?label=CLI)](https://www.nuget.org/packages/SphereIntegrationHub.Tool/)
-[![NuGet Version](https://img.shields.io/nuget/v/SphereIntegrationHub.MCP.Tool.svg?label=MCP)](https://www.nuget.org/packages/SphereIntegrationHub.Mcp.Tool/)
-[![NuGet Downloads](https://img.shields.io/nuget/dt/SphereIntegrationHub.Tool.svg?label=downloads)](https://www.nuget.org/packages/SphereIntegrationHub.Tool/)
+[![NuGet Version](https://img.shields.io/nuget/v/SphereIntegrationHub.Tool.svg?label=NuGet+CLI)](https://www.nuget.org/packages/SphereIntegrationHub.Tool/)
+[![NuGet Version](https://img.shields.io/nuget/v/SphereIntegrationHub.MCP.Tool.svg?label=NuGet+MCP)](https://www.nuget.org/packages/SphereIntegrationHub.Mcp.Tool/)
 [![GitHub Release](https://img.shields.io/github/v/release/PinedaTec-EU/SphereIntegrationHub?label=release)](https://github.com/PinedaTec-EU/SphereIntegrationHub/releases)
 [![GitHub commits](https://img.shields.io/github/commit-activity/m/PinedaTec-EU/SphereIntegrationHub)](https://github.com/PinedaTec-EU/SphereIntegrationHub/commits/main)
 [![GitHub Issues](https://img.shields.io/github/issues/PinedaTec-EU/SphereIntegrationHub)](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues)
@@ -49,13 +49,41 @@ If you use SphereIntegrationHub in your company or project, we'd love to hear ab
 
 ## Installation
 
-SphereIntegrationHub ships as a dotnet global tool. Install it once and use the `sih` command anywhere:
+### npm / npx — no .NET required
+
+The fastest way to get started. No runtime dependencies, no SDK to install.
+
+**Global install** (run `sih` and `sih-mcp` anywhere):
 
 ```bash
-dotnet tool install -g SphereIntegrationHub.Tool
+npm install -g sphere-integration-hub
+sih --version
 ```
 
-Or add it as a local tool to your repo (recommended for teams and CI):
+**One-off via npx** (MCP server, ideal for Claude Desktop / VS Code):
+
+```bash
+npx sphere-integration-hub          # launches the MCP server
+npx -p sphere-integration-hub sih --version   # CLI one-off
+```
+
+**For teams and CI** (pin to repo):
+
+```bash
+npm install --save-dev sphere-integration-hub
+# teammates and CI: npm install picks it up automatically
+```
+
+### dotnet tool — for .NET developers
+
+If you already have .NET 10+ installed, the tool is also available on NuGet:
+
+```bash
+dotnet tool install -g SphereIntegrationHub.Tool        # CLI
+dotnet tool install -g SphereIntegrationHub.Mcp.Tool   # MCP server
+```
+
+Or as a local tool (recommended for teams using dotnet):
 
 ```bash
 dotnet new tool-manifest   # only if .config/dotnet-tools.json doesn't exist yet
@@ -63,18 +91,7 @@ dotnet tool install SphereIntegrationHub.Tool
 dotnet tool restore        # teammates and CI run this to pick it up
 ```
 
-### Nugets
-[CLI](https://www.nuget.org/packages/SphereIntegrationHub.Tool/)
-[MCP](https://www.nuget.org/packages/SphereIntegrationHub.Mcp.Tool/)
-
-Verify the installation:
-
-```bash
-sih --version
-```
-
-> **Requires .NET 10 or later.**  
-> For AI-assisted workflow authoring, also install the MCP server: `dotnet tool install -g SphereIntegrationHub.Mcp.Tool`
+NuGet packages: [CLI](https://www.nuget.org/packages/SphereIntegrationHub.Tool/) · [MCP](https://www.nuget.org/packages/SphereIntegrationHub.Mcp.Tool/)
 
 ## Catalog
 
