@@ -73,21 +73,6 @@ public sealed class CliPathResolverTests
     }
 
     [Fact]
-    public void ResolveDefaultCatalogPath_UsesExistingJsonCatalogForCompatibility()
-    {
-        ICliPathResolver resolver = new CliPathResolver();
-        var tempRoot = Path.Combine(Path.GetTempPath(), $"aos-catalog-json-{Guid.NewGuid():N}");
-        var workflows = Path.Combine(tempRoot, "workflows");
-        Directory.CreateDirectory(workflows);
-        File.WriteAllText(Path.Combine(tempRoot, "api-catalog.json"), "[]");
-        var workflowPath = Path.Combine(workflows, "main.workflow");
-
-        var catalogPath = resolver.ResolveDefaultCatalogPath(workflowPath);
-
-        Assert.Equal(Path.Combine(tempRoot, "api-catalog.json"), catalogPath);
-    }
-
-    [Fact]
     public void ResolveDefaultCatalogPath_PrefersExistingCanonicalCatalog()
     {
         ICliPathResolver resolver = new CliPathResolver();

@@ -252,107 +252,62 @@ public static class TestDataBuilder
     }
 
     /// <summary>
-    /// Creates a sample API catalog JSON
+    /// Creates a sample API catalog in YAML format (api.catalog)
     /// </summary>
     public static string CreateSampleApiCatalog()
     {
-        // ApiCatalogReader expects a JSON array, not an object with "versions" property
-        var catalog = new[]
-        {
-            new
-            {
-                Version = "3.10",
-                Definitions = new[]
-                {
-                    new
-                    {
-                        Name = "AccountsAPI",
-                        BasePath = "/api/accounts",
-                        SwaggerUrl = "/swagger/accounts.json",
-                        HealthCheck = (string?)"/health/accounts",
-                        Readiness = (object?)new
-                        {
-                            MaxRetries = 3,
-                            DelayMs = 1000,
-                            TimeoutMs = 2000,
-                            HttpStatus = new[] { 200, 204 }
-                        },
-                        BaseUrl = new Dictionary<string, string>
-                        {
-                            ["local"] = "http://localhost",
-                            ["pre"] = "https://pre.api.example.com"
-                        }
-                    },
-                    new
-                    {
-                        Name = "UsersAPI",
-                        BasePath = "/api/users",
-                        SwaggerUrl = "/swagger/users.json",
-                        HealthCheck = (string?)null,
-                        Readiness = (object?)null,
-                        BaseUrl = new Dictionary<string, string>
-                        {
-                            ["local"] = "http://localhost",
-                            ["pre"] = "https://pre.api.example.com"
-                        }
-                    }
-                }
-            },
-            new
-            {
-                Version = "3.11",
-                Definitions = new[]
-                {
-                    new
-                    {
-                        Name = "AccountsAPI",
-                        BasePath = "/api/accounts",
-                        SwaggerUrl = "/swagger/accounts.json",
-                        HealthCheck = (string?)"/health/accounts",
-                        Readiness = (object?)new
-                        {
-                            MaxRetries = 3,
-                            DelayMs = 1000,
-                            TimeoutMs = 2000,
-                            HttpStatus = new[] { 200, 204 }
-                        },
-                        BaseUrl = new Dictionary<string, string>
-                        {
-                            ["local"] = "http://localhost",
-                            ["pre"] = "https://pre.api.example.com"
-                        }
-                    },
-                    new
-                    {
-                        Name = "UsersAPI",
-                        BasePath = "/api/users",
-                        SwaggerUrl = "/swagger/users.json",
-                        HealthCheck = (string?)null,
-                        Readiness = (object?)null,
-                        BaseUrl = new Dictionary<string, string>
-                        {
-                            ["local"] = "http://localhost",
-                            ["pre"] = "https://pre.api.example.com"
-                        }
-                    },
-                    new
-                    {
-                        Name = "ProductsAPI",
-                        BasePath = "/api/products",
-                        SwaggerUrl = "/swagger/products.json",
-                        HealthCheck = (string?)null,
-                        Readiness = (object?)null,
-                        BaseUrl = new Dictionary<string, string>
-                        {
-                            ["local"] = "http://localhost",
-                            ["pre"] = "https://pre.api.example.com"
-                        }
-                    }
-                }
-            }
-        };
-
-        return JsonSerializer.Serialize(catalog, new JsonSerializerOptions { WriteIndented = true });
+        return """
+- version: "3.10"
+  definitions:
+  - name: AccountsAPI
+    basePath: /api/accounts
+    swaggerUrl: /swagger/accounts.json
+    healthCheck: /health/accounts
+    readiness:
+      maxRetries: 3
+      delayMs: 1000
+      timeoutMs: 2000
+      httpStatus:
+      - 200
+      - 204
+    baseUrl:
+      local: http://localhost
+      pre: https://pre.api.example.com
+  - name: UsersAPI
+    basePath: /api/users
+    swaggerUrl: /swagger/users.json
+    baseUrl:
+      local: http://localhost
+      pre: https://pre.api.example.com
+- version: "3.11"
+  definitions:
+  - name: AccountsAPI
+    basePath: /api/accounts
+    swaggerUrl: /swagger/accounts.json
+    healthCheck: /health/accounts
+    readiness:
+      maxRetries: 3
+      delayMs: 1000
+      timeoutMs: 2000
+      httpStatus:
+      - 200
+      - 204
+    baseUrl:
+      local: http://localhost
+      pre: https://pre.api.example.com
+  - name: UsersAPI
+    basePath: /api/users
+    swaggerUrl: /swagger/users.json
+    baseUrl:
+      local: http://localhost
+      pre: https://pre.api.example.com
+  - name: ProductsAPI
+    basePath: /api/products
+    swaggerUrl: /swagger/products.json
+    baseUrl:
+      local: http://localhost
+      pre: https://pre.api.example.com
+""";
     }
 
     /// <summary>

@@ -310,24 +310,13 @@ public class PatternToolsTests : IDisposable
     public async Task GenerateCrudWorkflow_StripsDefinitionBasePathFromGeneratedEndpoints()
     {
         var catalog = """
-[
-  {
-    "version": "3.10",
-    "baseUrl": {
-      "local": "https://localhost"
-    },
-    "definitions": [
-      {
-        "name": "AccountsAPI",
-        "basePath": "/api",
-        "swaggerUrl": "https://localhost:5009/swagger/v1/swagger.json",
-        "baseUrl": {
-          "local": "https://localhost:5009"
-        }
-      }
-    ]
-  }
-]
+- version: "3.10"
+  definitions:
+  - name: AccountsAPI
+    basePath: /api
+    swaggerUrl: https://localhost:5009/swagger/v1/swagger.json
+    baseUrl:
+      local: https://localhost:5009
 """;
         _mockFs.AddApiCatalog(catalog);
         _mockFs.AddSwaggerFile("3.10", "AccountsAPI", TestDataBuilder.CreateSampleSwagger("AccountsAPI"));

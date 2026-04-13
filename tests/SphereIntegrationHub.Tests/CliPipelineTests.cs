@@ -391,29 +391,18 @@ public sealed class CliPipelineTests
         var workflowPath = Path.Combine(workflows, "main.workflow");
         var childWorkflowPath = Path.Combine(tenantWorkflows, "child.workflow");
         var envFilePath = Path.Combine(workflows, ".env");
-        var catalogPath = Path.Combine(root, "api-catalog.json");
+        var catalogPath = Path.Combine(root, "api.catalog");
         var swaggerPath = Path.Combine(root, "accounts.swagger.json");
 
         File.WriteAllText(swaggerPath, "{\"paths\":{\"/api/accounts\":{\"get\":{\"parameters\":[]}}}}");
-        File.WriteAllText(catalogPath, $$"""
-        [
-          {
-            "version": "1.0",
-            "definitions": [
-              {
-                "name": "accounts",
-                "swaggerUrl": "{{new Uri(swaggerPath).AbsoluteUri}}",
-                "healthCheck": null,
-                "readiness": null,
-                "baseUrl": {
-                  "dev": "http://example.test"
-                },
-                "basePath": null
-              }
-            ]
-          }
-        ]
-        """);
+        File.WriteAllText(catalogPath, $"""
+- version: "1.0"
+  definitions:
+  - name: accounts
+    swaggerUrl: {new Uri(swaggerPath).AbsoluteUri}
+    baseUrl:
+      dev: http://example.test
+""");
 
         File.WriteAllText(envFilePath, "CHILD_TENANT=tenant-a");
         File.WriteAllText(childWorkflowPath, """
@@ -474,16 +463,12 @@ stages:
         var workflowPath = Path.Combine(workflows, "main.workflow");
         var childWorkflowPath = Path.Combine(tenantWorkflows, "child.workflow");
         var envFilePath = Path.Combine(workflows, ".env");
-        var catalogPath = Path.Combine(root, "api-catalog.json");
+        var catalogPath = Path.Combine(root, "api.catalog");
 
         File.WriteAllText(catalogPath, """
-        [
-          {
-            "version": "1.0",
-            "definitions": []
-          }
-        ]
-        """);
+- version: "1.0"
+  definitions: []
+""");
 
         File.WriteAllText(envFilePath, """
         BASE_WORKFLOWS=./tenant-a
@@ -532,15 +517,11 @@ stages:
         Directory.CreateDirectory(workflows);
 
         var workflowPath = Path.Combine(workflows, "main.workflow");
-        var catalogPath = Path.Combine(root, "api-catalog.json");
+        var catalogPath = Path.Combine(root, "api.catalog");
         File.WriteAllText(catalogPath, """
-        [
-          {
-            "version": "1.0",
-            "definitions": []
-          }
-        ]
-        """);
+- version: "1.0"
+  definitions: []
+""");
 
         File.WriteAllText(workflowPath, """
 version: "1.0"
@@ -600,27 +581,15 @@ stages:
         Directory.CreateDirectory(workflows);
 
         var workflowPath = Path.Combine(workflows, "main.workflow");
-        var catalogPath = Path.Combine(root, "api-catalog.json");
-        var baseUrlEntries = string.Join(",", baseUrls.Select(pair => $"\"{pair.Key}\": \"{pair.Value}\""));
+        var catalogPath = Path.Combine(root, "api.catalog");
 
-        var definitionJsonEntries = new List<string>();
+        var definitionYamlEntries = new List<string>();
         var accountSwaggerPath = Path.Combine(root, "accounts.swagger.json");
         var accountSwaggerJson = swaggerHasEndpoint
             ? "{\"paths\":{\"/api/accounts\":{\"get\":{\"parameters\":[]}}}}"
             : "{\"paths\":{\"/api/other\":{\"get\":{\"parameters\":[]}}}}";
         File.WriteAllText(accountSwaggerPath, accountSwaggerJson);
-        definitionJsonEntries.Add($$"""
-              {
-                "name": "accounts",
-                "swaggerUrl": "{{new Uri(accountSwaggerPath).AbsoluteUri}}",
-                "healthCheck": {{(healthCheck is null ? "null" : $"\"{healthCheck}\"")}},
-                "readiness": {{FormatReadinessJson(readiness)}},
-                "baseUrl": {
-                  {{baseUrlEntries}}
-                },
-                "basePath": null
-              }
-        """);
+        definitionYamlEntries.Add(FormatDefinitionYaml("accounts", new Uri(accountSwaggerPath).AbsoluteUri, healthCheck, readiness, baseUrls));
 
         if (additionalDefinitions is not null)
         {
@@ -628,32 +597,16 @@ stages:
             {
                 var swaggerPath = Path.Combine(root, $"{definition.Name}.swagger.json");
                 File.WriteAllText(swaggerPath, definition.SwaggerJson);
-                definitionJsonEntries.Add($$"""
-              {
-                "name": "{{definition.Name}}",
-                "swaggerUrl": "{{new Uri(swaggerPath).AbsoluteUri}}",
-                "healthCheck": {{(definition.HealthCheck is null ? "null" : $"\"{definition.HealthCheck}\"")}},
-                "readiness": {{FormatReadinessJson(definition.Readiness)}},
-                "baseUrl": {
-                  "dev": "{{definition.BaseUrl}}"
-                },
-                "basePath": null
-              }
-        """);
+                definitionYamlEntries.Add(FormatDefinitionYaml(definition.Name, new Uri(swaggerPath).AbsoluteUri, definition.HealthCheck, definition.Readiness, new Dictionary<string, string> { ["dev"] = definition.BaseUrl }));
             }
         }
 
-        var catalogJson = $$"""
-        [
-          {
-            "version": "{{catalogVersion}}",
-            "definitions": [
-        {{string.Join("," + Environment.NewLine, definitionJsonEntries)}}
-            ]
-          }
-        ]
-        """;
-        File.WriteAllText(catalogPath, catalogJson);
+        var catalogYaml = $"""
+- version: "{catalogVersion}"
+  definitions:
+{string.Join(Environment.NewLine, definitionYamlEntries)}
+""";
+        File.WriteAllText(catalogPath, catalogYaml);
 
         var workflowLines = new List<string>
         {
@@ -776,17 +729,34 @@ stages:
 
     private sealed record Fixture(string WorkflowPath, string CatalogPath);
 
-    private static string FormatReadinessJson(ApiReadinessPolicyDefinition? readiness)
-        => readiness is null
-            ? "null"
-            : $$"""
+    private static string FormatDefinitionYaml(
+        string name,
+        string swaggerUrl,
+        string? healthCheck,
+        ApiReadinessPolicyDefinition? readiness,
+        Dictionary<string, string> baseUrls)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"  - name: {name}");
+        sb.AppendLine($"    swaggerUrl: {swaggerUrl}");
+        if (healthCheck is not null)
+            sb.AppendLine($"    healthCheck: {healthCheck}");
+        if (readiness is not null)
+        {
+            sb.AppendLine("    readiness:");
+            if (readiness.MaxRetries.HasValue) sb.AppendLine($"      maxRetries: {readiness.MaxRetries}");
+            if (readiness.DelayMs.HasValue)    sb.AppendLine($"      delayMs: {readiness.DelayMs}");
+            if (readiness.TimeoutMs.HasValue)  sb.AppendLine($"      timeoutMs: {readiness.TimeoutMs}");
+            if (readiness.HttpStatus is { Length: > 0 })
             {
-              "maxRetries": {{(readiness.MaxRetries?.ToString() ?? "null")}},
-              "delayMs": {{(readiness.DelayMs?.ToString() ?? "null")}},
-              "timeoutMs": {{(readiness.TimeoutMs?.ToString() ?? "null")}},
-              "httpStatus": {{(readiness.HttpStatus is { Length: > 0 } ? $"[{string.Join(", ", readiness.HttpStatus)}]" : "null")}}
+                sb.AppendLine("      httpStatus:");
+                foreach (var s in readiness.HttpStatus) sb.AppendLine($"      - {s}");
             }
-            """;
+        }
+        sb.AppendLine("    baseUrl:");
+        foreach (var pair in baseUrls) sb.AppendLine($"      {pair.Key}: {pair.Value}");
+        return sb.ToString().TrimEnd();
+    }
 
     private sealed record CatalogDefinitionFixture(string Name, string BaseUrl, string? HealthCheck, string SwaggerJson, ApiReadinessPolicyDefinition? Readiness = null);
 

@@ -54,7 +54,7 @@ public class CatalogToolsTests : IDisposable
     {
         // Arrange - Create filesystem with empty API catalog (no versions)
         using var emptyFs = new MockFileSystem();
-        emptyFs.AddApiCatalog("[]"); // Empty array - no versions
+        emptyFs.AddApiCatalog(""); // Empty catalog - no versions
         var emptyAdapter = new SihServicesAdapter(emptyFs.RootPath);
         var tool = new ListApiCatalogVersionsTool(emptyAdapter);
 

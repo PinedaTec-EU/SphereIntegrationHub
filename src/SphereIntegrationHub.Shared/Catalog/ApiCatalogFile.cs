@@ -1,4 +1,3 @@
-using System.Text.Json;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -16,14 +15,6 @@ public static class ApiCatalogFile
     public const string JsonFileName = "api-catalog.json";
     public const string YamlFileName = "api-catalog.yaml";
     public const string YmlFileName = "api-catalog.yml";
-
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = true,
-        PropertyNameCaseInsensitive = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
-    };
 
     private static readonly IDeserializer YamlDeserializer = new DeserializerBuilder()
         .WithNamingConvention(CamelCaseNamingConvention.Instance)
@@ -57,12 +48,6 @@ public static class ApiCatalogFile
             return ymlPath;
         }
 
-        var jsonPath = Path.Combine(directory, JsonFileName);
-        if (File.Exists(jsonPath))
-        {
-            return jsonPath;
-        }
-
         return canonicalPath;
     }
 
@@ -78,6 +63,7 @@ public static class ApiCatalogFile
             throw new FileNotFoundException("Catalog file was not found.", catalogPath);
         }
 
+        ThrowIfJsonFormat(catalogPath);
         var content = File.ReadAllText(catalogPath);
         return Deserialize(content, GetFormat(catalogPath));
     }
@@ -94,6 +80,7 @@ public static class ApiCatalogFile
             throw new FileNotFoundException("Catalog file was not found.", catalogPath);
         }
 
+        ThrowIfJsonFormat(catalogPath);
         var content = await File.ReadAllTextAsync(catalogPath, cancellationToken);
         return Deserialize(content, GetFormat(catalogPath));
     }
@@ -105,10 +92,15 @@ public static class ApiCatalogFile
             throw new InvalidOperationException("Catalog file is empty or invalid.");
         }
 
-        var detectedFormat = DetectFormatFromContent(content, format);
-        List<ApiCatalogVersion>? catalog = detectedFormat switch
+        if (format == ApiCatalogFormat.Json)
         {
-            ApiCatalogFormat.Json => JsonSerializer.Deserialize<List<ApiCatalogVersion>>(content, JsonOptions),
+            throw new NotSupportedException(
+                $"The JSON catalog format ({JsonFileName}) is no longer supported. " +
+                $"Migrate to {CanonicalFileName} (YAML) using the migrate_api_catalog MCP tool.");
+        }
+
+        List<ApiCatalogVersion>? catalog = format switch
+        {
             ApiCatalogFormat.Yaml => YamlDeserializer.Deserialize<List<ApiCatalogVersion>>(content),
             _ => throw new ArgumentOutOfRangeException(nameof(format), format, "Unsupported catalog format.")
         };
@@ -121,15 +113,14 @@ public static class ApiCatalogFile
         return catalog;
     }
 
-    private static ApiCatalogFormat DetectFormatFromContent(string content, ApiCatalogFormat fallbackFormat)
+    private static void ThrowIfJsonFormat(string catalogPath)
     {
-        var trimmed = content.TrimStart();
-        if (trimmed.StartsWith("{", StringComparison.Ordinal) || trimmed.StartsWith("[", StringComparison.Ordinal))
+        if (GetFormat(catalogPath) == ApiCatalogFormat.Json)
         {
-            return ApiCatalogFormat.Json;
+            throw new NotSupportedException(
+                $"The JSON catalog format ({JsonFileName}) is no longer supported. " +
+                $"Migrate to {CanonicalFileName} (YAML) using the migrate_api_catalog MCP tool.");
         }
-
-        return fallbackFormat;
     }
 
     public static string Serialize(IEnumerable<ApiCatalogVersion> catalog, string outputPath)
@@ -139,10 +130,16 @@ public static class ApiCatalogFile
     {
         ArgumentNullException.ThrowIfNull(catalog);
 
+        if (format == ApiCatalogFormat.Json)
+        {
+            throw new NotSupportedException(
+                $"The JSON catalog format ({JsonFileName}) is no longer supported. " +
+                $"Use {CanonicalFileName} (YAML) instead.");
+        }
+
         var catalogList = catalog.ToList();
         return format switch
         {
-            ApiCatalogFormat.Json => JsonSerializer.Serialize(catalogList, JsonOptions),
             ApiCatalogFormat.Yaml => YamlSerializer.Serialize(catalogList),
             _ => throw new ArgumentOutOfRangeException(nameof(format), format, "Unsupported catalog format.")
         };
