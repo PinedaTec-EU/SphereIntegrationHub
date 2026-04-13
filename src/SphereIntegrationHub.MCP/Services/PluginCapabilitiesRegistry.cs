@@ -119,18 +119,34 @@ internal static class PluginCapabilitiesRegistry
                         "coalesce({{stage:create.output.accountId}}, {{context:accountId}}, 'pending')",
                         "jsonLength({{input.items}}) > 0",
                         "!isEmptyJson({{response.body}})",
-                        "{{stage:create.output.http_status}} in [200, 201, 409]"
+                        "{{stage:create.output.http_status}} in [200, 201, 409]",
+                        "{{stage:create-a?.output.id}} != null || {{stage:create-b?.output.id}} != null"
+                    }
+                },
+                new
+                {
+                    feature = "Skipped-Stage Output Resolution",
+                    description = "When a stage is skipped due to runIf, references to its outputs resolve to empty string rather than failing. Three mechanisms are available for fine-grained control.",
+                    examples = new[]
+                    {
+                        "Mejora 1 — automatic: {{stage:skipped-stage.output.id}} resolves to '' in template strings",
+                        "Mejora 2 — coalesce in templates: {{coalesce(stage:branch-a.output.id, stage:branch-b.output.id)}}",
+                        "Mejora 3 — safe stage nav: {{stage:maybe-skipped?.output.id}} returns '' when absent",
+                        "Mejora 3 — safe key nav: {{stage:ran-stage.output.optionalKey?}} returns '' when key absent",
+                        "Combined: {{coalesce(stage:create-a?.output.id, stage:create-b?.output.id)}}"
                     }
                 },
                 new
                 {
                     feature = "Optional Paths",
-                    description = "JSON token paths may use ? suffixes so missing nested segments resolve safely",
+                    description = "JSON token paths may use ? suffixes so missing nested segments resolve safely. Stage tokens also support ? on stage name and output key.",
                     examples = new[]
                     {
                         "{{response.body.account.status?}}",
                         "{{stage:create.output.dto.items.0.id?}}",
-                        "{{input.payload.customer.id?}}"
+                        "{{input.payload.customer.id?}}",
+                        "{{stage:create?.output.id}} — safe if stage was skipped",
+                        "{{stage:create.output.appId?}} — safe if key is absent in output"
                     }
                 },
                 new

@@ -92,6 +92,16 @@ public sealed class ExplainValidationErrorTool : IMcpTool
             "parse" =>
                 "The YAML file could not be parsed. This usually means there's a syntax error in the YAML structure, such as incorrect indentation, missing colons, or invalid characters.",
 
+            "stage" when message.Contains("outputs were not found") || message.Contains("output") && message.Contains("not found") =>
+                "A stage token references outputs from a stage that either does not exist, was not yet executed, or was skipped because its 'runIf' condition evaluated to false. " +
+                "In SIH ≥ 1.7, a skipped stage's output automatically resolves to empty string in template strings. " +
+                "For mutually-exclusive branches you can also use coalesce() in template tokens or ? safe-navigation on the stage name. " +
+                "See docs/conditional-expressions.md for full guidance.",
+
+            "stage" when message.Contains("conditional") || message.Contains("runif") || message.Contains("run-if") =>
+                "A downstream stage references the output of a conditional (runIf) stage. If the conditional stage is skipped at runtime, this reference will resolve to empty string (SIH ≥ 1.7). " +
+                "To make the intent explicit and guard the downstream stage, use stage:name?.output.key safe-navigation or wrap the reference in coalesce().",
+
             _ => $"A validation error occurred in the {category} category: {message}"
         };
     }
@@ -123,6 +133,14 @@ public sealed class ExplainValidationErrorTool : IMcpTool
         {
             suggestions.Add("Add a 'version' field at the top level of the workflow");
             suggestions.Add("Use semantic versioning (e.g., '1.0', '1.1', '2.0')");
+        }
+        else if (message.Contains("outputs were not found") || message.Contains("output") && message.Contains("not found"))
+        {
+            suggestions.Add("Check that the referenced stage name is spelled correctly");
+            suggestions.Add("If the stage has a runIf condition it may be skipped — use safe navigation: stage:name?.output.key");
+            suggestions.Add("For mutually-exclusive branches use coalesce() in the template: {{coalesce(stage:a.output.id, stage:b.output.id)}}");
+            suggestions.Add("Add a runIf guard on the downstream stage: {{stage:name?.output.key}} != null");
+            suggestions.Add("See docs/conditional-expressions.md for the full pattern guide");
         }
         else if (category.ToLowerInvariant() == "parse")
         {

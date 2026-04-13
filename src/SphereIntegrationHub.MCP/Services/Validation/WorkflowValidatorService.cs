@@ -270,6 +270,10 @@ public sealed class WorkflowValidatorService
         }
 
         var stageNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // Track which stage names have a runIf condition
+        var conditionalStages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var parsedStages = new List<Dictionary<string, object>>();
         foreach (var stageObj in stages)
         {
             if (stageObj is Dictionary<object, object> stageDict)
@@ -288,6 +292,71 @@ public sealed class WorkflowValidatorService
                             Category = "Stage",
                             Stage = stageName,
                             Message = $"Duplicate stage name: {stageName}"
+                        });
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(stage.GetValueOrDefault("runIf")?.ToString()))
+                    {
+                        conditionalStages.Add(stageName);
+                    }
+                }
+
+                parsedStages.Add(stage);
+            }
+        }
+
+        // Warn when a stage references output of a conditional stage without safe navigation
+        if (conditionalStages.Count > 0)
+        {
+            ValidateConditionalStageReferences(parsedStages, conditionalStages, warnings);
+        }
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex StageTokenRegex =
+        new(@"\{\{\s*stage:(?<name>[^?.}\s]+)\.output\.(?<key>[^?}\s]+)\s*\}\}",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static readonly System.Text.RegularExpressions.Regex SafeStageTokenRegex =
+        new(@"\{\{\s*stage:[^}]*\?\s*\}\}|\{\{\s*coalesce\s*\(",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static void ValidateConditionalStageReferences(
+        List<Dictionary<string, object>> stages,
+        HashSet<string> conditionalStages,
+        List<ValidationWarning> warnings)
+    {
+        foreach (var stage in stages)
+        {
+            var currentName = stage.GetValueOrDefault("name")?.ToString() ?? string.Empty;
+            foreach (var (field, value) in stage)
+            {
+                if (value is not string strValue || string.IsNullOrWhiteSpace(strValue))
+                {
+                    continue;
+                }
+
+                var matches = StageTokenRegex.Matches(strValue);
+                foreach (System.Text.RegularExpressions.Match match in matches)
+                {
+                    var referencedStage = match.Groups["name"].Value;
+                    if (!conditionalStages.Contains(referencedStage))
+                    {
+                        continue;
+                    }
+
+                    // Check whether this specific reference already uses safe nav or coalesce
+                    var tokenText = match.Value;
+                    var isSafe = tokenText.Contains("?") || SafeStageTokenRegex.IsMatch(strValue);
+                    if (!isSafe)
+                    {
+                        warnings.Add(new ValidationWarning
+                        {
+                            Category = "Stage",
+                            Message = $"Stage '{currentName}' field '{field}' references output of conditional stage '{referencedStage}' " +
+                                      $"without safe navigation. If '{referencedStage}' is skipped at runtime, the value will be empty. " +
+                                      $"Consider: stage:{referencedStage}?.output.{match.Groups["key"].Value} " +
+                                      $"or coalesce(stage:{referencedStage}.output.{match.Groups["key"].Value}, <fallback>).",
+                            Suggestion = $"Use stage:{referencedStage}?.output.{match.Groups["key"].Value} or wrap in coalesce()"
                         });
                     }
                 }
