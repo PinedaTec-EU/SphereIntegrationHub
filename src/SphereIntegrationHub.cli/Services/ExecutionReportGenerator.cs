@@ -337,8 +337,8 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
   <span class="banner-sep">·</span>
   <span class="banner-version" id="banner-version">v{{appVersion}}</span>
   <h1 class="banner-title" id="banner-title">Loading&hellip;</h1>
-  <select class="report-picker" id="report-picker" title="Select execution"></select>
   <span class="version-badge hidden" id="version-badge" title="This output was generated with a different tool version"></span>
+  <select class="report-picker" id="report-picker" title="Select execution"></select>
   <label for="file-input" class="btn">&#128193; Load</label>
   <input type="file" id="file-input" accept=".json">
   <button class="btn btn-icon" id="theme-toggle" title="Toggle dark/light mode" onclick="toggleTheme()">🌙</button>
