@@ -36,6 +36,8 @@ public sealed class WorkflowExecutionReport
     public string WorkflowName { get; init; } = string.Empty;
     public string WorkflowId { get; init; } = string.Empty;
     public string WorkflowVersion { get; init; } = string.Empty;
+    // Version of the SIH tool that produced this report. Empty for reports generated before this field was introduced.
+    public string ToolVersion { get; init; } = string.Empty;
     public string WorkflowPath { get; init; } = string.Empty;
     public string Environment { get; init; } = string.Empty;
     public DateTimeOffset StartedAtUtc { get; init; }
