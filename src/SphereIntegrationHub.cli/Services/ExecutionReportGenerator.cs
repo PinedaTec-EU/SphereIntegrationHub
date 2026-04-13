@@ -140,6 +140,7 @@ internal sealed class ExecutionReportGenerator
 
     private static string BuildHtml(IReadOnlyList<ReportArtifact> reports, int initialReportIndex, string appVersion)
     {
+        var faviconDataUri = $"data:image/svg+xml,{Uri.EscapeDataString(ReportBranding.FaviconSvg)}";
         var reportsJson = JsonSerializer.Serialize(reports.Select(report => new
         {
             path = report.Path,
@@ -159,6 +160,7 @@ internal sealed class ExecutionReportGenerator
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Workflow Trace</title>
+<link rel="icon" type="image/svg+xml" href="{{faviconDataUri}}">
 <style>
 /* ── Variables ───────────────────────────────────────────────────── */
 :root {
