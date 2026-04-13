@@ -37,6 +37,12 @@ It includes:
 
 ![Execution report timeline overview](./Screenshots/execution-report-timeline-overview.png)
 
+### Parallel execution
+
+When a workflow uses `forEach` with parallel execution, the timeline renders concurrent stages as overlapping bars, making it easy to see how many branches ran simultaneously and whether any branch was a bottleneck.
+
+![Execution report parallel execution](./Screenshots/execution-report-parallel.png)
+
 ### Execution switcher
 
 ![Execution report run selector dropdown](./Screenshots/execution-report-run-selector-dropdown.png)
