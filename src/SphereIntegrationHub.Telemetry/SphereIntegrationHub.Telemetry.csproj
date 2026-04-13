@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>SphereIntegrationHub.Telemetry</RootNamespace>
     <AssemblyName>SphereIntegrationHub.Telemetry</AssemblyName>
-    <ReleaseVersion>1.6.14.219</ReleaseVersion>
+    <ReleaseVersion>1.6.14.240</ReleaseVersion>
     <AssemblyVersion>$(ReleaseVersion)</AssemblyVersion>
     <FileVersion>$(ReleaseVersion)</FileVersion>
     <Version>$(ReleaseVersion)</Version>
