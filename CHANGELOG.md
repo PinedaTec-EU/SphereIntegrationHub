@@ -1,5 +1,64 @@
 # Changelog
 
+## [1.7] – 2026-04
+
+### Breaking change — `api-catalog.json` no longer auto-discovered
+
+Support for the legacy `api-catalog.json` JSON format is **removed**. The runtime no longer
+loads `.json` catalogs — neither by auto-discovery nor by explicit `--catalog` path.
+
+This format has been superseded since **1.5.7** (February 2026) by the `api.catalog` YAML
+format, which introduced per-definition environment-specific base URLs and eliminated the need
+for template tokens in `swaggerUrl`.
+
+#### Migration
+
+Use the MCP `migrate_api_catalog` tool to convert your existing file automatically, or migrate
+manually following the mapping below:
+
+| Old (`api-catalog.json`) | New (`api.catalog`) |
+|--------------------------|---------------------|
+| Version-level `"baseUrl": {"local": "https://host"}` | Per-definition `baseUrl: {local: https://host:port}` |
+| `"swaggerUrl": "{{baseUrl.local}}:{{port}}/swagger/v1/swagger.json"` | `swaggerUrl: /swagger/v1/swagger.json` |
+| `"port": 5007` (separate field) | Port absorbed into each env URL in `baseUrl` |
+| JSON array `[{...}]` | YAML list `- version: ...` |
+
+Rename the file to `api.catalog` after converting.
+
+#### Features unavailable in `api-catalog.json` (gap since 1.5.7)
+
+The following features were released while `api-catalog.json` was frozen. They are available
+immediately upon migrating to `api.catalog`:
+
+- **Per-definition `baseUrl` per environment** (`1.5.7`): each definition maps environment names
+  to its own base URL; no shared version-level URL or `{{baseUrl.env}}` tokens needed.
+- **Relative `swaggerUrl` paths** (`1.5.7`): `/swagger/v1/swagger.json` resolved against the
+  definition's `baseUrl[env]` — no template syntax in the path.
+- **`readiness` policy block** (`1.5.13`): per-definition retry/timeout for health-check probes
+  and Swagger downloads; aborts execution if the policy is exhausted.
+- **`healthCheck` as relative path** (`1.5.5`): resolved against the definition's `baseUrl[env]`.
+- **YAML format and `api.catalog` filename** (`1.6.14`): supports comments, cleaner diffs, and
+  unambiguous auto-discovery priority (`api.catalog` > `api-catalog.yaml` > `api-catalog.yml`).
+- **`migrate_api_catalog` MCP tool** (`1.6.14`): one-step conversion from `api-catalog.json` to
+  `api.catalog` with schema normalization.
+
+### Other changes in 1.7
+
+- **Skipped-stage output resolution** (5 runtime improvements):
+  - Automatic empty-string for skipped-stage template tokens — no more exceptions when a stage
+    with `runIf: false` is referenced downstream.
+  - `coalesce()` available inside `{{ }}` template strings (was expression-only before).
+  - Safe navigation `?` on stage name (`stage:name?.output.key`) and output key
+    (`stage:name.output.key?`) in both templates and `runIf` expressions.
+  - `vars:` block at workflow level — named derived variables referenced via `{{var:name}}`,
+    evaluated lazily at the point of reference.
+  - `onSkip.output` block within a stage — outputs to register when the stage is skipped,
+    so downstream stages see a consistent interface regardless of which branch ran.
+- **Execution report HTML**: version badge shows a warning when the loaded report was generated
+  with a different tool version than the current viewer.
+
+---
+
 ## [1.6.14.204] – 2026-04
 
 - **Stronger CLI preflight and readiness reporting**:
