@@ -170,6 +170,77 @@ endStage:
     }
 
     [Fact]
+    public void Validate_AllowsWorkflowReferencePathResolvedFromInitStageGlobals()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"workflow-validator-globals-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+        var childPath = Path.Combine(tempRoot, "tenant-a", "child.workflow");
+        Directory.CreateDirectory(Path.GetDirectoryName(childPath)!);
+        File.WriteAllText(childPath, """
+version: "1.0"
+id: "child"
+name: "child"
+output: true
+endStage:
+  output:
+    childId: "ok"
+""");
+
+        var definition = new WorkflowDefinition
+        {
+            Version = "1.0",
+            Id = "01",
+            Name = "parent",
+            Output = true,
+            InitStage = new WorkflowInitStage
+            {
+                Variables = new List<WorkflowVariableDefinition>
+                {
+                    new() { Name = "tenant", Type = RandomValueType.Fixed, Value = "tenant-a" }
+                }
+            },
+            References = new WorkflowReference
+            {
+                Workflows = new List<WorkflowReferenceItem>
+                {
+                    new() { Name = "child", Path = "./{{global:tenant}}/child.workflow" }
+                }
+            },
+            Stages = new List<WorkflowStageDefinition>
+            {
+                new()
+                {
+                    Name = "run-child",
+                    Kind = WorkflowStageKind.Workflow,
+                    WorkflowRef = "child"
+                }
+            },
+            EndStage = new WorkflowEndStage
+            {
+                Output = new Dictionary<string, string>
+                {
+                    ["childId"] = "{{workflow:run-child.output.childId}}"
+                }
+            }
+        };
+
+        try
+        {
+            var document = new WorkflowDocument(definition, Path.Combine(tempRoot, "parent.workflow"), new Dictionary<string, string>());
+            var validator = new WorkflowValidator(new WorkflowLoader());
+            var result = validator.ValidateWithDetails(document);
+
+            Assert.DoesNotContain(result.Errors, e => e.Contains("workflow 'run-child' outputs were not found", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(result.Warnings, e => e.Contains("Reference 'child' path", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(result.Warnings, e => e.Contains("depends on deferred values", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, true);
+        }
+    }
+
+    [Fact]
     public void Validate_FlagsResponsePathMissingFromMockPayload()
     {
         var definition = new WorkflowDefinition
