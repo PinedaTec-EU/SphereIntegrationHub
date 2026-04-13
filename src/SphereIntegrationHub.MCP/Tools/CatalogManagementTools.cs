@@ -1129,7 +1129,7 @@ public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
         var catalog = (await ApiCatalogFile.LoadAsync(_adapter.ApiCatalogPath)).ToList();
 
         var versionEntry = catalog.FirstOrDefault(v =>
-            v.Version.Equals(version, StringComparison.OrdinalIgnoreCase))
+            string.Equals(v.Version, version, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException($"Catalog version not found: {version}");
 
         var definitions = apiNames.Count == 0

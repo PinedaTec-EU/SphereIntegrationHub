@@ -11,7 +11,12 @@ public class ValidationToolsTests : IDisposable
 {
     private readonly MockFileSystem _mockFs;
     private readonly SihServicesAdapter _adapter;
-    private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
+    private static readonly JsonSerializerOptions JsonOpts = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+    
 
     public ValidationToolsTests()
     {
