@@ -128,7 +128,7 @@ public sealed class ApiEndpointValidator
             ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             : new HashSet<string>(stage.Query.Keys, StringComparer.OrdinalIgnoreCase);
 
-        var placeholderCount = CountPathPlaceholders(stage.Endpoint);
+        var pathPlaceholderNames = ExtractPathPlaceholderNames(stage.Endpoint);
         foreach (var parameter in operation.Parameters)
         {
             if (!parameter.Required)
@@ -151,15 +151,11 @@ public sealed class ApiEndpointValidator
                     }
                     break;
                 case "path":
-                    if (placeholderCount <= 0)
+                    if (!pathPlaceholderNames.Contains(parameter.Name))
                     {
                         errors.Add(
                             $"Stage '{stage.Name}' is missing required path parameter '{parameter.Name}'. " +
                             $"Swagger path: '{swaggerPath}'. Workflow endpoint: '{stage.Endpoint}'.");
-                    }
-                    else
-                    {
-                        placeholderCount--;
                     }
                     break;
                 case "body":
@@ -458,25 +454,40 @@ public sealed class ApiEndpointValidator
         return $"{normalizedBasePath}{normalizedEndpoint}";
     }
 
-    private static int CountPathPlaceholders(string? path)
+    private static HashSet<string> ExtractPathPlaceholderNames(string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
         {
-            return 0;
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         }
 
-        var count = 0;
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         foreach (var segment in segments)
         {
-            if ((segment.StartsWith("{", StringComparison.Ordinal) && segment.EndsWith("}", StringComparison.Ordinal)) ||
-                segment.Contains("{{", StringComparison.Ordinal))
+            // Template-style: {{inputs.paramName}} or {{steps.x.output.paramName}}
+            if (segment.StartsWith("{{", StringComparison.Ordinal) && segment.EndsWith("}}", StringComparison.Ordinal))
             {
-                count++;
+                var inner = segment[2..^2].Trim();
+                var lastDot = inner.LastIndexOf('.');
+                var name = lastDot >= 0 ? inner[(lastDot + 1)..].Trim() : inner;
+                if (!string.IsNullOrEmpty(name))
+                {
+                    names.Add(name);
+                }
+            }
+            // Swagger-style: {paramName}
+            else if (segment.StartsWith("{", StringComparison.Ordinal) && segment.EndsWith("}", StringComparison.Ordinal))
+            {
+                var name = segment[1..^1].Trim();
+                if (!string.IsNullOrEmpty(name))
+                {
+                    names.Add(name);
+                }
             }
         }
 
-        return count;
+        return names;
     }
 
 }
