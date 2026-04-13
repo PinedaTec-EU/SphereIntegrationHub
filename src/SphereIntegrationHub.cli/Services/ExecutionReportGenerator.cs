@@ -771,6 +771,7 @@ function showDetail(idx) {
   body += `<div class="detail-section"><h3>Stage</h3><div class="kv">`;
   body += kv('Kind', esc(stage.StageKind));
   if (stage.RunIf)       body += kv('Run if',  esc(stage.RunIf));
+  if (stage.ForEachExecutionMode) body += kv('ForEach mode', esc(stage.ForEachExecutionMode));
   if (stage.JumpTarget)  body += kv('Jump to', esc(stage.JumpTarget));
   if (stage.DelaySeconds)body += kv('Delay',   stage.DelaySeconds+'s');
   if (stage.ErrorMessage)body += kv('Error', `<span style="color:#ef4444">${esc(stage.ErrorMessage)}</span>`);

@@ -174,6 +174,19 @@ public sealed class WorkflowExecutor
     }
 
     private sealed record WorkflowResultInfo(string Status, string Message);
+    private sealed record WorkflowForEachIterationResult(
+        int Index,
+        IReadOnlyDictionary<string, string> Output,
+        JsonElement OutputJson,
+        IReadOnlyDictionary<string, string> WorkflowResult,
+        JsonElement WorkflowResultJson,
+        IReadOnlyCollection<string> SecretValues);
+    private sealed record EndpointForEachIterationResult(
+        int Index,
+        IReadOnlyDictionary<string, string> Output,
+        JsonElement OutputJson,
+        string? JumpTarget,
+        IReadOnlyCollection<string> SecretValues);
 
     public async Task<WorkflowExecutionResult> ExecuteAsync(
         WorkflowDocument document,
@@ -914,6 +927,39 @@ public sealed class WorkflowExecutor
         var workflowResults = new List<IReadOnlyDictionary<string, string>>();
         var workflowResultsJson = new List<JsonElement>();
 
+        if (!ShouldExecuteForEachSequentially(stage))
+        {
+            var iterationsWithIndex = iterations.Select((item, index) => new { item, index }).ToArray();
+            var tasks = iterationsWithIndex
+                .Select(iteration => ExecuteWorkflowForEachIterationAsync(
+                    document,
+                    stage,
+                    catalogVersion,
+                    environment,
+                    context,
+                    varsOverrideActive,
+                    mocked,
+                    verbose,
+                    debug,
+                    cancellationToken,
+                    iteration.item,
+                    iteration.index))
+                .ToArray();
+
+            var iterationResults = await Task.WhenAll(tasks);
+            foreach (var iterationResult in iterationResults.OrderBy(result => result.Index))
+            {
+                results.Add(iterationResult.Output);
+                resultsJson.Add(iterationResult.OutputJson);
+                workflowResults.Add(iterationResult.WorkflowResult);
+                workflowResultsJson.Add(iterationResult.WorkflowResultJson);
+            }
+
+            ApplyLatestWorkflowIterationState(stage, context, iterationResults);
+            ApplyForEachWorkflowOutputs(stage, context, results, resultsJson, workflowResults, workflowResultsJson);
+            return;
+        }
+
         foreach (var iteration in iterations.Select((item, index) => new { item, index }))
         {
             using var scope = BeginIterationScope(stage, context, iteration.item, iteration.index);
@@ -972,6 +1018,38 @@ public sealed class WorkflowExecutor
         var results = new List<IReadOnlyDictionary<string, string>>();
         var resultsJson = new List<JsonElement>();
 
+        if (!ShouldExecuteForEachSequentially(stage))
+        {
+            var iterationsWithIndex = iterations.Select((item, index) => new { item, index }).ToArray();
+            var tasks = iterationsWithIndex
+                .Select(iteration => ExecuteEndpointForEachIterationAsync(
+                    definition,
+                    stage,
+                    apiBaseUrls,
+                    context,
+                    verbose,
+                    workflowPath,
+                    mocked,
+                    cancellationToken,
+                    iteration.item,
+                    iteration.index))
+                .ToArray();
+
+            var iterationResults = await Task.WhenAll(tasks);
+            foreach (var iterationResult in iterationResults.OrderBy(result => result.Index))
+            {
+                results.Add(iterationResult.Output);
+                resultsJson.Add(iterationResult.OutputJson);
+            }
+
+            ApplyLatestEndpointIterationState(stage, context, iterationResults);
+            ApplyForEachEndpointOutputs(stage, context, results, resultsJson);
+            return iterationResults
+                .OrderBy(result => result.Index)
+                .Select(result => result.JumpTarget)
+                .FirstOrDefault(jumpTarget => !string.IsNullOrWhiteSpace(jumpTarget));
+        }
+
         foreach (var iteration in iterations.Select((item, index) => new { item, index }))
         {
             using var scope = BeginIterationScope(stage, context, iteration.item, iteration.index);
@@ -991,6 +1069,216 @@ public sealed class WorkflowExecutor
 
         ApplyForEachEndpointOutputs(stage, context, results, resultsJson);
         return null;
+    }
+
+    private bool ShouldExecuteForEachSequentially(WorkflowStageDefinition stage)
+        => stage.ForEachSequential == true;
+
+    private async Task<WorkflowForEachIterationResult> ExecuteWorkflowForEachIterationAsync(
+        WorkflowDocument document,
+        WorkflowStageDefinition stage,
+        ApiCatalogVersion catalogVersion,
+        string environment,
+        ExecutionContext context,
+        bool varsOverrideActive,
+        bool mocked,
+        bool verbose,
+        bool debug,
+        CancellationToken cancellationToken,
+        JsonElement item,
+        int index)
+    {
+        var iterationContext = CreateIterationContext(context, stage, item, index);
+        if (mocked && stage.Mock is not null)
+        {
+            ApplyWorkflowMock(stage, iterationContext);
+            ApplyWorkflowStageResult(iterationContext, stage.Name, WorkflowResultStatus.Ok, string.Empty);
+        }
+        else
+        {
+            await ExecuteWorkflowStageAsync(
+                document,
+                stage,
+                catalogVersion,
+                environment,
+                iterationContext,
+                varsOverrideActive,
+                mocked,
+                verbose,
+                debug,
+                cancellationToken);
+        }
+
+        var output = iterationContext.WorkflowOutputs.TryGetValue(stage.Name, out var workflowOutput)
+            ? new Dictionary<string, string>(workflowOutput, StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var outputJson = iterationContext.WorkflowOutputsJson.TryGetValue(stage.Name, out var workflowOutputJson)
+            ? JsonSerializer.SerializeToElement(workflowOutputJson)
+            : JsonSerializer.SerializeToElement(new Dictionary<string, object?>());
+        var workflowResult = iterationContext.WorkflowResults.TryGetValue(stage.Name, out var result)
+            ? new Dictionary<string, string>(result, StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var workflowResultJson = JsonSerializer.SerializeToElement(workflowResult);
+        return new WorkflowForEachIterationResult(index, output, outputJson, workflowResult, workflowResultJson, iterationContext.SecretValues);
+    }
+
+    private async Task<EndpointForEachIterationResult> ExecuteEndpointForEachIterationAsync(
+        WorkflowDefinition definition,
+        WorkflowStageDefinition stage,
+        IReadOnlyDictionary<string, string> apiBaseUrls,
+        ExecutionContext context,
+        bool verbose,
+        string workflowPath,
+        bool mocked,
+        CancellationToken cancellationToken,
+        JsonElement item,
+        int index)
+    {
+        var iterationContext = CreateIterationContext(context, stage, item, index);
+        var jumpTarget = await ExecuteEndpointStageAsync(definition, stage, apiBaseUrls, iterationContext, verbose, workflowPath, mocked, cancellationToken);
+        var output = iterationContext.EndpointOutputs.TryGetValue(stage.Name, out var endpointOutput)
+            ? new Dictionary<string, string>(endpointOutput, StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var outputJson = JsonSerializer.SerializeToElement(output);
+        return new EndpointForEachIterationResult(index, output, outputJson, jumpTarget, iterationContext.SecretValues);
+    }
+
+    private ExecutionContext CreateIterationContext(ExecutionContext source, WorkflowStageDefinition stage, JsonElement item, int index)
+    {
+        var iterationContext = new ExecutionContext(source.Inputs, source.EnvironmentVariables, source.Context, source.IndentLevel, source.ReportSync)
+        {
+            Report = source.Report
+        };
+
+        CopyJsonDictionary(source.InputJson, iterationContext.InputJson);
+        CopyStringDictionary(source.Globals, iterationContext.Globals);
+        CopyJsonDictionary(source.GlobalJson, iterationContext.GlobalJson);
+        CopyJsonDictionary(source.ContextJson, iterationContext.ContextJson);
+        CopyNestedStringDictionary(source.EndpointOutputs, iterationContext.EndpointOutputs);
+        CopyNestedJsonDictionary(source.EndpointOutputsJson, iterationContext.EndpointOutputsJson);
+        CopyNestedStringDictionary(source.WorkflowOutputs, iterationContext.WorkflowOutputs);
+        CopyNestedJsonDictionary(source.WorkflowOutputsJson, iterationContext.WorkflowOutputsJson);
+        CopyNestedStringDictionary(source.WorkflowResults, iterationContext.WorkflowResults);
+        CopyCircuitBreakers(source.CircuitBreakers, iterationContext.CircuitBreakers);
+        foreach (var secretValue in source.SecretValues)
+        {
+            iterationContext.SecretValues.Add(secretValue);
+        }
+
+        var itemName = string.IsNullOrWhiteSpace(stage.ItemName) ? "item" : stage.ItemName!;
+        var indexName = string.IsNullOrWhiteSpace(stage.IndexName) ? "index" : stage.IndexName!;
+        iterationContext.Context[itemName] = JsonValueHelper.ToDisplayString(item);
+        iterationContext.ContextJson[itemName] = item.Clone();
+        iterationContext.Context[indexName] = index.ToString();
+        iterationContext.ContextJson[indexName] = JsonSerializer.SerializeToElement(index);
+        return iterationContext;
+    }
+
+    private static void CopyStringDictionary(IReadOnlyDictionary<string, string> source, IDictionary<string, string> target)
+    {
+        foreach (var pair in source)
+        {
+            target[pair.Key] = pair.Value;
+        }
+    }
+
+    private static void CopyJsonDictionary(IReadOnlyDictionary<string, JsonElement> source, IDictionary<string, JsonElement> target)
+    {
+        foreach (var pair in source)
+        {
+            target[pair.Key] = pair.Value.Clone();
+        }
+    }
+
+    private static void CopyNestedStringDictionary(
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> source,
+        IDictionary<string, IReadOnlyDictionary<string, string>> target)
+    {
+        foreach (var pair in source)
+        {
+            target[pair.Key] = pair.Value;
+        }
+    }
+
+    private static void CopyNestedJsonDictionary(
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, JsonElement>> source,
+        IDictionary<string, IReadOnlyDictionary<string, JsonElement>> target)
+    {
+        foreach (var pair in source)
+        {
+            target[pair.Key] = pair.Value;
+        }
+    }
+
+    private static void CopyCircuitBreakers(
+        IReadOnlyDictionary<string, CircuitBreakerState> source,
+        IDictionary<string, CircuitBreakerState> target)
+    {
+        foreach (var pair in source)
+        {
+            target[pair.Key] = new CircuitBreakerState
+            {
+                ConsecutiveFailures = pair.Value.ConsecutiveFailures,
+                ConsecutiveSuccesses = pair.Value.ConsecutiveSuccesses,
+                OpenUntil = pair.Value.OpenUntil,
+                HalfOpen = pair.Value.HalfOpen
+            };
+        }
+    }
+
+    private void ApplyLatestWorkflowIterationState(
+        WorkflowStageDefinition stage,
+        ExecutionContext context,
+        IReadOnlyList<WorkflowForEachIterationResult> iterationResults)
+    {
+        var lastResult = iterationResults
+            .OrderBy(result => result.Index)
+            .LastOrDefault();
+        if (lastResult is null)
+        {
+            return;
+        }
+
+        context.WorkflowOutputs[stage.Name] = lastResult.Output;
+        context.WorkflowOutputsJson[stage.Name] = BuildJsonMap(lastResult.Output);
+        context.WorkflowResults[stage.Name] = lastResult.WorkflowResult;
+        foreach (var secretValue in iterationResults.SelectMany(result => result.SecretValues).Distinct(StringComparer.Ordinal))
+        {
+            context.SecretValues.Add(secretValue);
+        }
+
+        UpdateActiveWorkflowStageRecord(
+            context,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            context.WorkflowOutputs[stage.Name],
+            context.WorkflowResults[stage.Name]);
+    }
+
+    private void ApplyLatestEndpointIterationState(
+        WorkflowStageDefinition stage,
+        ExecutionContext context,
+        IReadOnlyList<EndpointForEachIterationResult> iterationResults)
+    {
+        var lastResult = iterationResults
+            .OrderBy(result => result.Index)
+            .LastOrDefault();
+        if (lastResult is null)
+        {
+            return;
+        }
+
+        context.EndpointOutputs[stage.Name] = lastResult.Output;
+        context.EndpointOutputsJson[stage.Name] = BuildJsonMap(lastResult.Output);
+        foreach (var secretValue in iterationResults.SelectMany(result => result.SecretValues).Distinct(StringComparer.Ordinal))
+        {
+            context.SecretValues.Add(secretValue);
+        }
+
+        var statusCode = lastResult.Output.TryGetValue("http_status", out var statusValue) &&
+            int.TryParse(statusValue, out var parsedStatus)
+            ? parsedStatus
+            : 0;
+        UpdateActiveStageRecordOutput(context, context.EndpointOutputs[stage.Name], statusCode);
     }
 
     private bool HasForEach(WorkflowStageDefinition stage)
@@ -1075,9 +1363,19 @@ public sealed class WorkflowExecutor
             Mocked = isMocked,
             EnsureMode = stage.Ensure?.Mode,
             DelaySeconds = stage.DelaySeconds > 0 ? stage.DelaySeconds : null,
+            ForEachExecutionMode = HasForEach(stage)
+                ? (ShouldExecuteForEachSequentially(stage) ? "Sequential" : "Parallel")
+                : null,
             StartedAtUtc = _systemProvider.UtcNow
         };
-        context.Report?.Stages.Add(record);
+        if (context.Report is not null)
+        {
+            lock (context.ReportSync)
+            {
+                context.Report.Stages.Add(record);
+            }
+        }
+
         context.ActiveStageRecord = record;
         return record;
     }
@@ -1096,40 +1394,43 @@ public sealed class WorkflowExecutor
             return;
         }
 
-        switch (status)
+        lock (context.ReportSync)
         {
-            case "Skipped":
-                context.Report.Metrics.SkippedStages++;
-                break;
-            case "Error":
-                context.Report.Metrics.FailedStages++;
-                context.Report.Metrics.ExecutedStages++;
-                break;
-            default:
-                context.Report.Metrics.ExecutedStages++;
-                break;
-        }
+            switch (status)
+            {
+                case "Skipped":
+                    context.Report.Metrics.SkippedStages++;
+                    break;
+                case "Error":
+                    context.Report.Metrics.FailedStages++;
+                    context.Report.Metrics.ExecutedStages++;
+                    break;
+                default:
+                    context.Report.Metrics.ExecutedStages++;
+                    break;
+            }
 
-        if (stageRecord.Mocked)
-        {
-            context.Report.Metrics.MockedStages++;
-        }
+            if (stageRecord.Mocked)
+            {
+                context.Report.Metrics.MockedStages++;
+            }
 
-        if (string.Equals(stageRecord.StageKind, WorkflowStageKind.Endpoint.ToString(), StringComparison.OrdinalIgnoreCase))
-        {
-            context.Report.Metrics.HttpStages++;
-        }
-        else
-        {
-            context.Report.Metrics.WorkflowStages++;
-        }
+            if (string.Equals(stageRecord.StageKind, WorkflowStageKind.Endpoint.ToString(), StringComparison.OrdinalIgnoreCase))
+            {
+                context.Report.Metrics.HttpStages++;
+            }
+            else
+            {
+                context.Report.Metrics.WorkflowStages++;
+            }
 
-        if (!string.IsNullOrWhiteSpace(jumpTarget))
-        {
-            context.Report.Metrics.JumpedStages++;
-        }
+            if (!string.IsNullOrWhiteSpace(jumpTarget))
+            {
+                context.Report.Metrics.JumpedStages++;
+            }
 
-        context.Report.Metrics.TotalRetries += stageRecord.RetryCount;
+            context.Report.Metrics.TotalRetries += stageRecord.RetryCount;
+        }
     }
 
     private void RecordSkippedStage(string workflowName, WorkflowStageDefinition stage, ExecutionContext context)
@@ -1142,11 +1443,20 @@ public sealed class WorkflowExecutor
             Depth = context.IndentLevel,
             Status = "Skipped",
             RunIf = stage.RunIf,
+            ForEachExecutionMode = HasForEach(stage)
+                ? (ShouldExecuteForEachSequentially(stage) ? "Sequential" : "Parallel")
+                : null,
             StartedAtUtc = _systemProvider.UtcNow,
             FinishedAtUtc = _systemProvider.UtcNow,
             DurationMs = 0
         };
-        context.Report?.Stages.Add(record);
+        if (context.Report is not null)
+        {
+            lock (context.ReportSync)
+            {
+                context.Report.Stages.Add(record);
+            }
+        }
         if (context.Report is not null)
         {
             context.Report.Metrics.SkippedStages++;
@@ -2002,7 +2312,8 @@ public sealed class WorkflowExecutor
             IReadOnlyDictionary<string, string> inputs,
             IReadOnlyDictionary<string, string> environmentVariables,
             IDictionary<string, string>? parentContext = null,
-            int indentLevel = 0)
+            int indentLevel = 0,
+            object? reportSync = null)
         {
             Inputs = new Dictionary<string, string>(inputs, StringComparer.OrdinalIgnoreCase);
             InputJson = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
@@ -2021,6 +2332,7 @@ public sealed class WorkflowExecutor
                 : new Dictionary<string, string>(parentContext, StringComparer.OrdinalIgnoreCase);
             ContextJson = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
             IndentLevel = Math.Max(0, indentLevel);
+            ReportSync = reportSync ?? new object();
         }
 
         public Dictionary<string, string> Inputs { get; }
@@ -2041,6 +2353,7 @@ public sealed class WorkflowExecutor
         public int IndentLevel { get; }
         public WorkflowExecutionReport? Report { get; set; }
         public WorkflowStageExecutionRecord? ActiveStageRecord { get; set; }
+        public object ReportSync { get; }
 
         public TemplateContext BuildTemplateContext(string? workflowPath = null)
         {

@@ -15,6 +15,7 @@ public sealed class WorkflowStageDefinition
     public string? BodyFile { get; set; }
     public string? DataFile { get; set; }
     public string? ForEach { get; set; }
+    public bool? ForEachSequential { get; set; }
     public string? ItemName { get; set; }
     public string? IndexName { get; set; }
     public string? WorkflowRef { get; set; }
