@@ -1,0 +1,3 @@
+# Binarios descargados por postinstall — no commitear
+bin/
+node_modules/

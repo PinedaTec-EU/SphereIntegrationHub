@@ -155,36 +155,32 @@ If SphereIntegrationHub is helping your team integrate APIs faster, let us know!
 
 ### Prerequisites
 
-- [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) or higher
+**No .NET required.** Node.js 18+ is the only dependency for the npm distribution.
 
-### Step 1: Clone and build
+If you prefer to build from source, [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) or higher is needed.
+
+### Step 1: Install
+
+**Option A — npm (recommended, no .NET required):**
+
+```bash
+npm install -g sphere-integration-hub
+```
+
+This downloads a self-contained binary for your platform. No runtime installation needed.
+
+**Option B — dotnet tool (if you already have .NET 10+):**
+
+```bash
+dotnet tool install -g SphereIntegrationHub.Mcp.Tool
+```
+
+**Option C — build from source:**
 
 ```bash
 git clone https://github.com/PinedaTec-EU/SphereIntegrationHub.git
 cd SphereIntegrationHub
 dotnet build src/SphereIntegrationHub.MCP
-```
-
-### Step 1.1: Build portable package (`sih` launcher)
-
-To package both the MCP server and runtime CLI in one distributable folder:
-
-```bash
-./dist/mcp/build-mcp.sh
-```
-
-This generates per-platform packages under `dist/mcp/<rid>/` with:
-
-- `sih` (`sih.cmd` on Windows): unified launcher
-- `SphereIntegrationHub.MCP` (`.exe` on Windows)
-- `SphereIntegrationHub.cli` (`.exe` on Windows)
-- `mcp` (`mcp.cmd` on Windows)
-
-Usage:
-
-```bash
-./dist/mcp/osx-arm64/sih mcp
-./dist/mcp/osx-arm64/sih run --workflow ./src/resources/workflows/create-account.workflow --env local --dry-run --refresh-cache
 ```
 
 ### Step 2: Open the project in your IDE and the MCP is ready
@@ -331,18 +327,7 @@ Used by Codex CLI and IDE extension. Detected automatically when the project is 
 
 ## Desktop Apps (manual configuration required)
 
-Desktop apps don't have a workspace concept, so they require **absolute paths** and manual setup.
-
-### ChatGPT Desktop
-
-Open **Settings > MCP Servers > Add Server** and fill in:
-
-| Field | Value |
-|-------|-------|
-| Name | `sphere-integration-hub` |
-| Command | `/absolute/path/to/SphereIntegrationHub/dist/mcp/<rid>/sih` |
-| Arguments | `mcp` |
-| Environment | `SIH_PROJECT_ROOT=/absolute/path/to/SphereIntegrationHub` |
+Desktop apps don't have a workspace concept, so they require manual setup. The easiest path is `npx` — no paths to manage, no binaries to locate.
 
 ### Claude Desktop
 
@@ -351,21 +336,47 @@ Edit the config file:
 - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 
+**Via npx (recommended — no install needed):**
+
 ```json
 {
   "mcpServers": {
     "sphere-integration-hub": {
-      "command": "/absolute/path/to/SphereIntegrationHub/dist/mcp/<rid>/sih",
-      "args": [
-        "mcp"
-      ],
+      "command": "npx",
+      "args": ["-y", "sphere-integration-hub"],
       "env": {
-        "SIH_PROJECT_ROOT": "/absolute/path/to/SphereIntegrationHub"
+        "SIH_PROJECT_ROOT": "/absolute/path/to/your/project"
       }
     }
   }
 }
 ```
+
+**Via global npm install** (`npm install -g sphere-integration-hub` first):
+
+```json
+{
+  "mcpServers": {
+    "sphere-integration-hub": {
+      "command": "sih-mcp",
+      "env": {
+        "SIH_PROJECT_ROOT": "/absolute/path/to/your/project"
+      }
+    }
+  }
+}
+```
+
+### ChatGPT Desktop
+
+Open **Settings > MCP Servers > Add Server** and fill in:
+
+| Field | Value |
+|-------|-------|
+| Name | `sphere-integration-hub` |
+| Command | `npx` |
+| Arguments | `-y sphere-integration-hub` |
+| Environment | `SIH_PROJECT_ROOT=/absolute/path/to/your/project` |
 
 ---
 
@@ -380,7 +391,11 @@ If the server is working, the agent will call `list_api_catalog_versions` and re
 You can also test the server manually from the terminal:
 
 ```bash
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | SIH_PROJECT_ROOT=. ./dist/mcp/osx-arm64/sih mcp
+# Via npm global install
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | SIH_PROJECT_ROOT=. sih-mcp
+
+# Via npx
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | SIH_PROJECT_ROOT=. npx sphere-integration-hub
 ```
 
 This should print a JSON response listing all 35 tools.
@@ -423,6 +438,28 @@ This exposes only a minimal subset of tools:
 This reduces `tools/list` payload and usually lowers discovery tokens/latency in generic LLM agents.
 
 Example (`.vscode/mcp.json`) for a different repository:
+
+**Via npm (no .NET required):**
+
+```json
+{
+  "servers": {
+    "sphere-integration-hub": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "sphere-integration-hub"],
+      "env": {
+        "SIH_PROJECT_ROOT": "${workspaceFolder}",
+        "SIH_API_CATALOG_PATH": "${workspaceFolder}/automation/catalog/api.catalog",
+        "SIH_CACHE_PATH": "${workspaceFolder}/automation/cache",
+        "SIH_WORKFLOWS_PATH": "${workspaceFolder}/automation/workflows"
+      }
+    }
+  }
+}
+```
+
+**Via dotnet run (source build):**
 
 ```json
 {
