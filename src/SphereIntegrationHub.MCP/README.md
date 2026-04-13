@@ -218,6 +218,7 @@ The MCP surface is aligned with the current SIH runtime schema. Agents should pr
 - `ensure` as the preferred semantic sugar for create-if-missing flows
 - `bodyFile` for large request payloads
 - `dataFile` plus `forEach` for collection-driven bootstraps
+- `forEachSequential: true` when collection iterations must run one by one; otherwise runtime uses parallel iteration by default
 - `type: Object` and `type: Array` for structured workflow inputs
 - JSON-aware expressions such as `jsonLength(...)`, `exists(...)`, `empty(...)`, `coalesce(...)`, `first(...)`, and `isEmptyJson(...)`
 - response tokens such as `{{response.status}}`, `{{response.body}}`, and `{{response.headers.HeaderName}}` on endpoint stages
@@ -225,9 +226,37 @@ The MCP surface is aligned with the current SIH runtime schema. Agents should pr
 - workflow-stage result tokens such as `{{stage:child.workflow.result.status}}` and `{{stage:child.workflow.result.message}}`
 - workflow-stage output tokens such as `{{stage:child.workflow.output.accountAppId}}`
 - aggregated workflow `forEach` outputs: `foreach_items`, `foreach_results`, `foreach_success_count`, and `foreach_failed_count`
+- execution reports expose the stage `forEach` mode as `Parallel` or `Sequential`
 - execution reporting controls such as `--report-format`, `--capture-http`, and `reporting.*` defaults in `workflows.config`
 - execution artifacts named as `{workflow-name}.{executionId}.workflow.output` and `{workflow-name}.{executionId}.workflow.report.{json|html}`
 - catalog definitions may include optional `healthCheck` URLs or relative paths for runtime preflight validation, plus optional `readiness` retry/timeout rules with accepted health-check HTTP status codes
+
+Examples:
+
+```yaml
+stages:
+  - name: "seed-accounts"
+    kind: "Endpoint"
+    apiRef: "accounts"
+    endpoint: "/api/accounts"
+    httpVerb: "POST"
+    expectedStatus: 201
+    forEach: "{{input.seed}}"
+    itemName: "item"
+```
+
+```yaml
+stages:
+  - name: "publish-campaigns"
+    kind: "Workflow"
+    workflowRef: "campaign-item"
+    forEach: "{{input.campaigns}}"
+    forEachSequential: true
+    itemName: "campaign"
+    inputs:
+      code: "{{context:campaign.code}}"
+      targetStatus: "{{context:campaign.targetStatus}}"
+```
 
 Repository sample workflows to inspect alongside MCP authoring:
 
