@@ -42,8 +42,8 @@ function getPlatformKey() {
 
 function getArchiveName(os, arch) {
   return os === 'win32'
-    ? `sphere-integration-hub-${os}-${arch}.zip`
-    : `sphere-integration-hub-${os}-${arch}.tar.gz`;
+    ? `sih-${os}-${arch}.zip`
+    : `sih-${os}-${arch}.tar.gz`;
 }
 
 function getDownloadUrl(archive) {
@@ -56,7 +56,7 @@ function download(url, dest) {
     const file = fs.createWriteStream(dest);
 
     function get(currentUrl) {
-      https.get(currentUrl, { headers: { 'User-Agent': 'sphere-integration-hub-installer' } }, (res) => {
+      https.get(currentUrl, { headers: { 'User-Agent': '@pinedatec.eu/sphere-integration-hub-installer' } }, (res) => {
         if (res.statusCode === 301 || res.statusCode === 302) {
           get(res.headers.location);
           return;
@@ -95,16 +95,16 @@ async function main() {
   const url = getDownloadUrl(archive);
   const tmpArchive = path.join(BIN_DIR, archive);
 
-  console.log(`[sphere-integration-hub] Instalando v${VERSION} para ${os}/${arch}...`);
+  console.log(`[@pinedatec.eu/sphere-integration-hub] Instalando v${VERSION} para ${os}/${arch}...`);
 
   fs.mkdirSync(BIN_DIR, { recursive: true });
 
   // 1. Descargar
-  console.log(`[sphere-integration-hub] Descargando ${url}`);
+  console.log(`[@pinedatec.eu/sphere-integration-hub] Descargando ${url}`);
   await download(url, tmpArchive);
 
   // 2. Extraer
-  console.log(`[sphere-integration-hub] Extrayendo...`);
+  console.log(`[@pinedatec.eu/sphere-integration-hub] Extrayendo...`);
   if (os === 'win32') {
     extractZip(tmpArchive, BIN_DIR);
   } else {
@@ -121,11 +121,11 @@ async function main() {
   // 3. Limpiar archivo temporal
   fs.unlinkSync(tmpArchive);
 
-  console.log('[sphere-integration-hub] Instalación completada.');
+  console.log('[@pinedatec.eu/sphere-integration-hub] Instalación completada.');
 }
 
 main().catch((err) => {
-  console.error('[sphere-integration-hub] Error durante la instalación:', err.message);
+  console.error('[@pinedatec.eu/sphere-integration-hub] Error durante la instalación:', err.message);
   console.error('Puedes descargar el binario manualmente desde:');
   console.error(`  https://github.com/${REPO}/releases/tag/v${VERSION}`);
   // No fallar con exit 1 para no bloquear proyectos en entornos CI sin soporte

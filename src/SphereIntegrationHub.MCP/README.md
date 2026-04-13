@@ -164,7 +164,7 @@ If you prefer to build from source, [.NET 10.0 SDK](https://dotnet.microsoft.com
 **Option A — npm (recommended, no .NET required):**
 
 ```bash
-npm install -g sphere-integration-hub
+npm install -g @pinedatec.eu/sphere-integration-hub
 ```
 
 This downloads a self-contained binary for your platform. No runtime installation needed.
@@ -341,9 +341,9 @@ Edit the config file:
 ```json
 {
   "mcpServers": {
-    "sphere-integration-hub": {
+    "@pinedatec.eu/sphere-integration-hub": {
       "command": "npx",
-      "args": ["-y", "sphere-integration-hub"],
+      "args": ["-y", "@pinedatec.eu/sphere-integration-hub"],
       "env": {
         "SIH_PROJECT_ROOT": "/absolute/path/to/your/project"
       }
@@ -352,12 +352,12 @@ Edit the config file:
 }
 ```
 
-**Via global npm install** (`npm install -g sphere-integration-hub` first):
+**Via global npm install** (`npm install -g @pinedatec.eu/sphere-integration-hub` first):
 
 ```json
 {
   "mcpServers": {
-    "sphere-integration-hub": {
+    "@pinedatec.eu/sphere-integration-hub": {
       "command": "sih-mcp",
       "env": {
         "SIH_PROJECT_ROOT": "/absolute/path/to/your/project"
@@ -373,9 +373,9 @@ Open **Settings > MCP Servers > Add Server** and fill in:
 
 | Field | Value |
 |-------|-------|
-| Name | `sphere-integration-hub` |
+| Name | `@pinedatec.eu/sphere-integration-hub` |
 | Command | `npx` |
-| Arguments | `-y sphere-integration-hub` |
+| Arguments | `-y @pinedatec.eu/sphere-integration-hub` |
 | Environment | `SIH_PROJECT_ROOT=/absolute/path/to/your/project` |
 
 ---
@@ -395,7 +395,7 @@ You can also test the server manually from the terminal:
 echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | SIH_PROJECT_ROOT=. sih-mcp
 
 # Via npx
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | SIH_PROJECT_ROOT=. npx sphere-integration-hub
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | SIH_PROJECT_ROOT=. npx @pinedatec.eu/sphere-integration-hub
 ```
 
 This should print a JSON response listing all 35 tools.
@@ -444,10 +444,10 @@ Example (`.vscode/mcp.json`) for a different repository:
 ```json
 {
   "servers": {
-    "sphere-integration-hub": {
+    "@pinedatec.eu/sphere-integration-hub": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "sphere-integration-hub"],
+      "args": ["-y", "@pinedatec.eu/sphere-integration-hub"],
       "env": {
         "SIH_PROJECT_ROOT": "${workspaceFolder}",
         "SIH_API_CATALOG_PATH": "${workspaceFolder}/automation/catalog/api.catalog",
@@ -464,7 +464,7 @@ Example (`.vscode/mcp.json`) for a different repository:
 ```json
 {
   "servers": {
-    "sphere-integration-hub": {
+    "@pinedatec.eu/sphere-integration-hub": {
       "type": "stdio",
       "command": "dotnet",
       "args": [
