@@ -105,7 +105,8 @@ public static class ApiCatalogFile
             throw new InvalidOperationException("Catalog file is empty or invalid.");
         }
 
-        List<ApiCatalogVersion>? catalog = format switch
+        var detectedFormat = DetectFormatFromContent(content, format);
+        List<ApiCatalogVersion>? catalog = detectedFormat switch
         {
             ApiCatalogFormat.Json => JsonSerializer.Deserialize<List<ApiCatalogVersion>>(content, JsonOptions),
             ApiCatalogFormat.Yaml => YamlDeserializer.Deserialize<List<ApiCatalogVersion>>(content),
@@ -118,6 +119,17 @@ public static class ApiCatalogFile
         }
 
         return catalog;
+    }
+
+    private static ApiCatalogFormat DetectFormatFromContent(string content, ApiCatalogFormat fallbackFormat)
+    {
+        var trimmed = content.TrimStart();
+        if (trimmed.StartsWith("{", StringComparison.Ordinal) || trimmed.StartsWith("[", StringComparison.Ordinal))
+        {
+            return ApiCatalogFormat.Json;
+        }
+
+        return fallbackFormat;
     }
 
     public static string Serialize(IEnumerable<ApiCatalogVersion> catalog, string outputPath)

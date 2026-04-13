@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FluentAssertions;
+using SphereIntegrationHub.Definitions;
 using SphereIntegrationHub.MCP.Services.Integration;
 using SphereIntegrationHub.MCP.Tests.TestHelpers;
 using SphereIntegrationHub.MCP.Tools;
@@ -1083,22 +1084,20 @@ endStage:
 
         // Act
         await tool.ExecuteAsync(args);
-        var catalogJson = await File.ReadAllTextAsync(adapter.ApiCatalogPath);
-        var catalogDoc = JsonDocument.Parse(catalogJson);
+        var catalog = await ApiCatalogFile.LoadAsync(adapter.ApiCatalogPath);
 
         // Assert
-        var definition = catalogDoc.RootElement[0]
-            .GetProperty("definitions")[0]
-            ;
+        var definition = catalog[0].Definitions[0];
 
-        var definitionPort = definition.GetProperty("port").GetInt32();
-        var templatedSwaggerUrl = definition.GetProperty("swaggerUrl").GetString();
-        var storedHealthCheck = definition.GetProperty("healthCheck").GetString();
-        var readiness = definition.GetProperty("readiness");
+        var definitionPort = definition.Port;
+        var templatedSwaggerUrl = definition.SwaggerUrl;
+        var storedHealthCheck = definition.HealthCheck;
+        var readiness = definition.Readiness;
         definitionPort.Should().Be(5005);
         templatedSwaggerUrl.Should().Be("{{baseUrl.local}}:{{port}}/swagger/v1/swagger.json");
         storedHealthCheck.Should().Be("/health");
-        readiness.GetProperty("maxRetries").GetInt32().Should().Be(2);
+        readiness.Should().NotBeNull();
+        readiness!.MaxRetries.Should().Be(2);
     }
 
     [Fact]
@@ -1236,12 +1235,8 @@ endStage:
         json.GetProperty("cacheDownloaded").GetBoolean().Should().BeTrue();
         File.Exists(adapter.GetSwaggerCachePath("5.10", "FallbackApi")).Should().BeTrue();
 
-        var catalogJson = await File.ReadAllTextAsync(adapter.ApiCatalogPath);
-        var catalogDoc = JsonDocument.Parse(catalogJson);
-        var storedSwaggerUrl = catalogDoc.RootElement[0]
-            .GetProperty("definitions")[0]
-            .GetProperty("swaggerUrl")
-            .GetString();
+        var catalog = await ApiCatalogFile.LoadAsync(adapter.ApiCatalogPath);
+        var storedSwaggerUrl = catalog[0].Definitions[0].SwaggerUrl;
         storedSwaggerUrl.Should().EndWith("/swagger/v1/swagger.json");
     }
 
@@ -1401,13 +1396,14 @@ endStage:
         json.GetProperty("counts").GetProperty("downloaded").GetInt32().Should().Be(3);
         json.GetProperty("counts").GetProperty("failed").GetInt32().Should().Be(0);
 
-        var updatedCatalogJson = await File.ReadAllTextAsync(adapter.ApiCatalogPath);
-        updatedCatalogJson.Should().Contain("\"name\": \"TravelAgent.Admin.Api\"");
-        updatedCatalogJson.Should().Contain("\"name\": \"TravelAgent.Licensing.PublicApi\"");
-        updatedCatalogJson.Should().Contain("\"name\": \"TravelAgent.Admin.Licensing.Api\"");
-        updatedCatalogJson.Should().NotContain("\"name\": \"api-5009\"");
-        updatedCatalogJson.Should().NotContain("\"name\": \"api-5007\"");
-        updatedCatalogJson.Should().NotContain("\"name\": \"api-5005\"");
+        var updatedCatalog = await ApiCatalogFile.LoadAsync(adapter.ApiCatalogPath);
+        var updatedDefinitionNames = updatedCatalog[0].Definitions.Select(definition => definition.Name).ToList();
+        updatedDefinitionNames.Should().Contain("TravelAgent.Admin.Api");
+        updatedDefinitionNames.Should().Contain("TravelAgent.Licensing.PublicApi");
+        updatedDefinitionNames.Should().Contain("TravelAgent.Admin.Licensing.Api");
+        updatedDefinitionNames.Should().NotContain("api-5009");
+        updatedDefinitionNames.Should().NotContain("api-5007");
+        updatedDefinitionNames.Should().NotContain("api-5005");
 
         File.Exists(adapter.GetSwaggerCachePath("0.1", "TravelAgent.Admin.Api")).Should().BeTrue();
         File.Exists(adapter.GetSwaggerCachePath("0.1", "TravelAgent.Licensing.PublicApi")).Should().BeTrue();
