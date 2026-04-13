@@ -153,11 +153,13 @@ public sealed class WorkflowValidator
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var stageNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var references = definition.References;
+        var validationGlobals = BuildValidationGlobals(definition.InitStage, environmentVariables, runtimeInputs);
         var workflowLookup = BuildWorkflowLookupForValidation(
             references?.Workflows,
             workflowPath,
             environmentVariables,
             runtimeInputs,
+            validationGlobals,
             errors,
             warnings);
         var apiLookup = BuildApiReferenceLookup(references?.Apis, errors);
@@ -508,12 +510,14 @@ public sealed class WorkflowValidator
 
         var endpointOutputs = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         var workflowOutputs = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var validationGlobals = BuildValidationGlobals(definition.InitStage, environmentVariables, runtimeInputs);
 
         var workflowRefs = BuildWorkflowLookupForValidation(
             definition.References?.Workflows,
             workflowPath,
             environmentVariables,
             runtimeInputs,
+            validationGlobals,
             errors,
             warnings);
 
@@ -603,7 +607,7 @@ public sealed class WorkflowValidator
 
                 if (!string.IsNullOrWhiteSpace(stage.BodyFile))
                 {
-                    if (TryResolvePathForValidation(stage.BodyFile, workflowPath, environmentVariables, runtimeInputs, out var resolvedPath, out var resolutionError, out var resolutionWarning))
+                    if (TryResolvePathForValidation(stage.BodyFile, workflowPath, environmentVariables, runtimeInputs, globals: null, out var resolvedPath, out var resolutionError, out var resolutionWarning))
                     {
                         if (!File.Exists(resolvedPath))
                         {
@@ -626,7 +630,7 @@ public sealed class WorkflowValidator
 
                 if (!string.IsNullOrWhiteSpace(stage.DataFile))
                 {
-                    if (TryResolvePathForValidation(stage.DataFile, workflowPath, environmentVariables, runtimeInputs, out var resolvedPath, out var resolutionError, out var resolutionWarning))
+                    if (TryResolvePathForValidation(stage.DataFile, workflowPath, environmentVariables, runtimeInputs, globals: null, out var resolvedPath, out var resolutionError, out var resolutionWarning))
                     {
                         if (!File.Exists(resolvedPath))
                         {
@@ -1117,7 +1121,7 @@ public sealed class WorkflowValidator
         IReadOnlyDictionary<string, string>? runtimeInputs)
     {
         var payloadFile = stage.Mock?.PayloadFile ?? string.Empty;
-        if (TryResolvePathForValidation(payloadFile, workflowPath, environmentVariables, runtimeInputs, out _, out var resolutionError, out var resolutionWarning))
+        if (TryResolvePathForValidation(payloadFile, workflowPath, environmentVariables, runtimeInputs, globals: null, out _, out var resolutionError, out var resolutionWarning))
         {
             return _mockPayloadService.LoadRawPayloadFromFile(
                 payloadFile,
@@ -1145,6 +1149,7 @@ public sealed class WorkflowValidator
         string workflowPath,
         IReadOnlyDictionary<string, string> environmentVariables,
         IReadOnlyDictionary<string, string>? runtimeInputs,
+        IReadOnlyDictionary<string, string>? globals,
         List<string> errors,
         List<string> warnings)
     {
@@ -1174,7 +1179,7 @@ public sealed class WorkflowValidator
                 continue;
             }
 
-            if (TryResolvePathForValidation(reference.Path, workflowPath, environmentVariables, runtimeInputs, out var resolvedPath, out var resolutionError, out var resolutionWarning))
+            if (TryResolvePathForValidation(reference.Path, workflowPath, environmentVariables, runtimeInputs, globals, out var resolvedPath, out var resolutionError, out var resolutionWarning))
             {
                 lookup.Add(reference.Name, resolvedPath);
                 continue;
@@ -1197,13 +1202,14 @@ public sealed class WorkflowValidator
         string workflowPath,
         IReadOnlyDictionary<string, string> environmentVariables,
         IReadOnlyDictionary<string, string>? runtimeInputs,
+        IReadOnlyDictionary<string, string>? globals,
         out string resolvedPath,
         out string? error,
         out string? warning)
     {
         try
         {
-            resolvedPath = WorkflowReferencePathResolver.ResolvePath(path, workflowPath, environmentVariables, runtimeInputs);
+            resolvedPath = WorkflowReferencePathResolver.ResolvePath(path, workflowPath, environmentVariables, runtimeInputs, globals);
             error = null;
             warning = null;
             return true;
@@ -1222,6 +1228,49 @@ public sealed class WorkflowValidator
             warning = null;
             return false;
         }
+    }
+
+    private static Dictionary<string, string> BuildValidationGlobals(
+        WorkflowInitStage? initStage,
+        IReadOnlyDictionary<string, string> environmentVariables,
+        IReadOnlyDictionary<string, string>? runtimeInputs)
+    {
+        var globals = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (initStage?.Variables is null || initStage.Variables.Count == 0)
+        {
+            return globals;
+        }
+
+        var resolver = new TemplateResolver();
+        foreach (var variable in initStage.Variables)
+        {
+            if (string.IsNullOrWhiteSpace(variable.Name) || string.IsNullOrWhiteSpace(variable.Value))
+            {
+                continue;
+            }
+
+            try
+            {
+                var resolvedValue = resolver.ResolveTemplate(
+                    variable.Value,
+                    new TemplateContext(
+                        runtimeInputs ?? EmptyEnvironmentVariables,
+                        globals,
+                        EmptyEnvironmentVariables,
+                        new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase),
+                        new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase),
+                        new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase),
+                        environmentVariables,
+                        WorkflowPath: string.Empty));
+                globals[variable.Name] = resolvedValue;
+            }
+            catch
+            {
+                // Leave unresolved globals deferred during validation.
+            }
+        }
+
+        return globals;
     }
 
     private static bool CanSkipPathResolution(Exception ex)
