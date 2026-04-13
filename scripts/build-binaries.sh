@@ -67,8 +67,7 @@ build_rid() {
 
   if [[ "$rid" == win-* ]]; then
     local archive="$DIST_DIR/sphere-integration-hub-win32-${rid##win-}.zip"
-    # zip requiere la herramienta zip o se puede usar PowerShell en CI
-    zip -j "$archive" "$out_cli/sih.exe" "$out_mcp/sih-mcp.exe"
+    zip -j "$archive" "$out_cli/SphereIntegrationHub.cli.exe" "$out_mcp/SphereIntegrationHub.MCP.exe"
     echo "  → $archive"
   else
     local npm_os
@@ -78,7 +77,13 @@ build_rid() {
     esac
     local npm_arch="${rid##*-}"
     local archive="$DIST_DIR/sphere-integration-hub-${npm_os}-${npm_arch}.tar.gz"
-    tar czf "$archive" -C "$(realpath "$out_cli")" sih -C "$(realpath "$out_mcp")" sih-mcp
+    local staging
+    staging="$(mktemp -d)"
+    cp "$(realpath "$out_cli")/SphereIntegrationHub.cli" "$staging/sih"
+    cp "$(realpath "$out_mcp")/SphereIntegrationHub.MCP" "$staging/sih-mcp"
+    chmod +x "$staging/sih" "$staging/sih-mcp"
+    tar czf "$archive" -C "$staging" sih sih-mcp
+    rm -rf "$staging"
     echo "  → $archive"
   fi
 }
@@ -92,8 +97,8 @@ install_local() {
   local out_mcp="$REPO_ROOT/publish/$rid/mcp"
 
   mkdir -p "$npm_bin_dir"
-  cp "$out_cli/sih"     "$npm_bin_dir/sih"
-  cp "$out_mcp/sih-mcp" "$npm_bin_dir/sih-mcp"
+  cp "$out_cli/SphereIntegrationHub.cli"  "$npm_bin_dir/sih"
+  cp "$out_mcp/SphereIntegrationHub.MCP" "$npm_bin_dir/sih-mcp"
   chmod +x "$npm_bin_dir/sih" "$npm_bin_dir/sih-mcp"
 
   echo ""
