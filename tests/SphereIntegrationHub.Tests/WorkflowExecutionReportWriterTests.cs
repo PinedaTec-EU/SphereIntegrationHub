@@ -62,6 +62,7 @@ public sealed class WorkflowExecutionReportWriterTests
             StageName = "create",
             StageKind = "Endpoint",
             Status = "Ok",
+            ForEachExecutionMode = "Parallel",
             StartedAtUtc = DateTimeOffset.UtcNow,
             FinishedAtUtc = DateTimeOffset.UtcNow,
             DurationMs = 10
@@ -84,6 +85,7 @@ public sealed class WorkflowExecutionReportWriterTests
         using var parsed = JsonDocument.Parse(await File.ReadAllTextAsync(artifacts.JsonReportPath!));
         Assert.Equal("Ok", parsed.RootElement.GetProperty("Result").GetString());
         Assert.Equal(1, parsed.RootElement.GetProperty("Preflight").GetProperty("TotalRetries").GetInt32());
+        Assert.Equal("Parallel", parsed.RootElement.GetProperty("Stages")[0].GetProperty("ForEachExecutionMode").GetString());
         var html = await File.ReadAllTextAsync(artifacts.HtmlReportPath!);
         Assert.Contains("Workflow Report", html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Preflight", html, StringComparison.OrdinalIgnoreCase);

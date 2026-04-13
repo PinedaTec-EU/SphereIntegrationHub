@@ -137,6 +137,33 @@ public sealed class ExecutionReportGeneratorTests
         Assert.DoesNotContain("span-bar-label", html, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task GenerateAndOpenAsync_WithForEachStage_RendersExecutionModeInDetailPanel()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"sih-report-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+
+        var reportPath = Path.Combine(root, "sample.01KNGXHCZZZZ6KMC3DZDZAJRTJ.workflow.report.json");
+        await File.WriteAllTextAsync(reportPath, CreateForEachModeReportJson());
+
+        var output = new TestOutputProvider();
+        var generator = new ExecutionReportGenerator(output);
+
+        var result = await generator.GenerateAndOpenAsync(
+            new InlineArguments(
+                IsReportCommand: true,
+                ExecutionReportPath: root,
+                OpenAfterGenerate: false),
+            CancellationToken.None);
+
+        Assert.Equal(0, result);
+
+        var htmlPath = Path.Combine(root, $"{Path.GetFileName(root)}.reports.workflow.report.html");
+        var html = await File.ReadAllTextAsync(htmlPath);
+        Assert.Contains("ForEach mode", html, StringComparison.Ordinal);
+        Assert.Contains("stage.ForEachExecutionMode", html, StringComparison.Ordinal);
+    }
+
     private static string CreateReportJson(string executionId, string workflowName)
     {
         var report = new WorkflowExecutionReport
@@ -296,6 +323,43 @@ public sealed class ExecutionReportGeneratorTests
             FinishedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:02.500Z"),
             DurationMs = 1500,
             Status = "Ok"
+        });
+
+        return System.Text.Json.JsonSerializer.Serialize(report, new System.Text.Json.JsonSerializerOptions
+        {
+            WriteIndented = true
+        });
+    }
+
+    private static string CreateForEachModeReportJson()
+    {
+        var report = new WorkflowExecutionReport
+        {
+            ExecutionId = "01KNGXHCZZZZ6KMC3DZDZAJRTJ",
+            WorkflowName = "ForEach Mode",
+            WorkflowId = "wf-foreach-mode",
+            WorkflowVersion = "1.0.0",
+            WorkflowPath = "/tmp/foreach.workflow",
+            Environment = "local",
+            StartedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:00Z"),
+            FinishedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:03Z"),
+            DurationMs = 3000,
+            Result = "Ok",
+            Output = new Dictionary<string, object?>()
+        };
+
+        report.Metrics.TotalStages = 1;
+        report.Metrics.ExecutedStages = 1;
+        report.Stages.Add(new WorkflowStageExecutionRecord
+        {
+            WorkflowName = "ForEach Mode",
+            StageName = "seed-items",
+            StageKind = "Endpoint",
+            StartedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:00Z"),
+            FinishedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:01Z"),
+            DurationMs = 1000,
+            Status = "Ok",
+            ForEachExecutionMode = "Parallel"
         });
 
         return System.Text.Json.JsonSerializer.Serialize(report, new System.Text.Json.JsonSerializerOptions
