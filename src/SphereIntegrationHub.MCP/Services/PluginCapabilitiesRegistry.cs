@@ -21,6 +21,7 @@ internal static class PluginCapabilitiesRegistry
                     "bodyFile",
                     "dataFile",
                     "forEach",
+                    "forEachSequential",
                     "itemName",
                     "indexName",
                     "runIf",
@@ -43,6 +44,7 @@ internal static class PluginCapabilitiesRegistry
                     "Status branching with expectedStatuses/onStatus/jumpOnStatus/ensure",
                     "Inline or file-based request bodies",
                     "Collection iteration with forEach/dataFile",
+                    "Parallel forEach by default with optional sequential override",
                     "Response capture into output"
                 }
             },
@@ -55,6 +57,7 @@ internal static class PluginCapabilitiesRegistry
                 {
                     "inputs",
                     "forEach",
+                    "forEachSequential",
                     "dataFile",
                     "itemName",
                     "indexName",
@@ -71,7 +74,8 @@ internal static class PluginCapabilitiesRegistry
                     "Workflow composition",
                     "Input/output mapping",
                     "Nested execution",
-                    "Collection iteration over child workflows"
+                    "Collection iteration over child workflows",
+                    "Parallel forEach by default with optional sequential override"
                 }
             }
         };
@@ -149,7 +153,8 @@ internal static class PluginCapabilitiesRegistry
                     {
                         "bodyFile: ./payloads/create-account.json",
                         "dataFile: ./seed/accounts.json",
-                        "forEach: \"{{input.items}}\""
+                        "forEach: \"{{input.items}}\"",
+                        "forEachSequential: true"
                     }
                 },
                 new
@@ -179,6 +184,7 @@ internal static class PluginCapabilitiesRegistry
                         "Prefer ensure for create-if-missing bootstrap stages",
                         "Prefer expectedStatuses for idempotent create/bootstrap flows",
                         "Prefer bodyFile/dataFile when payloads are large",
+                        "Use forEachSequential only when ordering or shared-state constraints require sequential execution",
                         "Use sample workflows under samples/ as runtime-aligned references"
                     }
                 },
@@ -192,6 +198,7 @@ internal static class PluginCapabilitiesRegistry
                         "--capture-http headers",
                         "--capture-http bodies",
                         "reporting.summaryConsole = true",
+                        "stage.ForEachExecutionMode = Parallel|Sequential",
                         "{name}.{executionId}.workflow.output",
                         "{name}.{executionId}.workflow.report.json"
                     }

@@ -168,6 +168,7 @@ Agents generating workflows should assume these runtime rules:
 - Workflow validation can check response token paths against endpoint mock payloads when `stage.mock.payload` or `stage.mock.payloadFile` is present.
 - `kind: Workflow` stage failures propagate to the parent workflow; parent execution does not continue past a failed child workflow.
 - `forEach` on workflow stages aggregates both outputs and result state. In addition to `foreach_count` and `foreach_items`, workflow stages expose `foreach_results`, `foreach_success_count`, and `foreach_failed_count`.
+- `forEach` runs in parallel by default. Set `forEachSequential: true` on the stage when iterations must execute one by one.
 - `response.*` tokens are endpoint-stage only. Workflow stages should use `stage:<name>.workflow.output.*` and `stage:<name>.workflow.result.{status,message}` instead.
 
 ## Execution reporting
@@ -177,6 +178,7 @@ SphereIntegrationHub can persist each run as JSON + HTML execution artifacts for
 - Machine-readable JSON report
 - Self-contained HTML trace viewer
 - Configurable HTTP capture with redaction by default
+- Stage detail includes the `forEach` execution mode (`Parallel` or `Sequential`) when iteration is enabled
 
 See [`.doc/execution-reporting.md`](.doc/execution-reporting.md) for full usage, artifact formats, and reporting configuration.
 
@@ -276,6 +278,42 @@ stages:
 endStage:
   output:
     created: "{{stage:create-account.output.foreach_items}}"
+```
+
+`forEach` runs in parallel by default. Set `forEachSequential: true` on the stage when iterations must execute one by one.
+
+Parallel default example:
+
+```yaml
+stages:
+  - name: "seed-accounts"
+    kind: "Endpoint"
+    apiRef: "accounts"
+    endpoint: "/api/accounts"
+    httpVerb: "POST"
+    expectedStatus: 201
+    forEach: "{{input.seed}}"
+    itemName: "item"
+    body: |
+      {
+        "id": "{{context:item.id}}",
+        "name": "{{context:item.name}}"
+      }
+```
+
+Sequential example when order matters or iterations depend on shared state:
+
+```yaml
+stages:
+  - name: "publish-campaigns"
+    kind: "Workflow"
+    workflowRef: "campaign-item"
+    forEach: "{{input.campaigns}}"
+    forEachSequential: true
+    itemName: "campaign"
+    inputs:
+      code: "{{context:campaign.code}}"
+      targetStatus: "{{context:campaign.targetStatus}}"
 ```
 
 Example `./payloads/create-account.json`:

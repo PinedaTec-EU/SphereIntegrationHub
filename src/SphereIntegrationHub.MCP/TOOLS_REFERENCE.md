@@ -29,6 +29,7 @@ Authoring notes for agents:
 - prefer `ensure` when the intent is "create if missing"
 - use `bodyFile` when payloads are large
 - use `forEach` / `dataFile` when seeding collections
+- use `forEachSequential: true` only when collection items must run one by one; default runtime behavior is parallel
 
 Input options:
 - Swagger mode: `version`, `apiName`, `endpoint`, `httpVerb`
