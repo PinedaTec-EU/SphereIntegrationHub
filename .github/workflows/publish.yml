@@ -3,110 +3,89 @@ name: Publish
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'v*.*.*.*'
 
 permissions:
   contents: write   # para crear el GitHub Release
   id-token: write   # para npm provenance
 
 jobs:
-  # ─── Build binaries por plataforma ────────────────────────────────────────
-  build:
-    name: Build ${{ matrix.rid }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            rid: linux-x64
-            archive: sphere-integration-hub-linux-x64.tar.gz
-          - os: ubuntu-24.04-arm
-            rid: linux-arm64
-            archive: sphere-integration-hub-linux-arm64.tar.gz
-          - os: macos-13
-            rid: osx-x64
-            archive: sphere-integration-hub-darwin-x64.tar.gz
-          - os: macos-latest
-            rid: osx-arm64
-            archive: sphere-integration-hub-darwin-arm64.tar.gz
-          - os: windows-latest
-            rid: win-x64
-            archive: sphere-integration-hub-win32-x64.zip
+  # ─── Build todas las plataformas desde el self-hosted runner ─────────────────
+  # .NET soporta cross-compilation: un solo runner genera binarios para todos los RIDs.
+  build-and-release:
+    name: Build & Release
+    runs-on: [self-hosted, primary]
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.x'
-
-      - name: Publish CLI
-        shell: bash
-        run: |
-          dotnet publish src/SphereIntegrationHub.cli/SphereIntegrationHub.cli.csproj \
-            -r ${{ matrix.rid }} \
-            --self-contained true \
-            -p:PublishSingleFile=true \
-            -p:EnableCompressionInSingleFile=true \
-            -c Release \
-            -o publish/cli
-
-      - name: Publish MCP
-        shell: bash
-        run: |
-          dotnet publish src/SphereIntegrationHub.MCP/SphereIntegrationHub.MCP.csproj \
-            -r ${{ matrix.rid }} \
-            --self-contained true \
-            -p:PublishSingleFile=true \
-            -p:EnableCompressionInSingleFile=true \
-            -c Release \
-            -o publish/mcp
-
-      - name: Create archive (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          mkdir -p dist
-          # Copiamos ambos binarios a un staging dir para evitar rutas relativas en tar
-          mkdir -p staging
-          cp publish/cli/sih   staging/sih
-          cp publish/mcp/sih-mcp staging/sih-mcp
-          tar czf dist/${{ matrix.archive }} -C staging sih sih-mcp
-
-      - name: Create archive (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Compress-Archive -Path publish/cli/sih.exe, publish/mcp/sih-mcp.exe -DestinationPath dist/${{ matrix.archive }}
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.archive }}
-          path: dist/${{ matrix.archive }}
-          retention-days: 1
-
-  # ─── Crear GitHub Release y publicar npm ──────────────────────────────────
-  release:
-    name: Release & Publish npm
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: dist
-          merge-multiple: true
 
       - name: Extract version from tag
         id: version
         run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
+      # ─── Compilar CLI + MCP para cada RID ──────────────────────────────────
+      - name: Publish all platforms
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RIDS=(linux-x64 linux-arm64 osx-x64 osx-arm64 win-x64)
+
+          for rid in "${RIDS[@]}"; do
+            echo "▸ Compilando $rid..."
+
+            dotnet publish src/SphereIntegrationHub.cli/SphereIntegrationHub.cli.csproj \
+              -r "$rid" --self-contained true \
+              -p:PublishSingleFile=true \
+              -p:EnableCompressionInSingleFile=true \
+              -c Release -o "publish/$rid/cli" \
+              --nologo -v quiet
+
+            dotnet publish src/SphereIntegrationHub.MCP/SphereIntegrationHub.MCP.csproj \
+              -r "$rid" --self-contained true \
+              -p:PublishSingleFile=true \
+              -p:EnableCompressionInSingleFile=true \
+              -c Release -o "publish/$rid/mcp" \
+              --nologo -v quiet
+          done
+
+      # ─── Empaquetar ────────────────────────────────────────────────────────
+      - name: Create archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+
+          # Unix: tar.gz
+          for entry in \
+            "linux-x64:linux:x64" \
+            "linux-arm64:linux:arm64" \
+            "osx-x64:darwin:x64" \
+            "osx-arm64:darwin:arm64"
+          do
+            rid="${entry%%:*}"
+            rest="${entry#*:}"
+            npm_os="${rest%%:*}"
+            npm_arch="${rest##*:}"
+            archive="sphere-integration-hub-${npm_os}-${npm_arch}.tar.gz"
+
+            mkdir -p "staging/$rid"
+            cp "publish/$rid/cli/sih"     "staging/$rid/sih"
+            cp "publish/$rid/mcp/sih-mcp" "staging/$rid/sih-mcp"
+            tar czf "dist/$archive" -C "staging/$rid" sih sih-mcp
+            echo "  → dist/$archive"
+          done
+
+          # Windows: zip (comando disponible en macOS/Linux)
+          mkdir -p staging/win-x64
+          cp publish/win-x64/cli/sih.exe     staging/win-x64/sih.exe
+          cp publish/win-x64/mcp/sih-mcp.exe staging/win-x64/sih-mcp.exe
+          zip -j dist/sphere-integration-hub-win32-x64.zip \
+            staging/win-x64/sih.exe \
+            staging/win-x64/sih-mcp.exe
+          echo "  → dist/sphere-integration-hub-win32-x64.zip"
+
+      # ─── GitHub Release ────────────────────────────────────────────────────
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -114,6 +93,7 @@ jobs:
           generate_release_notes: true
           files: dist/*
 
+      # ─── Publicar npm ──────────────────────────────────────────────────────
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
