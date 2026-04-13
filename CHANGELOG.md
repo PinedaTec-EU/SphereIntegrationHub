@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.7.15] – 2026-04-13
+
+### Distribution — no .NET required
+
+SphereIntegrationHub is now available as a self-contained npm package. Both the CLI (`sih`) and the
+MCP server (`sih-mcp`) ship as native binaries for each platform — no .NET SDK or runtime needed.
+
+**Supported platforms:** `linux-x64`, `linux-arm64`, `darwin-x64`, `darwin-arm64`, `win32-x64`.
+
+```bash
+# Install globally
+npm install -g sphere-integration-hub
+sih --version
+
+# Or use via npx (no install)
+npx sphere-integration-hub        # MCP server
+npx -p sphere-integration-hub sih --version
+```
+
+- **GitHub Releases**: each tagged version publishes compressed platform binaries (`.tar.gz` / `.zip`).
+- **npm package** (`sphere-integration-hub`): tiny JS wrapper (~5 KB) that downloads the correct binary on `postinstall`.
+- **CI/CD publish workflow** (`.github/workflows/publish.yml`): tag `v*.*.*` triggers a matrix build across all platforms, creates a GitHub Release, and publishes to npm automatically.
+- **dotnet tool** distribution on NuGet remains available for teams already on .NET.
+
+---
+
 ## [1.7] – 2026-04
 
 ### Breaking change — `api-catalog.json` no longer auto-discovered
