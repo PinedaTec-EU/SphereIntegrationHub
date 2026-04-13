@@ -6,8 +6,8 @@
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/PinedaTec-EU/SphereIntegrationHub)
 [![License MIT](https://img.shields.io/badge/MIT_license-blue)](https://opensource.org/licenses/MIT)
-[![npm](https://img.shields.io/npm/v/sphere-integration-hub?label=npm)](https://www.npmjs.com/package/sphere-integration-hub)
-[![npm downloads](https://img.shields.io/npm/dm/sphere-integration-hub)](https://www.npmjs.com/package/sphere-integration-hub)
+[![npm](https://img.shields.io/npm/v/@pinedatec.eu/sphere-integration-hub?label=npm)](https://www.npmjs.com/package/@pinedatec.eu/sphere-integration-hub)
+[![npm downloads](https://img.shields.io/npm/dm/@pinedatec.eu/sphere-integration-hub)](https://www.npmjs.com/package/@pinedatec.eu/sphere-integration-hub)
 ![MCP](https://img.shields.io/badge/MCP-35_tools-purple)
 [![NuGet Version](https://img.shields.io/nuget/v/SphereIntegrationHub.Tool.svg?label=NuGet+CLI)](https://www.nuget.org/packages/SphereIntegrationHub.Tool/)
 [![NuGet Version](https://img.shields.io/nuget/v/SphereIntegrationHub.MCP.Tool.svg?label=NuGet+MCP)](https://www.nuget.org/packages/SphereIntegrationHub.Mcp.Tool/)
@@ -56,21 +56,21 @@ The fastest way to get started. No runtime dependencies, no SDK to install.
 **Global install** (run `sih` and `sih-mcp` anywhere):
 
 ```bash
-npm install -g sphere-integration-hub
+npm install -g @pinedatec.eu/sphere-integration-hub
 sih --version
 ```
 
 **One-off via npx** (MCP server, ideal for Claude Desktop / VS Code):
 
 ```bash
-npx sphere-integration-hub          # launches the MCP server
-npx -p sphere-integration-hub sih --version   # CLI one-off
+npx @pinedatec.eu/sphere-integration-hub          # launches the MCP server
+npx -p @pinedatec.eu/sphere-integration-hub sih --version   # CLI one-off
 ```
 
 **For teams and CI** (pin to repo):
 
 ```bash
-npm install --save-dev sphere-integration-hub
+npm install --save-dev @pinedatec.eu/sphere-integration-hub
 # teammates and CI: npm install picks it up automatically
 ```
 

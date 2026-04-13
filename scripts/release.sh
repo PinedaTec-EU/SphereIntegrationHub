@@ -102,7 +102,7 @@ for entry in \
 do
   rid="${entry%%:*}"; rest="${entry#*:}"
   npm_os="${rest%%:*}"; npm_arch="${rest##*:}"
-  archive="sphere-integration-hub-${npm_os}-${npm_arch}.tar.gz"
+  archive="sih-${npm_os}-${npm_arch}.tar.gz"
 
   mkdir -p "staging/$rid"
   cp "publish/$rid/cli/SphereIntegrationHub.cli"  "staging/$rid/sih"
@@ -115,9 +115,9 @@ done
 mkdir -p staging/win-x64
 cp publish/win-x64/cli/SphereIntegrationHub.cli.exe staging/win-x64/sih.exe
 cp publish/win-x64/mcp/SphereIntegrationHub.MCP.exe staging/win-x64/sih-mcp.exe
-zip -j "$DIST_DIR/sphere-integration-hub-win32-x64.zip" \
+zip -j "$DIST_DIR/sih-win32-x64.zip" \
   staging/win-x64/sih.exe staging/win-x64/sih-mcp.exe
-echo "  → sphere-integration-hub-win32-x64.zip"
+echo "  → sih-win32-x64.zip"
 
 echo ""
 echo "Archivos en dist/:"
@@ -154,5 +154,5 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  Release $TAG completado"
 echo "  https://github.com/PinedaTec-EU/SphereIntegrationHub/releases/tag/$TAG"
-echo "  https://www.npmjs.com/package/sphere-integration-hub"
+echo "  https://www.npmjs.com/package/@pinedatec.eu/sphere-integration-hub"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

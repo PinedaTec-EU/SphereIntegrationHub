@@ -13,11 +13,11 @@ const result = spawnSync(bin, process.argv.slice(2), { stdio: 'inherit' });
 if (result.error) {
   if (result.error.code === 'ENOENT') {
     console.error(
-      '[sphere-integration-hub] Binario "sih" no encontrado.\n' +
-      'Reinstala el paquete: npm install sphere-integration-hub'
+      '[@pinedatec.eu/sphere-integration-hub] Binario "sih" no encontrado.\n' +
+      'Reinstala el paquete: npm install @pinedatec.eu/sphere-integration-hub'
     );
   } else {
-    console.error('[sphere-integration-hub]', result.error.message);
+    console.error('[@pinedatec.eu/sphere-integration-hub]', result.error.message);
   }
   process.exit(1);
 }
