@@ -3,7 +3,7 @@ name: Publish
 on:
   push:
     tags:
-      - 'deploy/v*.*.*.*'
+      - 'v*.*.*.*'
 
 permissions:
   contents: write   # para crear el GitHub Release

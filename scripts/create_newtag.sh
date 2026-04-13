@@ -19,7 +19,7 @@ if [ -z "$VERSION" ]; then
 	fi
 fi
 
-TAG="deploy/v${VERSION}"
+TAG="v${VERSION}"
 
 echo "Creando tag: $TAG"
 
