@@ -1,13 +1,6 @@
 #!/bin/bash
 
-# Verifica que se reciba al menos un parámetro
-if [ "$#" -lt 1 ]; then
-	echo "Uso: $0 <environment> [version]"
-	exit 1
-fi
-
-ENVIRONMENT="$1"
-VERSION="$2"
+VERSION="$1"
 
 # Directorio del script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
