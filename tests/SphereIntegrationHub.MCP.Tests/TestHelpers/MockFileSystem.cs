@@ -26,19 +26,7 @@ public class MockFileSystem : IDisposable
     public string ResourcesPath => Path.Combine(_tempRoot, "src", "resources");
     public string CachePath => Path.Combine(_tempRoot, "src", "resources", "cache");
     public string WorkflowsPath => Path.Combine(_tempRoot, "src", "resources", "workflows");
-    public string ApiCatalogPath
-    {
-        get
-        {
-            var canonicalPath = Path.Combine(ResourcesPath, "api.catalog");
-            if (File.Exists(canonicalPath))
-            {
-                return canonicalPath;
-            }
-
-            return Path.Combine(ResourcesPath, "api-catalog.json");
-        }
-    }
+    public string ApiCatalogPath => Path.Combine(ResourcesPath, "api.catalog");
 
     /// <summary>
     /// Adds a file to the mock file system
@@ -58,15 +46,11 @@ public class MockFileSystem : IDisposable
     }
 
     /// <summary>
-    /// Adds the API catalog file
+    /// Adds the API catalog file (YAML format, written to api.catalog)
     /// </summary>
     public void AddApiCatalog(string content)
     {
-        var trimmed = content.TrimStart();
-        var relativePath = trimmed.StartsWith('[') || trimmed.StartsWith('{')
-            ? "src/resources/api-catalog.json"
-            : "src/resources/api.catalog";
-        AddFile(relativePath, content);
+        AddFile("src/resources/api.catalog", content);
     }
 
     /// <summary>

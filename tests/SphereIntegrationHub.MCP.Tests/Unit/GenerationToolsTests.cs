@@ -848,7 +848,7 @@ endStage:
         var args = new Dictionary<string, object>
         {
             ["versions"] = JsonSerializer.SerializeToElement(payload),
-            ["outputPath"] = "src/resources/api-catalog.json",
+            ["outputPath"] = "src/resources/api.catalog",
             ["writeToDisk"] = true
         };
 
@@ -859,11 +859,11 @@ endStage:
         // Assert
         json.TryGetProperty("versionsCount", out var versionsCountEl).Should().BeTrue();
         versionsCountEl.GetInt32().Should().Be(1);
-        File.Exists(Path.Combine(_mockFs.RootPath, "src", "resources", "api-catalog.json")).Should().BeTrue();
-        var storedJson = await File.ReadAllTextAsync(Path.Combine(_mockFs.RootPath, "src", "resources", "api-catalog.json"));
-        var definition = JsonDocument.Parse(storedJson).RootElement[0].GetProperty("definitions")[0];
-        definition.GetProperty("healthCheck").GetString().Should().Be("/health/orders");
-        definition.GetProperty("readiness").GetProperty("maxRetries").GetInt32().Should().Be(2);
+        var catalogFilePath = Path.Combine(_mockFs.RootPath, "src", "resources", "api.catalog");
+        File.Exists(catalogFilePath).Should().BeTrue();
+        var storedYaml = await File.ReadAllTextAsync(catalogFilePath);
+        storedYaml.Should().Contain("healthCheck: /health/orders");
+        storedYaml.Should().Contain("maxRetries: 2");
     }
 
     [Fact]
@@ -908,11 +908,30 @@ endStage:
     [Fact]
     public async Task MigrateApiCatalog_WritesCanonicalCatalog_FromLegacyJson()
     {
+        // Arrange: write a legacy JSON catalog that the migration tool will convert
+        var legacyJsonPath = Path.Combine(_mockFs.RootPath, "src", "resources", "api-catalog.json");
+        var legacyJson = """
+[
+  {
+    "version": "3.10",
+    "definitions": [
+      {
+        "name": "AccountsAPI",
+        "basePath": "/api/accounts",
+        "swaggerUrl": "/swagger/accounts.json",
+        "baseUrl": { "local": "http://localhost", "pre": "https://pre.api.example.com" }
+      }
+    ]
+  }
+]
+""";
+        await File.WriteAllTextAsync(legacyJsonPath, legacyJson);
+
         var tool = new MigrateApiCatalogTool(_adapter);
         var outputPath = Path.Combine(_mockFs.RootPath, "src", "resources", "api.catalog");
         var args = new Dictionary<string, object>
         {
-            ["sourcePath"] = "src/resources/api-catalog.json",
+            ["sourcePath"] = legacyJsonPath,
             ["outputPath"] = outputPath,
             ["writeToDisk"] = true
         };
@@ -950,7 +969,7 @@ endStage:
             }
         };
 
-        var outputPath = Path.Combine(_mockFs.RootPath, "src", "resources", "api-catalog.inferred.json");
+        var outputPath = Path.Combine(_mockFs.RootPath, "src", "resources", "api-catalog.inferred.catalog");
         var args = new Dictionary<string, object>
         {
             ["versions"] = JsonSerializer.SerializeToElement(payload),
@@ -960,18 +979,11 @@ endStage:
 
         // Act
         await tool.ExecuteAsync(args);
-        var catalogJson = await File.ReadAllTextAsync(outputPath);
-        var catalogDoc = JsonDocument.Parse(catalogJson);
+        var catalogYaml = await File.ReadAllTextAsync(outputPath);
 
         // Assert
-        var definition = catalogDoc.RootElement[0]
-            .GetProperty("definitions")[0]
-            ;
-
-        var port = definition.GetProperty("port").GetInt32();
-        var templatedSwaggerUrl = definition.GetProperty("swaggerUrl").GetString();
-        port.Should().Be(5005);
-        templatedSwaggerUrl.Should().Be("{{baseUrl.local}}:{{port}}/swagger/v1/swagger.json");
+        catalogYaml.Should().Contain("port: 5005");
+        catalogYaml.Should().Contain("{{baseUrl.local}}:{{port}}/swagger/v1/swagger.json");
     }
 
     [Fact]
@@ -996,7 +1008,7 @@ endStage:
             }
         };
 
-        var outputPath = Path.Combine(_mockFs.RootPath, "src", "resources", "api-catalog.normalized.json");
+        var outputPath = Path.Combine(_mockFs.RootPath, "src", "resources", "api-catalog.normalized.catalog");
         var args = new Dictionary<string, object>
         {
             ["versions"] = JsonSerializer.SerializeToElement(payload),
@@ -1005,15 +1017,10 @@ endStage:
         };
 
         await tool.ExecuteAsync(args);
-        var catalogJson = await File.ReadAllTextAsync(outputPath);
-        var catalogDoc = JsonDocument.Parse(catalogJson);
+        var catalogYaml = await File.ReadAllTextAsync(outputPath);
 
-        var definition = catalogDoc.RootElement[0]
-            .GetProperty("definitions")[0];
-        var storedSwaggerUrl = definition.GetProperty("swaggerUrl").GetString();
-        var storedPort = definition.GetProperty("port").GetInt32();
-        storedSwaggerUrl.Should().Be("{{baseUrl.local}}:{{port}}/swagger/v1/swagger.json");
-        storedPort.Should().Be(5005);
+        catalogYaml.Should().Contain("{{baseUrl.local}}:{{port}}/swagger/v1/swagger.json");
+        catalogYaml.Should().Contain("port: 5005");
     }
 
     [Fact]
@@ -1116,40 +1123,22 @@ endStage:
         await File.WriteAllTextAsync(swaggerAPath, TestDataBuilder.CreateSampleSwagger("AccountsAPI"));
         await File.WriteAllTextAsync(swaggerBPath, TestDataBuilder.CreateSampleSwagger("UsersAPI"));
 
-        var catalog = new[]
-        {
-            new
-            {
-                Version = "4.00",
-                Definitions = new[]
-                {
-                    new
-                    {
-                        Name = "AccountsAPI",
-                        BasePath = "/api/accounts",
-                        SwaggerUrl = new Uri(swaggerAPath).AbsoluteUri,
-                        BaseUrl = new Dictionary<string, string>
-                        {
-                            ["pre"] = "https://pre.example.com"
-                        }
-                    },
-                    new
-                    {
-                        Name = "UsersAPI",
-                        BasePath = "/api/users",
-                        SwaggerUrl = new Uri(swaggerBPath).AbsoluteUri,
-                        BaseUrl = new Dictionary<string, string>
-                        {
-                            ["pre"] = "https://pre.example.com"
-                        }
-                    }
-                }
-            }
-        };
-
-        var catalogJson = JsonSerializer.Serialize(catalog, new JsonSerializerOptions { WriteIndented = true });
+        var catalogYaml = $"""
+- version: "4.00"
+  definitions:
+  - name: AccountsAPI
+    basePath: /api/accounts
+    swaggerUrl: {new Uri(swaggerAPath).AbsoluteUri}
+    baseUrl:
+      pre: https://pre.example.com
+  - name: UsersAPI
+    basePath: /api/users
+    swaggerUrl: {new Uri(swaggerBPath).AbsoluteUri}
+    baseUrl:
+      pre: https://pre.example.com
+""";
         Directory.CreateDirectory(Path.GetDirectoryName(adapter.ApiCatalogPath)!);
-        await File.WriteAllTextAsync(adapter.ApiCatalogPath, catalogJson);
+        await File.WriteAllTextAsync(adapter.ApiCatalogPath, catalogYaml);
 
         var tool = new RefreshSwaggerCacheFromCatalogTool(adapter);
         var args = new Dictionary<string, object>
@@ -1291,27 +1280,17 @@ endStage:
         Directory.CreateDirectory(Path.GetDirectoryName(htmlPath)!);
         await File.WriteAllTextAsync(htmlPath, "<!DOCTYPE html><html><body>UI</body></html>");
 
-        var catalog = new[]
-        {
-            new
-            {
-                Version = "5.01",
-                BaseUrl = new Dictionary<string, string> { ["pre"] = "https://pre.example.com" },
-                Definitions = new[]
-                {
-                    new
-                    {
-                        Name = "BadApi",
-                        BasePath = "/api/bad",
-                        SwaggerUrl = new Uri(htmlPath).AbsoluteUri
-                    }
-                }
-            }
-        };
-
-        var catalogJson = JsonSerializer.Serialize(catalog, new JsonSerializerOptions { WriteIndented = true });
+        var catalogYaml = $"""
+- version: "5.01"
+  definitions:
+  - name: BadApi
+    basePath: /api/bad
+    swaggerUrl: {new Uri(htmlPath).AbsoluteUri}
+    baseUrl:
+      pre: https://pre.example.com
+""";
         Directory.CreateDirectory(Path.GetDirectoryName(adapter.ApiCatalogPath)!);
-        await File.WriteAllTextAsync(adapter.ApiCatalogPath, catalogJson);
+        await File.WriteAllTextAsync(adapter.ApiCatalogPath, catalogYaml);
 
         var tool = new RefreshSwaggerCacheFromCatalogTool(adapter);
         var args = new Dictionary<string, object>
@@ -1347,7 +1326,7 @@ endStage:
             new { GenericName = "api-5005", Title = "TravelAgent.Admin.Licensing.Api | 3.0.1" }
         };
 
-        var definitions = new List<object>();
+        var definitionYamlLines = new System.Text.StringBuilder();
         foreach (var spec in swaggerSpecs)
         {
             var swaggerDir = Path.Combine(_mockFs.RootPath, "tmp", spec.GenericName, "swagger");
@@ -1358,27 +1337,16 @@ endStage:
             await File.WriteAllTextAsync(htmlPath, "<html><body>Swagger UI</body></html>");
             await File.WriteAllTextAsync(jsonPath, TestDataBuilder.CreateSampleSwagger(spec.Title));
 
-            definitions.Add(new
-            {
-                Name = spec.GenericName,
-                BasePath = $"/{spec.GenericName}",
-                SwaggerUrl = new Uri(htmlPath).AbsoluteUri,
-                BaseUrl = new Dictionary<string, string> { ["pre"] = "https://pre.example.com" }
-            });
+            definitionYamlLines.AppendLine($"  - name: {spec.GenericName}");
+            definitionYamlLines.AppendLine($"    basePath: /{spec.GenericName}");
+            definitionYamlLines.AppendLine($"    swaggerUrl: {new Uri(htmlPath).AbsoluteUri}");
+            definitionYamlLines.AppendLine("    baseUrl:");
+            definitionYamlLines.AppendLine("      pre: https://pre.example.com");
         }
 
-        var catalog = new[]
-        {
-            new
-            {
-                Version = "0.1",
-                Definitions = definitions
-            }
-        };
-
-        var catalogJson = JsonSerializer.Serialize(catalog, new JsonSerializerOptions { WriteIndented = true });
+        var catalogYaml = $"- version: \"0.1\"\n  definitions:\n{definitionYamlLines}";
         Directory.CreateDirectory(Path.GetDirectoryName(adapter.ApiCatalogPath)!);
-        await File.WriteAllTextAsync(adapter.ApiCatalogPath, catalogJson);
+        await File.WriteAllTextAsync(adapter.ApiCatalogPath, catalogYaml);
 
         var tool = new RefreshSwaggerCacheFromCatalogTool(adapter);
         var args = new Dictionary<string, object>
@@ -1428,27 +1396,17 @@ endStage:
         var jsonPath = Path.Combine(swaggerDir, "v1", "swagger.json");
         await File.WriteAllTextAsync(jsonPath, TestDataBuilder.CreateSampleSwagger("QuickRefreshApi"));
 
-        var catalog = new[]
-        {
-            new
-            {
-                Version = "0.1",
-                Definitions = new[]
-                {
-                    new
-                    {
-                        Name = "QuickRefreshApi",
-                        BasePath = "/api",
-                        SwaggerUrl = new Uri(jsonPath).AbsoluteUri,
-                        BaseUrl = new Dictionary<string, string> { ["local"] = "https://localhost" }
-                    }
-                }
-            }
-        };
-
-        var catalogJson = JsonSerializer.Serialize(catalog, new JsonSerializerOptions { WriteIndented = true });
+        var catalogYaml = $"""
+- version: "0.1"
+  definitions:
+  - name: QuickRefreshApi
+    basePath: /api
+    swaggerUrl: {new Uri(jsonPath).AbsoluteUri}
+    baseUrl:
+      local: https://localhost
+""";
         Directory.CreateDirectory(Path.GetDirectoryName(adapter.ApiCatalogPath)!);
-        await File.WriteAllTextAsync(adapter.ApiCatalogPath, catalogJson);
+        await File.WriteAllTextAsync(adapter.ApiCatalogPath, catalogYaml);
 
         var tool = new RefreshSwaggerCacheFromCatalogTool(adapter);
 
