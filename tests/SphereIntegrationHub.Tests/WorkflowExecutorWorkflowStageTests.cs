@@ -211,6 +211,78 @@ stages:
     }
 
     [Fact]
+    public async Task ExecuteAsync_PreservesNestedWorkflowOutputsWhenChildDisablesOutputFile()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"sih-nested-no-output-file-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+        var parentPath = Path.Combine(tempRoot, "parent.workflow");
+        var childPath = Path.Combine(tempRoot, "child.workflow");
+
+        File.WriteAllText(childPath, """
+version: "1.0"
+id: "child"
+name: "child"
+output: false
+input:
+  - name: "tenantId"
+    type: "Text"
+    required: true
+endStage:
+  output:
+    childTenantId: "{{input.tenantId}}"
+""");
+
+        File.WriteAllText(parentPath, """
+version: "1.0"
+id: "parent"
+name: "parent"
+output: true
+references:
+  workflows:
+    - name: "child"
+      path: "./child.workflow"
+stages:
+  - name: "run-child"
+    kind: "Workflow"
+    workflowRef: "child"
+    inputs:
+      tenantId: "tenant-42"
+endStage:
+  output:
+    childTenantId: "{{workflow:run-child.output.childTenantId}}"
+""");
+
+        try
+        {
+            using var httpClient = new HttpClient();
+            var executor = new WorkflowExecutor(httpClient, new DynamicValueService());
+            var loader = new WorkflowLoader();
+            var document = loader.Load(parentPath);
+
+            var result = await executor.ExecuteAsync(
+                document,
+                new ApiCatalogVersion
+                {
+                    Version = "test",
+                    Definitions = new List<ApiDefinition>()
+                },
+                "test",
+                new Dictionary<string, string>(),
+                varsOverrideActive: false,
+                mocked: false,
+                verbose: false,
+                debug: false,
+                cancellationToken: CancellationToken.None);
+
+            Assert.Equal("tenant-42", result.Output["childTenantId"]);
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, true);
+        }
+    }
+
+    [Fact]
     public async Task ExecuteAsync_AggregatesForEachWorkflowResults()
     {
         var tempRoot = Path.Combine(Path.GetTempPath(), $"sih-foreach-{Guid.NewGuid():N}");

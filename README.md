@@ -234,6 +234,8 @@ endStage:
     tokenId: "{{stage:login.output.jwt}}"
 ```
 
+`output: false` only disables the `.workflow.output` file written to disk for that workflow execution. It does not suppress `endStage.output`, in-memory workflow outputs, or values exposed to parent workflows through `{{workflow:<stage>.output.*}}`.
+
 ### Example workflow (idempotent bootstrap with files and foreach)
 
 ```yaml
