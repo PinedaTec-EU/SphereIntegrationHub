@@ -29,12 +29,6 @@ if git rev-parse "$TAG" >/dev/null 2>&1; then
 	exit 1
 fi
 
-# Actualiza version.nfo con la nueva versión
-echo "$VERSION" > "$VERSION_FILE"
-
-git add "$VERSION_FILE"
-git commit -m "chore: bump version to $VERSION"
-git push
 
 git tag "$TAG"
 git push --tags
