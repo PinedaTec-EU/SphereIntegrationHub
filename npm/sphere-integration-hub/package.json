@@ -2,7 +2,15 @@
   "name": "sphere-integration-hub",
   "version": "1.7.15",
   "description": "MCP server and CLI for orchestrating API workflows without requiring .NET installed",
-  "keywords": ["mcp", "cli", "workflows", "openapi", "swagger", "integration", "sphere"],
+  "keywords": [
+    "mcp",
+    "cli",
+    "workflows",
+    "openapi",
+    "swagger",
+    "integration",
+    "sphere"
+  ],
   "homepage": "https://github.com/PinedaTec-EU/SphereIntegrationHub#readme",
   "repository": {
     "type": "git",
@@ -20,8 +28,15 @@
   "scripts": {
     "postinstall": "node postinstall.js"
   },
-  "os": ["linux", "darwin", "win32"],
-  "cpu": ["x64", "arm64"],
+  "os": [
+    "linux",
+    "darwin",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
   "engines": {
     "node": ">=18"
   },
