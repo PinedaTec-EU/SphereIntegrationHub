@@ -464,6 +464,8 @@ stages: []
 endStage: {}
 ```
 
+`output: false` only disables the `.workflow.output` file artifact on disk. Workflow `endStage.output` values are still resolved normally and remain available to parent workflows via `{{workflow:<stage>.output.*}}`.
+
 ## Manual Fallback (Advanced)
 
 If cache is still unavailable, generation tools can run only with explicit `endpointSchema` supplied by the model/user:

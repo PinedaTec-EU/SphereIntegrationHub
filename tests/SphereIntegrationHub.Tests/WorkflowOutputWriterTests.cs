@@ -94,4 +94,36 @@ public sealed class WorkflowOutputWriterTests
         Assert.Equal("visible=value; secret=*****", parsed.RootElement.GetProperty("combined").GetString());
         Assert.Equal("visible=value; secret=*****", parsed.RootElement.GetProperty("payload").GetProperty("combined").GetString());
     }
+
+    [Fact]
+    public async Task WriteOutputAsync_DoesNotWriteFileWhenWorkflowOutputIsDisabled()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"aos-output-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+        var workflowPath = Path.Combine(tempRoot, "workflow.yaml");
+
+        var definition = new WorkflowDefinition
+        {
+            Id = "test",
+            Name = "test workflow",
+            Output = false,
+            EndStage = new WorkflowEndStage
+            {
+                OutputJson = true
+            }
+        };
+
+        var outputs = new Dictionary<string, string>
+        {
+            ["name"] = "value"
+        };
+
+        var document = new WorkflowDocument(definition, workflowPath, new Dictionary<string, string>());
+        var writer = new WorkflowOutputWriter();
+
+        var outputFilePath = await writer.WriteOutputAsync(definition, document, "exec-1", outputs, secretKeys: null, secretValues: null, CancellationToken.None);
+
+        Assert.Null(outputFilePath);
+        Assert.False(Directory.Exists(Path.Combine(tempRoot, "output")));
+    }
 }
