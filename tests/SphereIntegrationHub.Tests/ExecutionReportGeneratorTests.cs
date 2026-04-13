@@ -40,6 +40,7 @@ public sealed class ExecutionReportGeneratorTests
         Assert.Contains("01KNGXHCZZZZ6KMC3DZDZAJRTJ", html, StringComparison.Ordinal);
         Assert.Contains("Sphere Integration Hub (SIH)", html, StringComparison.Ordinal);
         Assert.Contains("aria-label=\"Sphere Integration Hub icon\"", html, StringComparison.Ordinal);
+        Assert.Contains("<link rel=\"icon\" type=\"image/svg+xml\" href=\"data:image/svg+xml,", html, StringComparison.Ordinal);
     }
 
     [Fact]
