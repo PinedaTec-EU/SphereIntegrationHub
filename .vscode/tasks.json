@@ -117,6 +117,19 @@
 				"focus": false,
 				"panel": "shared"
 			}
+		},
+		{
+			"label": "Publish new release",
+			"type": "shell",
+			"command": "./scripts/release.sh",
+			"args": [],
+			"problemMatcher": [],
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			}
 		}
 	]
 }
