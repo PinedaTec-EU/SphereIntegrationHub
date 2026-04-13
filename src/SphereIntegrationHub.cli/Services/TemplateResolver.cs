@@ -83,6 +83,11 @@ public sealed class TemplateResolver
             return ResolveStageJsonTokenValue(token, context);
         }
 
+        if (token.StartsWith("coalesce(", StringComparison.OrdinalIgnoreCase))
+        {
+            return ResolveCoalesceTokenValue(token, context, responseContext, allowJsonStage);
+        }
+
         var segments = SplitToken(token);
         if (segments.Length == 0)
         {
@@ -99,6 +104,7 @@ public sealed class TemplateResolver
             "endpoint" => ResolveStageOutputValue(segments, context.EndpointOutputs, context.EndpointOutputJson, "endpoint", token),
             "workflow" => ResolveStageOutputValue(segments, context.WorkflowOutputs, context.WorkflowOutputJson, "workflow", token),
             "stage" => ResolveStageOutputAnyValue(segments, context, token),
+            "var" => ResolveWorkflowVarValue(segments, context, token),
             "env" when token.StartsWith("env.", StringComparison.OrdinalIgnoreCase)
                 => throw new InvalidOperationException($"Invalid env token '{token}'. Use '{{{{env:NAME}}}}' syntax."),
             "env" => ResolveEnvironmentValue(segments, context),
@@ -281,24 +287,67 @@ public sealed class TemplateResolver
 
     private static ResolvedTokenValue ResolveStageOutputAnyValue(string[] segments, TemplateContext context, string token)
     {
-        if (TryResolveStageWorkflowResult(segments, context.WorkflowResults, out var workflowResultValue))
+        // Mejora 3: safe navigation — strip trailing '?' from stage name and/or output key
+        var safeStage = segments.Length > 1 && segments[1].EndsWith('?');
+        var safeKey = segments.Length > 3 && segments[3].EndsWith('?');
+
+        string[]? normalized = null;
+        if (safeStage || safeKey)
         {
-            return ResolvedTokenValue.FromString(workflowResultValue);
+            normalized = segments.ToArray();
+            if (safeStage) normalized[1] = segments[1][..^1];
+            if (safeKey) normalized[3] = segments[3][..^1];
         }
 
-        if (TryResolveStageWorkflowOutput(segments, context.WorkflowOutputs, context.WorkflowOutputJson, out var workflowOutputValue))
+        var s = normalized ?? segments;
+
+        // Mejora 1: skipped stages — check onSkip.output first, then return empty
+        if (s.Length > 1 && context.SkippedStages?.Contains(s[1]) == true)
         {
-            return workflowOutputValue;
+            // A skipped stage may have onSkip.output registered — prefer those values
+            if (TryResolveStageOutput(s, context.EndpointOutputs, context.EndpointOutputJson, out var skipEndpoint, token))
+            {
+                return skipEndpoint;
+            }
+
+            if (TryResolveStageOutput(s, context.WorkflowOutputs, context.WorkflowOutputJson, out var skipWorkflow, token))
+            {
+                return skipWorkflow;
+            }
+
+            return ResolvedTokenValue.NotFound;
         }
 
-        if (TryResolveStageOutput(segments, context.EndpointOutputs, context.EndpointOutputJson, out var endpointValue, token))
+        try
+        {
+            if (TryResolveStageWorkflowResult(s, context.WorkflowResults, out var workflowResultValue))
+            {
+                return ResolvedTokenValue.FromString(workflowResultValue);
+            }
+
+            if (TryResolveStageWorkflowOutput(s, context.WorkflowOutputs, context.WorkflowOutputJson, out var workflowOutputValue))
+            {
+                return workflowOutputValue;
+            }
+        }
+        catch (InvalidOperationException) when (safeStage || safeKey)
+        {
+            return ResolvedTokenValue.NotFound;
+        }
+
+        if (TryResolveStageOutput(s, context.EndpointOutputs, context.EndpointOutputJson, out var endpointValue, token))
         {
             return endpointValue;
         }
 
-        if (TryResolveStageOutput(segments, context.WorkflowOutputs, context.WorkflowOutputJson, out var workflowValue, token))
+        if (TryResolveStageOutput(s, context.WorkflowOutputs, context.WorkflowOutputJson, out var workflowValue, token))
         {
             return workflowValue;
+        }
+
+        if (safeStage || safeKey)
+        {
+            return ResolvedTokenValue.NotFound;
         }
 
         throw new InvalidOperationException($"Stage token '{token}' outputs were not found.");
@@ -493,6 +542,98 @@ public sealed class TemplateResolver
         }
     }
 
+    private ResolvedTokenValue ResolveWorkflowVarValue(string[] segments, TemplateContext context, string token)
+    {
+        if (segments.Length < 2)
+        {
+            throw new InvalidOperationException($"var token requires a name: '{token}'.");
+        }
+
+        var varName = segments[1];
+        if (context.WorkflowVars is null || !context.WorkflowVars.TryGetValue(varName, out var varTemplate))
+        {
+            throw new InvalidOperationException($"Workflow var '{varName}' was not found.");
+        }
+
+        var resolved = ResolveTemplate(varTemplate, context);
+
+        if (segments.Length == 2)
+        {
+            if (JsonValueHelper.TryParse(resolved, out var rootJson))
+            {
+                return ResolvedTokenValue.FromJson(rootJson);
+            }
+
+            return ResolvedTokenValue.FromString(resolved);
+        }
+
+        if (JsonValueHelper.TryParse(resolved, out var json) &&
+            JsonValueHelper.TryResolvePath(json, segments.Skip(2).ToArray(), out var nested))
+        {
+            return ResolvedTokenValue.FromJson(nested);
+        }
+
+        throw new InvalidOperationException($"Workflow var path '{token}' was not found.");
+    }
+
+    private ResolvedTokenValue ResolveCoalesceTokenValue(
+        string token,
+        TemplateContext context,
+        ResponseContext? responseContext,
+        bool allowJsonStage)
+    {
+        const string prefix = "coalesce(";
+        if (!token.EndsWith(")"))
+        {
+            throw new InvalidOperationException($"Invalid coalesce token '{token}'. Expected 'coalesce(token1, token2, ...)'.");
+        }
+
+        var argsContent = token[prefix.Length..^1];
+        foreach (var arg in SplitFunctionArguments(argsContent))
+        {
+            var trimmed = arg.Trim();
+            if (string.IsNullOrEmpty(trimmed))
+            {
+                continue;
+            }
+
+            try
+            {
+                var value = ResolveTokenValue(trimmed, context, responseContext, allowJsonStage);
+                if (value.Exists && !string.IsNullOrEmpty(value.StringValue))
+                {
+                    return value;
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                // Argument could not be resolved — try the next one
+            }
+        }
+
+        return ResolvedTokenValue.FromString(string.Empty);
+    }
+
+    private static IEnumerable<string> SplitFunctionArguments(string content)
+    {
+        var depth = 0;
+        var start = 0;
+        for (var i = 0; i < content.Length; i++)
+        {
+            switch (content[i])
+            {
+                case '(': depth++; break;
+                case ')': depth--; break;
+                case ',' when depth == 0:
+                    yield return content[start..i];
+                    start = i + 1;
+                    break;
+            }
+        }
+
+        yield return content[start..];
+    }
+
     private static string ResolveStageJsonToken(string token, TemplateContext context)
     {
         var value = ResolveStageJsonTokenValue(token, context);
@@ -565,7 +706,9 @@ public sealed record TemplateContext(
     IReadOnlyDictionary<string, JsonElement>? ContextJson = null,
     IReadOnlyDictionary<string, IReadOnlyDictionary<string, JsonElement>>? EndpointOutputJson = null,
     IReadOnlyDictionary<string, IReadOnlyDictionary<string, JsonElement>>? WorkflowOutputJson = null,
-    string? WorkflowPath = null);
+    string? WorkflowPath = null,
+    IReadOnlySet<string>? SkippedStages = null,
+    IReadOnlyDictionary<string, string>? WorkflowVars = null);
 
 public sealed record ResponseContext(
     int StatusCode,

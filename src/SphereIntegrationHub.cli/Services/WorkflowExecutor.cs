@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Text.Json;
 
 using SphereIntegrationHub.Definitions;
@@ -269,6 +270,7 @@ public sealed class WorkflowExecutor
                 ValidateInputs(definition, context.Inputs);
             }
             InitializeGlobals(definition, context);
+            context.WorkflowVars = definition.Vars;
             _logger.Info($"{indent}{FormatWorkflowHeader(definition.Name, definition.Version)}");
 
             if (definition.Stages is not null)
@@ -1147,7 +1149,8 @@ public sealed class WorkflowExecutor
     {
         var iterationContext = new ExecutionContext(source.Inputs, source.EnvironmentVariables, source.Context, source.IndentLevel, source.ReportSync)
         {
-            Report = source.Report
+            Report = source.Report,
+            WorkflowVars = source.WorkflowVars
         };
 
         CopyJsonDictionary(source.InputJson, iterationContext.InputJson);
@@ -1307,6 +1310,11 @@ public sealed class WorkflowExecutor
             WorkflowName = document.Definition.Name,
             WorkflowId = document.Definition.Id,
             WorkflowVersion = document.Definition.Version,
+            ToolVersion = typeof(WorkflowExecutor).Assembly
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+                ?.InformationalVersion?.Split('+')[0]
+                ?? typeof(WorkflowExecutor).Assembly.GetName().Version?.ToString()
+                ?? string.Empty,
             WorkflowPath = document.FilePath,
             Environment = environment,
             Mocked = mocked,
@@ -1435,6 +1443,25 @@ public sealed class WorkflowExecutor
 
     private void RecordSkippedStage(string workflowName, WorkflowStageDefinition stage, ExecutionContext context)
     {
+        context.SkippedStages.Add(stage.Name);
+
+        // Mejora 5: register onSkip.output so downstream stages can reference a stable key
+        if (stage.OnSkip?.Output is { Count: > 0 })
+        {
+            var templateContext = context.BuildTemplateContext();
+            var onSkipOutput = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var onSkipOutputJson = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (key, value) in stage.OnSkip.Output)
+            {
+                var resolved = _templateResolver.ResolveTemplate(value, templateContext);
+                onSkipOutput[key] = resolved;
+                AssignJsonValue(onSkipOutputJson, key, resolved);
+            }
+
+            context.EndpointOutputs[stage.Name] = onSkipOutput;
+            context.EndpointOutputsJson[stage.Name] = onSkipOutputJson;
+        }
+
         var record = new WorkflowStageExecutionRecord
         {
             WorkflowName = workflowName,
@@ -2327,6 +2354,7 @@ public sealed class WorkflowExecutor
             WorkflowResults = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
             CircuitBreakers = new Dictionary<string, CircuitBreakerState>(StringComparer.OrdinalIgnoreCase);
             SecretValues = new HashSet<string>(StringComparer.Ordinal);
+            SkippedStages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             Context = parentContext is null
                 ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, string>(parentContext, StringComparer.OrdinalIgnoreCase);
@@ -2349,6 +2377,8 @@ public sealed class WorkflowExecutor
         public Dictionary<string, IReadOnlyDictionary<string, string>> WorkflowResults { get; }
         public Dictionary<string, CircuitBreakerState> CircuitBreakers { get; }
         public HashSet<string> SecretValues { get; }
+        public HashSet<string> SkippedStages { get; }
+        public IReadOnlyDictionary<string, string>? WorkflowVars { get; set; }
         public string? OutputFilePath { get; set; }
         public int IndentLevel { get; }
         public WorkflowExecutionReport? Report { get; set; }
@@ -2370,7 +2400,9 @@ public sealed class WorkflowExecutor
                 ContextJson,
                 EndpointOutputsJson,
                 WorkflowOutputsJson,
-                workflowPath);
+                workflowPath,
+                SkippedStages,
+                WorkflowVars);
         }
     }
 

@@ -35,6 +35,22 @@ public sealed class WorkflowStageDefinition
     public WorkflowStageMockDefinition? Mock { get; set; }
     public WorkflowStageRetryDefinition? Retry { get; set; }
     public WorkflowStageCircuitBreakerDefinition? CircuitBreaker { get; set; }
+    /// <summary>
+    /// Defines outputs to register when this stage is skipped due to its runIf condition.
+    /// Allows downstream stages to reference a canonical output key regardless of which
+    /// branch in a mutually-exclusive set actually ran.
+    /// </summary>
+    public WorkflowStageOnSkipDefinition? OnSkip { get; set; }
+}
+
+public sealed class WorkflowStageOnSkipDefinition
+{
+    /// <summary>
+    /// Output values to register for this stage when it is skipped.
+    /// Templates are resolved against the execution context at the moment of skipping,
+    /// so they can reference outputs from previously executed stages.
+    /// </summary>
+    public Dictionary<string, string>? Output { get; set; }
 }
 
 public sealed class WorkflowStageMockDefinition

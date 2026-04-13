@@ -148,6 +148,7 @@ internal sealed class ExecutionReportGenerator
             workflowName = report.Report.WorkflowName,
             result = report.Report.Result,
             startedAtUtc = report.Report.StartedAtUtc,
+            toolVersion = report.Report.ToolVersion,
             json = JsonSerializer.Deserialize<JsonElement>(report.RawJson)
         }));
 
@@ -203,6 +204,9 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .banner-brand{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--banner-muted);white-space:nowrap;flex-shrink:0}
 .banner-sep{color:#334155;flex-shrink:0;font-size:16px;line-height:1}
 .banner-version{font-size:11px;font-weight:600;color:#4ade80;background:rgba(74,222,128,.12);border:1px solid rgba(74,222,128,.25);border-radius:4px;padding:1px 7px;white-space:nowrap;flex-shrink:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.02em}
+.version-badge{font-size:11px;font-weight:600;color:#a16207;background:#fefce8;border:1px solid #fef08a;border-radius:4px;padding:1px 7px;white-space:nowrap;flex-shrink:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.02em;cursor:default}
+[data-theme="dark"] .version-badge{color:#fcd34d;background:#422006;border-color:#713f12}
+.hidden{display:none!important}
 .banner-title{margin:0;font-size:14px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .result-ok{color:#4ade80}.result-error{color:#f87171}.result-running{color:#60a5fa}
 .btn{background:var(--btn-bg);color:var(--btn-c);border:1px solid var(--btn-border);padding:5px 11px;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap;transition:background .15s,color .15s;display:inline-flex;align-items:center;gap:5px}
@@ -332,6 +336,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
   <span class="banner-version" id="banner-version">v{{appVersion}}</span>
   <h1 class="banner-title" id="banner-title">Loading&hellip;</h1>
   <select class="report-picker" id="report-picker" title="Select execution"></select>
+  <span class="version-badge hidden" id="version-badge" title="This output was generated with a different tool version"></span>
   <label for="file-input" class="btn">&#128193; Load</label>
   <input type="file" id="file-input" accept=".json">
   <button class="btn btn-icon" id="theme-toggle" title="Toggle dark/light mode" onclick="toggleTheme()">🌙</button>
@@ -360,6 +365,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 <script>
 const _reports = {{reportsJson}};
 const _initialReportIndex = {{initialReportIndex}};
+const _currentVersion = '{{appVersion}}';
 let _report   = null;
 let _tree     = null;   // root nodes
 let _expanded = new Set();  // indices of expanded workflow rows
@@ -536,6 +542,24 @@ function loadReportByIndex(index) {
   const picker = document.getElementById('report-picker');
   if (picker) picker.value = String(safeIndex);
   render(entry.json);
+  updateVersionBadge(entry.toolVersion);
+}
+
+function updateVersionBadge(reportToolVersion) {
+  const badge = document.getElementById('version-badge');
+  if (!badge) return;
+  const rv = reportToolVersion || '';
+  if (rv && rv === _currentVersion) {
+    badge.classList.add('hidden');
+    return;
+  }
+  // version mismatch or unknown (reports generated before ToolVersion was introduced)
+  const label = rv ? `v${rv}` : '????';
+  badge.textContent = `\uD83D\uDC41\uFE0F ${label}`;
+  badge.title = rv
+    ? `This output was generated with tool v${rv} (current: v${_currentVersion})`
+    : 'This output was generated with an unknown tool version (predates version tracking)';
+  badge.classList.remove('hidden');
 }
 
 function initReportPicker() {
