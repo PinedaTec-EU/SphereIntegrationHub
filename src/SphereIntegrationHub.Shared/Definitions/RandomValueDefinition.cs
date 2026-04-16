@@ -7,6 +7,7 @@ public sealed record RandomValueDefinition(
     int? Max = null,
     int? Padding = null,
     int? Length = null,
+    string? CharacterSet = null,
     DateTimeOffset? FromDateTime = null,
     DateTimeOffset? ToDateTime = null,
     DateOnly? FromDate = null,

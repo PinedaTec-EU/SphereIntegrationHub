@@ -8,6 +8,12 @@ namespace SphereIntegrationHub.Services;
 public sealed class DynamicValueService : IRandomValueService
 {
     private const int DefaultTextLength = 16;
+    private const string AlphaChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    private const string AlphaLowerChars = "abcdefghijklmnopqrstuvwxyz";
+    private const string AlphaUpperChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    private const string NumericChars = "0123456789";
+    private const string AlnumChars = AlphaChars + NumericChars;
+    private const string AsciiChars = @"!""#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
     private readonly ISystemTimeProvider _systemProvider;
 
     public DynamicValueService(ISystemTimeProvider? systemProvider = null)
@@ -26,7 +32,7 @@ public sealed class DynamicValueService : IRandomValueService
         {
             RandomValueType.Fixed => ResolveFixedValue(definition),
             RandomValueType.Number => FormatNumber(GenerateRandomNumber(definition.Min ?? 1, definition.Max ?? 100), definition.Padding),
-            RandomValueType.Text => GenerateRandomText(definition.Length ?? DefaultTextLength),
+            RandomValueType.Text => GenerateRandomText(definition.Length ?? DefaultTextLength, definition.CharacterSet),
             RandomValueType.Guid => Guid.NewGuid().ToString(),
             RandomValueType.Ulid => Ulid.NewUlid().ToString(),
             RandomValueType.DateTime => ResolveDateTimeValue(definition, formatting),
@@ -53,9 +59,14 @@ public sealed class DynamicValueService : IRandomValueService
         return Random.Shared.Next(min, max + 1);
     }
 
-    private static string GenerateRandomText(int length)
+    private static string GenerateRandomText(int length, string? characterSet)
     {
-        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        var chars = ResolveCharacterSet(characterSet);
+        if (string.IsNullOrEmpty(chars))
+        {
+            throw new InvalidOperationException("Text variables require a non-empty character set.");
+        }
+
         Span<char> buffer = length <= 64 ? stackalloc char[length] : new char[length];
         for (var i = 0; i < length; i++)
         {
@@ -63,6 +74,26 @@ public sealed class DynamicValueService : IRandomValueService
         }
 
         return new string(buffer);
+    }
+
+    private static string ResolveCharacterSet(string? characterSet)
+    {
+        if (string.IsNullOrWhiteSpace(characterSet))
+        {
+            return AlnumChars;
+        }
+
+        return characterSet.Trim().ToLowerInvariant() switch
+        {
+            "alpha" => AlphaChars,
+            "alpha-lower" => AlphaLowerChars,
+            "alpha-upper" => AlphaUpperChars,
+            "alnum" => AlnumChars,
+            "numeric" => NumericChars,
+            "ascii" => AsciiChars,
+            _ => throw new InvalidOperationException(
+                $"Unsupported character set '{characterSet}'. Supported values: alpha, alpha-lower, alpha-upper, alnum, numeric, ascii.")
+        };
     }
 
     private DateTimeOffset GenerateRandomDateTime(DateTimeOffset? from, DateTimeOffset? to)

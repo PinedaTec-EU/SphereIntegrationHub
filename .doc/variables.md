@@ -272,6 +272,13 @@ Workflow outputs from `endStage.output` are referenced as:
 
 ## Random values
 
+You can generate random/fake values in two ways:
+
+- `initStage.variables` for reusable values stored in `global`
+- inline `{{rand:*}}` tokens anywhere templates are allowed
+
+### Reusable random values via `initStage.variables`
+
 `initStage.variables` can generate random values using `RandomValueType`. For example:
 
 ```yaml
@@ -286,6 +293,58 @@ initStage:
     - name: "createdAt"
       type: "DateTime"
 ```
+
+Text variables also support `characterSet`:
+
+```yaml
+initStage:
+  variables:
+    - name: "numericOtp"
+      type: "Text"
+      length: 6
+      characterSet: "numeric"
+```
+
+Supported character sets:
+
+- `alpha`
+- `alpha-lower`
+- `alpha-upper`
+- `alnum`
+- `numeric`
+- `ascii`
+
+### Inline fake data with `{{rand:*}}`
+
+Inline random helpers are evaluated each time the template token is resolved:
+
+```yaml
+body: |
+  {
+    "units": {{rand:number(1, 25)}},
+    "serviceCode": "{{rand:text(10, 'alnum')}}",
+    "usedAt": "{{rand:datetime(system:datetime.utcnow - P30D, system:datetime.utcnow)}}",
+    "reference": "{{rand:guid()}}"
+  }
+```
+
+Supported helpers:
+
+- `{{rand:number()}}`
+- `{{rand:number(min, max)}}`
+- `{{rand:text()}}`
+- `{{rand:text(length, 'characterSet')}}`
+- `{{rand:date(from, to)}}`
+- `{{rand:datetime(from, to)}}`
+- `{{rand:time(from, to)}}`
+- `{{rand:guid()}}`
+- `{{rand:ulid()}}`
+
+Notes:
+
+- `from` and `to` can be literals or other template-style references such as `system:*`.
+- For `date`, `datetime`, and `time`, an optional third argument overrides the output format.
+- Each `{{rand:*}}` occurrence generates a new value. If you need to reuse the same generated value multiple times, store it first in `initStage.variables`, `set`, or `context`.
 
 ### Fixed values
 
