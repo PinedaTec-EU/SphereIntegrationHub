@@ -1,6 +1,6 @@
 {
   "name": "@pinedatec.eu/sphere-integration-hub",
-  "version": "1.7.16",
+  "version": "1.7.18",
   "description": "MCP server and CLI for orchestrating API workflows without requiring .NET installed",
   "keywords": [
     "mcp",

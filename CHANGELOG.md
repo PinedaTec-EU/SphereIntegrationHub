@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.7.18.269] – 2026-04-16
+
+- **Inline fake data generation with `rand:*`**:
+  - Added template helpers for `number`, `text`, `date`, `datetime`, `time`, `guid`, and `ulid`.
+  - `rand:text(...)` supports character-set presets: `alpha`, `alpha-lower`, `alpha-upper`, `alnum`, `numeric`, and `ascii`.
+  - Date/time ranges accept system tokens such as `system:datetime.utcnow - P30D`.
+- **More detailed dry-run diagnostics**:
+  - Dry-run now reports failures by preflight phase more explicitly.
+  - Workflow validation surfaces more specific reasons for invalid `rand:*` functions, including unsupported character sets and malformed numeric/date/time arguments.
+  - Verbose execution plans now include `runIf`, `forEach`, iteration mode, `bodyFile`, `dataFile`, and stage messages to make preflight inspection more actionable.
+- **Docs and samples updated**:
+  - README, variables guide, dry-run guide, and MCP tools reference now document `rand:*` and the richer dry-run diagnostics.
+  - Added `samples/fake-usage-seed.workflow` showing `list -> forEach -> fake usage post`.
+
 ## [1.7.15] – 2026-04-13
 
 ### Distribution — no .NET required
