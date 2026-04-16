@@ -221,6 +221,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .meta-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:6px 16px;display:flex;gap:16px;align-items:center;flex-shrink:0;font-size:11.5px;color:var(--text-muted);flex-wrap:wrap;transition:background .2s}
 .meta-bar strong{color:var(--text);font-weight:600}
 .chips{display:flex;gap:5px;padding:7px 16px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;transition:background .2s}
+.chips-label{display:flex;align-items:center;font-size:10.5px;font-weight:700;letter-spacing:.5px;color:var(--text-subtle);text-transform:uppercase;margin-right:4px}
 .chip{padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid}
 .chip-total{background:var(--chip-total-bg);color:var(--chip-total-c);border-color:var(--chip-total-b)}
 .chip-ok{background:var(--chip-ok-bg);color:var(--chip-ok-c);border-color:var(--chip-ok-b)}
@@ -505,17 +506,22 @@ function render(report) {
 
   // Meta bar
   const maxDepth = stages.reduce((d,s) => Math.max(d, s.Depth||0), 0);
+  const workflowStages = stages.filter(s => String(s.StageKind || '').toLowerCase() === 'workflow');
+  const workflowTotal = workflowStages.length;
+  const workflowExecuted = workflowStages.filter(s => String(s.Status || '').toLowerCase() !== 'skipped').length;
   document.getElementById('meta-bar').innerHTML =
     `<span>Start: <strong>${fmtDate(report.StartedAtUtc)}</strong></span>`+
     `<span>Duration: <strong>${fmtMs(totalMs)}</strong></span>`+
     `<span>Environment: <strong>${esc(report.Environment)}</strong></span>`+
     `<span>Version: <strong>${esc(report.WorkflowVersion)}</strong></span>`+
     `<span>Stages: <strong>${m.TotalStages ?? stages.length}</strong></span>`+
+    `<span>Workflows: <strong>${workflowExecuted}/${workflowTotal}</strong></span>`+
     `<span>Depth: <strong>${maxDepth}</strong></span>`+
     `<span>Status: <strong><span class="${badgeCls(report.Result)}">${esc(report.Result)}</span></strong></span>`;
 
   // Chips
   let chips =
+    `<span class="chips-label">Stages:</span>`+
     `<span class="chip chip-total">Total: ${m.TotalStages ?? stages.length}</span>`+
     `<span class="chip chip-ok">Executed: ${m.ExecutedStages ?? 0}</span>`;
   if (m.FailedStages)  chips += `<span class="chip chip-error">Failed: ${m.FailedStages}</span>`;
