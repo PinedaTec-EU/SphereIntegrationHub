@@ -120,7 +120,7 @@ internal sealed class CliPipeline : ICliPipeline
         }
 
         var cacheRoot = Path.Combine(_pathResolver.ResolveDefaultCacheRoot(parseResult.WorkflowPath), selectedVersion.Version);
-        return await ExecuteWorkflowAsync(parseResult, workflowDocument, selectedVersion, cacheRoot, varsOverrideActive, reportOptions, preflightReport, messages, emittedMessageCount, cancellationToken);
+        return await ExecuteWorkflowAsync(parseResult, workflowDocument, selectedVersion, cacheRoot, varsOverrideActive, reportOptions, preflightReport, stopwatch, messages, emittedMessageCount, cancellationToken);
     }
 
     private void EmitPreamble(InlineArguments parseResult, List<CliRunMessage> messages)
@@ -564,6 +564,7 @@ internal sealed class CliPipeline : ICliPipeline
         bool varsOverrideActive,
         WorkflowExecutionReportOptions reportOptions,
         WorkflowPreflightReport preflightReport,
+        Stopwatch stopwatch,
         List<CliRunMessage> messages,
         int emittedMessageCount,
         CancellationToken cancellationToken)
@@ -611,7 +612,7 @@ internal sealed class CliPipeline : ICliPipeline
                 AddInfo(messages, $"Output file: {_pathResolver.FormatPath(result.OutputFilePath)}");
             }
 
-            EmitExecutionArtifactsSummary(result, reportOptions, messages);
+            EmitExecutionArtifactsSummary(result, reportOptions, stopwatch.ElapsedMilliseconds, messages);
 
             return new CliRunResult(0, messages, emittedMessageCount);
         }
@@ -619,10 +620,11 @@ internal sealed class CliPipeline : ICliPipeline
         {
             if (ex.Data["workflowExecutionResult"] is WorkflowExecutionResult failedResult)
             {
-                EmitExecutionArtifactsSummary(failedResult, reportOptions, messages);
+                EmitExecutionArtifactsSummary(failedResult, reportOptions, stopwatch.ElapsedMilliseconds, messages);
             }
 
             AddError(messages, $"Workflow [{workflowDocument.Definition.Name}] execution failed: {ex.Message}");
+            AddInfo(messages, $"Total execution time: {stopwatch.ElapsedMilliseconds} ms.");
             AddInfo(messages, string.Empty);
             AddError(messages, "Execution aborted!!");
             return new CliRunResult(1, messages, emittedMessageCount);
@@ -647,6 +649,7 @@ internal sealed class CliPipeline : ICliPipeline
     private void EmitExecutionArtifactsSummary(
         WorkflowExecutionResult result,
         WorkflowExecutionReportOptions reportOptions,
+        long totalExecutionMs,
         List<CliRunMessage> messages)
     {
         if (!string.IsNullOrWhiteSpace(result.JsonReportPath))
@@ -667,6 +670,7 @@ internal sealed class CliPipeline : ICliPipeline
         AddInfo(messages, string.Empty);
         AddInfo(messages, "Execution summary:");
         AddInfo(messages, $"  executionId: {result.ExecutionId ?? "n/a"}");
+        AddInfo(messages, $"  totalDurationMs: {totalExecutionMs}");
         AddInfo(messages, $"  outputFile: {(string.IsNullOrWhiteSpace(result.OutputFilePath) ? "n/a" : _pathResolver.FormatPath(result.OutputFilePath))}");
         AddInfo(messages, $"  jsonReport: {(string.IsNullOrWhiteSpace(result.JsonReportPath) ? "n/a" : _pathResolver.FormatPath(result.JsonReportPath))}");
         AddInfo(messages, $"  htmlReport: {(string.IsNullOrWhiteSpace(result.HtmlReportPath) ? "n/a" : _pathResolver.FormatPath(result.HtmlReportPath))}");

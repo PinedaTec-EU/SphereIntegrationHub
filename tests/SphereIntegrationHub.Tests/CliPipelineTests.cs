@@ -154,6 +154,7 @@ public sealed class CliPipelineTests
         Assert.Contains(result.Messages, message => message.Text.Contains("JSON report:", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Messages, message => message.Text.Contains("HTML report:", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Messages, message => message.Text.Contains("Execution summary:", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains("totalDurationMs:", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
