@@ -71,7 +71,7 @@ public sealed class CliPipelineTests
             CatalogPath: null), CancellationToken.None);
 
         Assert.Equal(1, result.ExitCode);
-        Assert.Contains(result.Messages, message => message.Text.Contains("Environment validation failed", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains("environment validation", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public sealed class CliPipelineTests
             DryRun: true), CancellationToken.None);
 
         Assert.Equal(1, result.ExitCode);
-        Assert.Contains(result.Messages, message => message.Text.Contains("Endpoint validation failed", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains("endpoint validation", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -548,6 +548,49 @@ stages:
         Assert.Equal(0, result.ExitCode);
         Assert.Contains(result.Messages, message => message.Text.Contains("Warning:", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Messages, message => message.Text.Contains("will be resolved at runtime", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task RunAsync_DryRun_RandomTokenValidationFailure_ReportsDetailedReason()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aos-cli-rand-validation-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+
+        var workflowPath = Path.Combine(root, "main.workflow");
+        var catalogPath = Path.Combine(root, "api.catalog");
+
+        File.WriteAllText(catalogPath, """
+- version: "1.0"
+  definitions: []
+""");
+
+        File.WriteAllText(workflowPath, """
+version: "1.0"
+id: "wf-1"
+name: "Test"
+stages:
+  - name: "seed"
+    kind: "Endpoint"
+    apiRef: "accounts"
+    endpoint: "/api/usage"
+    httpVerb: "POST"
+    expectedStatus: 200
+    body: |
+      {
+        "code": "{{rand:text(8, 'emoji')}}"
+      }
+""");
+
+        var pipeline = CreatePipeline();
+        var result = await pipeline.RunAsync(new InlineArguments(
+            WorkflowPath: workflowPath,
+            Environment: "dev",
+            CatalogPath: catalogPath,
+            DryRun: true), CancellationToken.None);
+
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains(result.Messages, message => message.Text.Contains("Dry-run failed during workflow validation", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message => message.Text.Contains("unsupported character set 'emoji'", StringComparison.OrdinalIgnoreCase));
     }
 
     private static CliPipeline CreatePipeline()

@@ -128,6 +128,7 @@ internal sealed class CliPipeline : ICliPipeline
         if (parseResult.DryRun)
         {
             AddInfo(messages, "Starting dry-run...");
+            AddInfo(messages, "Dry-run phases: load workflow, resolve vars, validate workflow, validate environment, health checks, swagger cache, endpoint validation, execution plan.");
         }
 
         if (parseResult.Mocked && !parseResult.DryRun)
@@ -236,6 +237,7 @@ internal sealed class CliPipeline : ICliPipeline
         var validation = validator.ValidateWithDetails(workflowDocument, parseResult.Inputs);
         if (parseResult.DryRun && validation.Warnings.Count > 0)
         {
+            AddInfo(messages, $"Dry-run workflow validation warnings: {validation.Warnings.Count}");
             foreach (var warning in validation.Warnings)
             {
                 AddInfo(messages, $"Warning: {warning}");
@@ -244,7 +246,7 @@ internal sealed class CliPipeline : ICliPipeline
 
         if (validation.Errors.Count > 0)
         {
-            AddError(messages, "Workflow validation failed:");
+            AddError(messages, $"Dry-run failed during workflow validation with {validation.Errors.Count} error(s):");
             foreach (var error in validation.Errors)
             {
                 AddError(messages, $"- {error}");
@@ -319,7 +321,7 @@ internal sealed class CliPipeline : ICliPipeline
             return true;
         }
 
-        AddError(messages, "Environment validation failed:");
+        AddError(messages, $"Dry-run failed during environment validation with {apiEnvironmentErrors.Count} error(s):");
         foreach (var error in apiEnvironmentErrors)
         {
             AddError(messages, $"- {error}");
@@ -474,7 +476,7 @@ internal sealed class CliPipeline : ICliPipeline
             var endpointErrors = endpointValidator.Validate(workflowDocument.Definition, selectedVersion, cacheRoot, parseResult.DryRun, parseResult.Verbose && parseResult.DryRun);
             if (endpointErrors.Count > 0)
             {
-                AddError(messages, "Endpoint validation failed:");
+                AddError(messages, $"Dry-run failed during endpoint validation with {endpointErrors.Count} error(s):");
                 foreach (var error in endpointErrors)
                 {
                     AddError(messages, $"- {error}");
@@ -485,7 +487,7 @@ internal sealed class CliPipeline : ICliPipeline
         }
         catch (Exception ex)
         {
-            AddError(messages, $"Failed to cache swagger definitions: {ex.Message}");
+            AddError(messages, $"Dry-run failed while caching swagger definitions: {ex.Message}");
             AddInfo(messages, "");
             AddError(messages, "Workflow aborted!");
             return false;
