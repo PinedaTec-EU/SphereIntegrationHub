@@ -108,6 +108,123 @@ public sealed class WorkflowValidatorTests
     }
 
     [Fact]
+    public void Validate_AllowsRandTokensInTemplates()
+    {
+        var definition = new WorkflowDefinition
+        {
+            Version = "1.0",
+            Id = "01",
+            Name = "test",
+            References = new WorkflowReference
+            {
+                Apis = new List<ApiReferenceItem>
+                {
+                    new() { Name = "accounts", Definition = "accounts" }
+                }
+            },
+            Stages = new List<WorkflowStageDefinition>
+            {
+                new()
+                {
+                    Name = "seed-usage",
+                    Kind = WorkflowStageKind.Endpoint,
+                    ApiRef = "accounts",
+                    Endpoint = "/api/usage",
+                    HttpVerb = "POST",
+                    ExpectedStatus = 200,
+                    Body = """
+                    {
+                      "units": "{{rand:number(1, 5)}}",
+                      "code": "{{rand:text(10, 'alnum')}}",
+                      "usedAt": "{{rand:datetime(system:datetime.utcnow - P3D, system:datetime.utcnow)}}"
+                    }
+                    """
+                }
+            }
+        };
+
+        var document = new WorkflowDocument(definition, "/tmp/test.workflow", new Dictionary<string, string>());
+        var validator = new WorkflowValidator(new WorkflowLoader());
+        var errors = validator.Validate(document);
+
+        Assert.DoesNotContain(errors, e => e.Contains("rand:", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validate_FlagsUnknownRandFunction()
+    {
+        var definition = new WorkflowDefinition
+        {
+            Version = "1.0",
+            Id = "01",
+            Name = "test",
+            References = new WorkflowReference
+            {
+                Apis = new List<ApiReferenceItem>
+                {
+                    new() { Name = "accounts", Definition = "accounts" }
+                }
+            },
+            Stages = new List<WorkflowStageDefinition>
+            {
+                new()
+                {
+                    Name = "seed-usage",
+                    Kind = WorkflowStageKind.Endpoint,
+                    ApiRef = "accounts",
+                    Endpoint = "/api/usage",
+                    HttpVerb = "POST",
+                    ExpectedStatus = 200,
+                    Body = """{"code":"{{rand:slug()}}"}"""
+                }
+            }
+        };
+
+        var document = new WorkflowDocument(definition, "/tmp/test.workflow", new Dictionary<string, string>());
+        var validator = new WorkflowValidator(new WorkflowLoader());
+        var errors = validator.Validate(document);
+
+        Assert.Contains(errors, e => e.Contains("Unknown rand token", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validate_FlagsRandTextWithUnsupportedCharacterSetInDetail()
+    {
+        var definition = new WorkflowDefinition
+        {
+            Version = "1.0",
+            Id = "01",
+            Name = "test",
+            References = new WorkflowReference
+            {
+                Apis = new List<ApiReferenceItem>
+                {
+                    new() { Name = "accounts", Definition = "accounts" }
+                }
+            },
+            Stages = new List<WorkflowStageDefinition>
+            {
+                new()
+                {
+                    Name = "seed-usage",
+                    Kind = WorkflowStageKind.Endpoint,
+                    ApiRef = "accounts",
+                    Endpoint = "/api/usage",
+                    HttpVerb = "POST",
+                    ExpectedStatus = 200,
+                    Body = """{"code":"{{rand:text(8, 'emoji')}}"}"""
+                }
+            }
+        };
+
+        var document = new WorkflowDocument(definition, "/tmp/test.workflow", new Dictionary<string, string>());
+        var validator = new WorkflowValidator(new WorkflowLoader());
+        var errors = validator.Validate(document);
+
+        Assert.Contains(errors, e => e.Contains("unsupported character set 'emoji'", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Validate_AllowsWorkflowReferencePathResolvedFromInputs()
     {
         var tempRoot = Path.Combine(Path.GetTempPath(), $"workflow-validator-{Guid.NewGuid():N}");

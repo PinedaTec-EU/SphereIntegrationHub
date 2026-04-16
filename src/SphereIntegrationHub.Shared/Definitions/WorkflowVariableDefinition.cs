@@ -9,6 +9,7 @@ public sealed class WorkflowVariableDefinition
     public int? Max { get; set; }
     public int? Padding { get; set; }
     public int? Length { get; set; }
+    public string? CharacterSet { get; set; }
     public DateTimeOffset? FromDateTime { get; set; }
     public DateTimeOffset? ToDateTime { get; set; }
     public DateOnly? FromDate { get; set; }

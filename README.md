@@ -170,6 +170,7 @@ SphereIntegrationHub workflows are plain YAML and are designed to stay readable 
 - Accept typed inputs, `.wfvars`, and `.env` values.
 - Mix endpoint calls, workflow stages, retries, circuit breakers, delays, and conditional branches.
 - Work with structured JSON, file-backed payloads, `forEach`, and idempotent `ensure` flows.
+- Generate inline fake data with `{{rand:*}}` helpers for numbers, text, dates, datetimes, times, GUIDs, and ULIDs.
 - Emit JSON and HTML execution reports for post-run diagnosis.
 
 See [`.doc/workflow-schema.md`](.doc/workflow-schema.md) for the full schema, [`.doc/variables.md`](.doc/variables.md) for variable resolution, and [`.doc/execution-reporting.md`](.doc/execution-reporting.md) for report artifacts and viewer behavior.
@@ -182,6 +183,7 @@ Agents generating workflows should assume these runtime rules:
 - `{{response.body.some.path}}` and `{{response.some.path}}` are valid when the response body is JSON.
 - Optional path segments use a `?` suffix on the segment itself, for example `{{response.body.account.status?}}` or `{{stage:create.output.items.0.id?}}`. Missing optional segments resolve to empty output instead of failing.
 - `runIf` supports compound expressions with `&&`, `||`, `!`, parentheses, safe comparisons against missing tokens, and helpers such as `exists(...)`, `empty(...)`, `coalesce(...)`, `first(...)`, `any(...)`, `jsonLength(...)`, and `isEmptyJson(...)`.
+- `rand:*` helpers are valid inside template tokens and are evaluated at runtime wherever templates are supported. Examples: `{{rand:number(1,25)}}`, `{{rand:text(10, 'alnum')}}`, `{{rand:datetime(system:datetime.utcnow - P30D, system:datetime.utcnow)}}`.
 - Workflow validation can check response token paths against endpoint mock payloads when `stage.mock.payload` or `stage.mock.payloadFile` is present.
 - `kind: Workflow` stage failures propagate to the parent workflow; parent execution does not continue past a failed child workflow.
 - `forEach` on workflow stages aggregates both outputs and result state. In addition to `foreach_count` and `foreach_items`, workflow stages expose `foreach_results`, `foreach_success_count`, and `foreach_failed_count`.
@@ -212,6 +214,14 @@ Execution switcher across multiple runs in the same output folder:
 Stage drill-down with execution metadata and resolved workflow inputs/results:
 
 ![Execution report stage details](./.doc/Screenshots/execution-report-stage-details.png)
+
+### Example workflow (forEach + fake data)
+
+See [`samples/fake-usage-seed.workflow`](samples/fake-usage-seed.workflow) for a full example that:
+
+- searches customers,
+- iterates the returned collection with `forEach`,
+- and posts fake usage events using `{{rand:*}}`.
 
 ### Example workflow (login)
 
