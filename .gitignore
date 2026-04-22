@@ -5,6 +5,10 @@
 **/bin
 **/obj
 **/releases
+publish/
+staging/
+dist/
+releases/dist/
 
 # Local-only publish helper and output
 scripts/local/publish-nuget-local.sh

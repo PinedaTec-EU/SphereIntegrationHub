@@ -5,6 +5,8 @@ public static class WorkflowConfigDefaults
     public const string FileName = "workflows.config";
 
     private const string DefaultConfigYaml = """
+plugins:
+  - http
 features:
   openTelemetry: false
 openTelemetry:

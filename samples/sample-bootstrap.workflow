@@ -14,19 +14,20 @@ input:
 
 stages:
   - name: "seed-accounts"
-    kind: "Endpoint"
-    apiRef: "accounts"
-    endpoint: "/api/accounts"
-    httpVerb: "POST"
+    kind: "Http"
     expectedStatuses: [201, 409]
     dataFile: "./seed/accounts.json"
     forEach: "accounts"
     itemName: "account"
     indexName: "accountIndex"
-    bodyFile: "./payloads/bootstrap-account.json"
-    headers:
-      Content-Type: "application/json"
-      Authorization: "Bearer {{input.jwt}}"
+    config:
+      apiRef: "accounts"
+      endpoint: "/api/accounts"
+      httpVerb: "POST"
+      bodyFile: "./payloads/bootstrap-account.json"
+      headers:
+        Content-Type: "application/json"
+        Authorization: "Bearer {{input.jwt}}"
     onStatus:
       409:
         output:

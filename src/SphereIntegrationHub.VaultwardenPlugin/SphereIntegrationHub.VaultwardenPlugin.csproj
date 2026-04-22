@@ -2,13 +2,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Library</OutputType>
-    <ReleaseVersion>1.7.18.271</ReleaseVersion>
+    <ReleaseVersion>1.7.17.272</ReleaseVersion>
     <AssemblyVersion>$(ReleaseVersion)</AssemblyVersion>
     <FileVersion>$(ReleaseVersion)</FileVersion>
     <Version>$(ReleaseVersion)</Version>
     <LangVersion>12</LangVersion>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="YamlDotNet" />
+    <ProjectReference Include="../SphereIntegrationHub.Shared/SphereIntegrationHub.Shared.csproj" />
   </ItemGroup>
 </Project>

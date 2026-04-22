@@ -221,6 +221,165 @@ public sealed class CliPipelineTests
     }
 
     [Fact]
+    public async Task RunAsync_DryRun_WithVaultwardenSecretProvider_RedactsResolvedSecretEnvironmentValues()
+    {
+        using var server = WireMockServer.Start();
+        server
+            .Given(Request.Create().WithPath("/identity/connect/token").UsingPost())
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody("""{"access_token":"vw-token"}"""));
+        server
+            .Given(Request.Create().WithPath("/api/sih/secrets").UsingPost())
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody("""
+{
+  "secrets": {
+    "accounts.api-token": "secret-token-123"
+  }
+}
+"""));
+
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"sih-secret-provider-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+        var workflowPath = Path.Combine(tempRoot, "sample.workflow");
+        File.WriteAllText(workflowPath, """
+version: "1.0"
+id: "secret-provider"
+name: "secret-provider"
+output: true
+endStage:
+  output:
+    tokenPreview: "{{env:ACCOUNTS_API_TOKEN}}"
+""");
+        File.WriteAllText(Path.Combine(tempRoot, "api.catalog"), """
+- version: "1.0"
+  definitions: []
+""");
+        File.WriteAllText(Path.Combine(tempRoot, "workflows.config"), $"""
+features:
+  openTelemetry: false
+secretProviders:
+  - plugin: vaultwarden
+    config:
+      baseUrl: http://localhost:{server.Ports[0]}
+      usernameEnv: VAULTWARDEN_USERNAME
+      passwordEnv: VAULTWARDEN_PASSWORD
+      mappings:
+        ACCOUNTS_API_TOKEN: accounts.api-token
+""");
+
+        var previousUsername = Environment.GetEnvironmentVariable("VAULTWARDEN_USERNAME");
+        var previousPassword = Environment.GetEnvironmentVariable("VAULTWARDEN_PASSWORD");
+        Environment.SetEnvironmentVariable("VAULTWARDEN_USERNAME", "demo@example.test");
+        Environment.SetEnvironmentVariable("VAULTWARDEN_PASSWORD", "super-secret");
+
+        try
+        {
+            var pipeline = CreatePipeline();
+            var result = await pipeline.RunAsync(new InlineArguments(
+                WorkflowPath: workflowPath,
+                Environment: "dev",
+                CatalogPath: null,
+                DryRun: true,
+                Verbose: true), CancellationToken.None);
+
+            Assert.Equal(0, result.ExitCode);
+            Assert.Contains(result.Messages, message => message.Text.Contains("Secret provider 'vaultwarden' resolved 1 secret", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(result.Messages, message => message.Text.Contains("ACCOUNTS_API_TOKEN: *****", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(result.Messages, message => message.Text.Contains("secret-token-123", StringComparison.Ordinal));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("VAULTWARDEN_USERNAME", previousUsername);
+            Environment.SetEnvironmentVariable("VAULTWARDEN_PASSWORD", previousPassword);
+            Directory.Delete(tempRoot, true);
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_WithConfiguredSecretProviderFailure_AbortsBeforeWorkflowLoad()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"sih-secret-provider-fail-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+        var workflowPath = Path.Combine(tempRoot, "sample.workflow");
+        File.WriteAllText(workflowPath, "not-valid: [");
+        File.WriteAllText(Path.Combine(tempRoot, "api.catalog"), """
+- version: "1.0"
+  definitions: []
+""");
+        File.WriteAllText(Path.Combine(tempRoot, "workflows.config"), """
+features:
+  openTelemetry: false
+secretProviders:
+  - plugin: vaultwarden
+    config:
+      baseUrl: http://127.0.0.1:1
+      usernameEnv: VAULTWARDEN_USERNAME
+      passwordEnv: VAULTWARDEN_PASSWORD
+      mappings:
+        ACCOUNTS_API_TOKEN: accounts.api-token
+""");
+
+        var previousUsername = Environment.GetEnvironmentVariable("VAULTWARDEN_USERNAME");
+        var previousPassword = Environment.GetEnvironmentVariable("VAULTWARDEN_PASSWORD");
+        Environment.SetEnvironmentVariable("VAULTWARDEN_USERNAME", "demo@example.test");
+        Environment.SetEnvironmentVariable("VAULTWARDEN_PASSWORD", "super-secret");
+
+        try
+        {
+            var pipeline = CreatePipeline();
+            var result = await pipeline.RunAsync(new InlineArguments(
+                WorkflowPath: workflowPath,
+                Environment: "dev",
+                CatalogPath: null,
+                DryRun: true), CancellationToken.None);
+
+            Assert.Equal(1, result.ExitCode);
+            Assert.Contains(result.Messages, message => message.Text.Contains("Secret provider 'vaultwarden' failed", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(result.Messages, message => message.Text.Contains("Failed to load workflow", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(result.Messages, message => message.Text.Contains("Workflow [", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("VAULTWARDEN_USERNAME", previousUsername);
+            Environment.SetEnvironmentVariable("VAULTWARDEN_PASSWORD", previousPassword);
+            Directory.Delete(tempRoot, true);
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_WithLegacyWorkflowConfigWithoutPlugins_EmitsDeprecationWarning()
+    {
+        var fixture = CreateFixture(
+            swaggerHasEndpoint: true,
+            includeMock: true,
+            catalogVersion: "1.0",
+            baseUrls: new Dictionary<string, string> { ["dev"] = "http://example.test" });
+        var workflowsPath = Path.GetDirectoryName(fixture.WorkflowPath)!;
+        File.WriteAllText(Path.Combine(workflowsPath, "workflows.config"), """
+features:
+  openTelemetry: false
+""");
+
+        var pipeline = CreatePipeline();
+        var result = await pipeline.RunAsync(new InlineArguments(
+            WorkflowPath: fixture.WorkflowPath,
+            Environment: "dev",
+            CatalogPath: null,
+            DryRun: true), CancellationToken.None);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains(result.Messages, message =>
+            message.Text.Contains("does not define a plugins section", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Messages, message =>
+            message.Text.Contains("future release", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task RunAsync_DryRun_HealthCheckConfiguredWithReadinessRetry_RetriesUntilHealthy()
     {
         using var server = WireMockServer.Start();

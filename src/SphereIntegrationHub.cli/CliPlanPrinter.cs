@@ -5,7 +5,7 @@ namespace SphereIntegrationHub.cli;
 
 internal sealed class CliPlanPrinter : ICliPlanPrinter
 {
-    public void PrintPlan(WorkflowPlan plan, int indent, bool verbose, string? parentVersion, string? allowVersion, TextWriter writer)
+    public void PrintPlan(WorkflowPlan plan, int indent, bool verbose, string? parentVersion, string? allowVersion, TextWriter writer, IReadOnlyCollection<string>? secretValues = null)
     {
         var prefix = new string(' ', indent);
         writer.WriteLine($"{prefix}Workflow: {plan.Name} ({plan.Id})");
@@ -23,7 +23,7 @@ internal sealed class CliPlanPrinter : ICliPlanPrinter
         writer.WriteLine($"{prefix}File: {plan.FilePath}");
         if (verbose)
         {
-            PrintKeyValues($"{prefix}Resolved env:", plan.EnvironmentVariables, writer);
+            PrintKeyValues($"{prefix}Resolved env:", plan.EnvironmentVariables, writer, secretValues);
         }
 
         if (plan.Inputs.Count > 0)
@@ -42,7 +42,7 @@ internal sealed class CliPlanPrinter : ICliPlanPrinter
             foreach (var stage in plan.Stages)
             {
                 writer.WriteLine($"{prefix}  - {stage.Name} [{stage.Kind}]");
-                if (stage.Kind == WorkflowStageKind.Endpoint)
+                if (!WorkflowStageKind.IsWorkflow(stage.Kind))
                 {
                     writer.WriteLine($"{prefix}    Api: {stage.ApiRef}");
                     writer.WriteLine($"{prefix}    Endpoint: {stage.Endpoint}");
@@ -68,8 +68,8 @@ internal sealed class CliPlanPrinter : ICliPlanPrinter
 
                     if (verbose)
                     {
-                        PrintKeyValues($"{prefix}    Headers:", stage.Headers, writer);
-                        PrintKeyValues($"{prefix}    Query:", stage.Query, writer);
+                        PrintKeyValues($"{prefix}    Headers:", stage.Headers, writer, secretValues);
+                        PrintKeyValues($"{prefix}    Query:", stage.Query, writer, secretValues);
                         if (!string.IsNullOrWhiteSpace(stage.Body))
                         {
                             writer.WriteLine($"{prefix}    Body:");
@@ -137,14 +137,14 @@ internal sealed class CliPlanPrinter : ICliPlanPrinter
 
                 if (verbose)
                 {
-                    PrintKeyValues($"{prefix}    Context:", stage.Context, writer);
-                    PrintKeyValues($"{prefix}    Set:", stage.Set, writer);
+                    PrintKeyValues($"{prefix}    Context:", stage.Context, writer, secretValues);
+                    PrintKeyValues($"{prefix}    Set:", stage.Set, writer, secretValues);
                 }
 
                 if (verbose && stage.NestedPlan is not null)
                 {
                     writer.WriteLine($"{prefix}    Workflow plan:");
-                    PrintPlan(stage.NestedPlan, indent + 6, verbose, plan.Version, stage.AllowVersion, writer);
+                    PrintPlan(stage.NestedPlan, indent + 6, verbose, plan.Version, stage.AllowVersion, writer, secretValues);
                 }
             }
         }
@@ -171,12 +171,12 @@ internal sealed class CliPlanPrinter : ICliPlanPrinter
 
         if (verbose)
         {
-            PrintKeyValues($"{prefix}Init-stage context:", plan.InitContext, writer);
-            PrintKeyValues($"{prefix}End-stage context:", plan.EndContext, writer);
+            PrintKeyValues($"{prefix}Init-stage context:", plan.InitContext, writer, secretValues);
+            PrintKeyValues($"{prefix}End-stage context:", plan.EndContext, writer, secretValues);
         }
     }
 
-    private static void PrintKeyValues(string title, IReadOnlyDictionary<string, string>? values, TextWriter writer)
+    private static void PrintKeyValues(string title, IReadOnlyDictionary<string, string>? values, TextWriter writer, IReadOnlyCollection<string>? secretValues)
     {
         if (values is null || values.Count == 0)
         {
@@ -185,7 +185,10 @@ internal sealed class CliPlanPrinter : ICliPlanPrinter
 
         writer.WriteLine(title);
         var itemPrefix = new string(' ', title.TakeWhile(char.IsWhiteSpace).Count());
-        foreach (var pair in values)
+        var redacted = WorkflowExecutionRedactor.RedactOutputStrings(
+            values,
+            secretValues: secretValues is null ? null : new HashSet<string>(secretValues, StringComparer.Ordinal));
+        foreach (var pair in redacted)
         {
             writer.WriteLine($"{itemPrefix}  {pair.Key}: {pair.Value}");
         }

@@ -999,12 +999,6 @@ public sealed record TemplateContext(
     IReadOnlySet<string>? SkippedStages = null,
     IReadOnlyDictionary<string, string>? WorkflowVars = null);
 
-public sealed record ResponseContext(
-    int StatusCode,
-    string Body,
-    IReadOnlyDictionary<string, string> Headers,
-    JsonDocument? Json);
-
 public readonly record struct ResolvedTokenValue(bool Exists, string? StringValue, JsonElement? JsonValue)
 {
     public static ResolvedTokenValue NotFound { get; } = new(false, null, null);

@@ -3,7 +3,7 @@ namespace SphereIntegrationHub.Definitions;
 public sealed class WorkflowStageDefinition
 {
     public string Name { get; set; } = string.Empty;
-    public WorkflowStageKind Kind { get; set; }
+    public string Kind { get; set; } = string.Empty;
     public string? ApiRef { get; set; }
     public string? Endpoint { get; set; }
     public string? HttpVerb { get; set; }
@@ -32,6 +32,7 @@ public sealed class WorkflowStageDefinition
     public string? RunIf { get; set; }
     public Dictionary<string, string>? Set { get; set; }
     public Dictionary<string, string>? Context { get; set; }
+    public Dictionary<string, object?>? Config { get; set; }
     public WorkflowStageMockDefinition? Mock { get; set; }
     public WorkflowStageRetryDefinition? Retry { get; set; }
     public WorkflowStageCircuitBreakerDefinition? CircuitBreaker { get; set; }
@@ -41,6 +42,51 @@ public sealed class WorkflowStageDefinition
     /// branch in a mutually-exclusive set actually ran.
     /// </summary>
     public WorkflowStageOnSkipDefinition? OnSkip { get; set; }
+
+    public string? GetConfigString(string key)
+        => TryGetConfigValue(key, out var value) ? ConvertToString(value) : null;
+
+    public Dictionary<string, string>? GetConfigStringDictionary(string key)
+        => TryGetConfigValue(key, out var value) ? ConvertToStringDictionary(value) : null;
+
+    private bool TryGetConfigValue(string key, out object? value)
+    {
+        value = null;
+        if (Config is null || !Config.TryGetValue(key, out value))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static string? ConvertToString(object? value)
+    {
+        return value switch
+        {
+            null => null,
+            string text => text,
+            _ => value.ToString()
+        };
+    }
+
+    private static Dictionary<string, string>? ConvertToStringDictionary(object? value)
+    {
+        return value switch
+        {
+            null => null,
+            Dictionary<string, string> textDictionary => new(textDictionary, StringComparer.OrdinalIgnoreCase),
+            Dictionary<string, object?> objectDictionary => objectDictionary.ToDictionary(
+                pair => pair.Key,
+                pair => ConvertToString(pair.Value) ?? string.Empty,
+                StringComparer.OrdinalIgnoreCase),
+            IDictionary<object, object> looseDictionary => looseDictionary.ToDictionary(
+                pair => pair.Key.ToString() ?? string.Empty,
+                pair => ConvertToString(pair.Value) ?? string.Empty,
+                StringComparer.OrdinalIgnoreCase),
+            _ => null
+        };
+    }
 }
 
 public sealed class WorkflowStageOnSkipDefinition

@@ -816,6 +816,8 @@ endStage:
         adapter.Should().NotBeNull();
         File.Exists(workflowsConfigPath).Should().BeTrue();
         var content = File.ReadAllText(workflowsConfigPath);
+        content.Should().Contain("plugins:");
+        content.Should().Contain("- http");
         content.Should().Contain("features:");
         content.Should().Contain("openTelemetry: false");
     }

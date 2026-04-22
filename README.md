@@ -24,6 +24,8 @@
 
 CLI tool to orchestrate API calls using versioned Swagger catalogs and YAML workflows. Workflows can reference other workflows, share context (like JWTs), validate endpoints against cached Swagger specs, and run in dry-run mode for validation.
 
+Stage execution is being opened through a versioned plugin contract: workflow orchestration stays in the runtime, while protocol/channel implementations such as HTTP can live in dedicated plugins.
+
 Documentation:
 
 - [`Overview`](.doc/overview.md)
@@ -38,6 +40,68 @@ Documentation:
 - [`MCP Server`](.doc/mcp-server.md) - AI-assisted workflow creation (35 tools, all levels)
 - [`GitHub Action`](.doc/github-action.md) - run workflows from any CI/CD pipeline
 - [`plugins`](.doc/plugins.md)
+- [`secret providers`](.doc/secret-providers.md)
+
+Examples:
+
+- [`samples/sample-bootstrap.workflow`](samples/sample-bootstrap.workflow) uses the explicit `Http` plugin stage with a plugin-specific `config` block.
+- [`samples/workflows.config`](samples/workflows.config) shows explicit plugin activation. If `plugins` is omitted, the runtime still enables `http` for compatibility but emits a warning; a future release will require the section.
+- [`samples/api.catalog`](samples/api.catalog) shows plugin declaration/version binding in the catalog.
+- [`samples/vaultwarden-secrets`](samples/vaultwarden-secrets) shows the `vaultwarden` secret provider feeding `{{env:...}}` tokens. Secret provider failures are fail-fast and abort the run before workflow loading continues.
+
+## Community
+
+If you use SphereIntegrationHub in your company or project, we'd love to hear about it!
+
+- Give us a ⭐ on GitHub — it helps the project grow
+- Share your experience on [LinkedIn](https://www.linkedin.com/in/jmrpineda) mentioning **#SphereIntegrationHub** — we repost and feature use cases
+- Drop us a line at [sih@pinedatec.eu](mailto:sih@pinedatec.eu) — tell us what you're automating, we'd love to feature it
+
+## Installation
+
+### npm / npx — no .NET required
+
+The fastest way to get started. No runtime dependencies, no SDK to install.
+
+**Global install** (run `sih` and `sih-mcp` anywhere):
+
+```bash
+npm install -g @pinedatec.eu/sphere-integration-hub
+sih --version
+```
+
+**One-off via npx** (MCP server, ideal for Claude Desktop / VS Code):
+
+```bash
+npx @pinedatec.eu/sphere-integration-hub          # launches the MCP server
+npx -p @pinedatec.eu/sphere-integration-hub sih --version   # CLI one-off
+```
+
+**For teams and CI** (pin to repo):
+
+```bash
+npm install --save-dev @pinedatec.eu/sphere-integration-hub
+# teammates and CI: npm install picks it up automatically
+```
+
+### dotnet tool — for .NET developers
+
+If you already have .NET 10+ installed, the tool is also available on NuGet:
+
+```bash
+dotnet tool install -g SphereIntegrationHub.Tool        # CLI
+dotnet tool install -g SphereIntegrationHub.Mcp.Tool   # MCP server
+```
+
+Or as a local tool (recommended for teams using dotnet):
+
+```bash
+dotnet new tool-manifest   # only if .config/dotnet-tools.json doesn't exist yet
+dotnet tool install SphereIntegrationHub.Tool
+dotnet tool restore        # teammates and CI run this to pick it up
+```
+
+NuGet packages: [CLI](https://www.nuget.org/packages/SphereIntegrationHub.Tool/) · [MCP](https://www.nuget.org/packages/SphereIntegrationHub.Mcp.Tool/)
 
 ## Community
 
@@ -624,8 +688,8 @@ SphereIntegrationHub is now strong as a local-first API orchestration runtime an
    Web-based workflow builder for teams that want graphical authoring on top of the YAML runtime.
 3. **Higher-Level Runtime Primitives**
    More semantic stage sugar beyond `ensure`, plus better assertions and reusable payload/template blocks.
-4. **External Secret Providers (Deferred)**
-   AWS Secrets Manager, Azure Key Vault, HashiCorp Vault, and similar providers stay out of the near-term plan until the local-first secret story, assertions, and extension model are more stable.
+4. **Broader Secret Provider Coverage**
+   After the initial Vaultwarden provider, extend the same secret-provider contract to other backends such as AWS Secrets Manager, Azure Key Vault, and HashiCorp Vault.
 
 ### Ongoing Investment
 

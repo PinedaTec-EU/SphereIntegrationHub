@@ -1,6 +1,6 @@
 # Plugins
 
-SphereIntegrationHub uses stage plugins to validate and execute workflow stages. The core always includes the built-in `workflow` plugin and loads the rest from `workflows.config`.
+SphereIntegrationHub uses stage plugins to validate and execute workflow stages. `workflow` remains built in. Transport/protocol stages are resolved through plugins declared in `workflows.config` and linked from `api.catalog`.
 
 ## Configuration
 
@@ -16,53 +16,47 @@ openTelemetry:
   debugConsole: false
 plugins:
   - http
+  - amqp
 ```
 
 Rules:
 
-- The `workflow` plugin is built-in and always loaded.
-- At least one additional plugin must be configured (for example `http`).
-- Plugins are loaded from a `plugins` folder next to `workflows.config`.
-  - Built-in plugins (like `http`) do not require a DLL file.
-  - External plugins must be available as `plugins/<pluginId>.dll`.
+- The `workflow` stage kind is built into the runtime.
+- If `plugins` is omitted, the built-in `http` plugin is enabled by default for compatibility and the runtime emits a warning.
+- The warning is transitional; a future release will require the `plugins` section explicitly.
+- If `plugins` is present, only the listed plugins are enabled.
+- External plugins are loaded from a `plugins` folder next to `workflows.config`.
+- Each explicit plugin should also be declared in the selected `api.catalog` version under `plugins`.
 
 ## Plugin contract
 
-Plugins must implement `IStagePlugin` and provide a parameterless constructor. Validation is defined separately via `IStageValidator`.
+Plugins must implement `IStagePlugin` and provide a parameterless constructor.
 
 ```csharp
 public interface IStagePlugin
 {
-    string Id { get; }
-    IReadOnlyCollection<string> StageKinds { get; }
-    StagePluginCapabilities Capabilities { get; }
-
-    Task<string?> ExecuteAsync(
-        WorkflowStageDefinition stage,
-        StageExecutionContext context,
-        CancellationToken cancellationToken);
-}
-
-public interface IStageValidator
-{
-    string Id { get; }
-    IReadOnlyCollection<string> StageKinds { get; }
-
+    StagePluginDescriptor Descriptor { get; }
     void ValidateStage(
         WorkflowStageDefinition stage,
-        StageValidationContext context,
-        List<string> errors);
+        StagePluginValidationContext context,
+        List<string> errors,
+        List<string> warnings);
+
+    Task<StagePluginExecutionResult> ExecuteAsync(
+        WorkflowStageDefinition stage,
+        StagePluginExecutionContext context,
+        CancellationToken cancellationToken);
 }
 ```
 
 Notes:
 
-- `Id` is the plugin name used in `workflows.config`.
-- `StageKinds` are the stage `kind` values that this plugin owns.
-- `Capabilities` control output type, mock handling, and `jumpOnStatus` support.
-- `ValidateStage` should add errors instead of throwing for user errors.
-- `ExecuteAsync` can return a jump target (or `null`).
-- A plugin should expose a matching `IStageValidator` (it may be the same class implementing both).
+- `Descriptor.Id` is the plugin name used in `workflows.config` and `api.catalog`.
+- `Descriptor.StageKinds` are the stage `kind` values that this plugin owns.
+- `Descriptor.ContractVersion` is the versioned contract checked during plugin pre-check.
+- Plugin-specific stage properties should live under `stage.config`.
+- `ValidateStage` should add errors instead of throwing for user/schema errors.
+- `ExecuteAsync` returns a normalized response envelope consumed by the runtime.
 
 ## Rules and constraints
 
@@ -76,22 +70,22 @@ Notes:
 
 The plugin `StageKind` decides how a stage is validated and executed. The built-in plugins expose:
 
-- `workflow` (built-in)
-- `http` (built-in)
-- `endpoint` (alias for the `http` plugin)
+- `Workflow` (built-in stage kind)
+- `Http` / `Endpoint` (handled by the `http` plugin)
 
 Example:
 
 ```yaml
 stages:
   - name: "login"
-    kind: "http"
-    apiRef: "example-service"
-    endpoint: "/api/auth/login"
-    httpVerb: "POST"
+    kind: "Http"
     expectedStatus: 200
+    config:
+      apiRef: "example-service"
+      endpoint: "/api/auth/login"
+      httpVerb: "POST"
 
   - name: "authenticate"
-    kind: "workflow"
+    kind: "Workflow"
     workflowRef: "login-workflow"
 ```

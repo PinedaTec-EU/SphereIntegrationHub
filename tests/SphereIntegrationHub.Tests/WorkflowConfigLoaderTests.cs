@@ -67,4 +67,72 @@ references:
             Directory.Delete(tempRoot, true);
         }
     }
+
+    [Fact]
+    public void Load_ReadsConfiguredPlugins()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"aos-workflow-config-{Guid.NewGuid():N}");
+        var workflowsPath = Path.Combine(tempRoot, "workflows");
+        Directory.CreateDirectory(workflowsPath);
+
+        var workflowPath = Path.Combine(workflowsPath, "sample.workflow");
+        File.WriteAllText(workflowPath, "version: 0.1");
+        File.WriteAllText(Path.Combine(workflowsPath, "workflows.config"), """
+features:
+  openTelemetry: false
+plugins:
+  - http
+  - amqp
+""");
+
+        try
+        {
+            var loader = new WorkflowConfigLoader();
+            var config = loader.Load(workflowPath);
+
+            Assert.Equal(["http", "amqp"], config.Plugins);
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, true);
+        }
+    }
+
+    [Fact]
+    public void Load_ReadsSecretProviders()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"aos-workflow-config-{Guid.NewGuid():N}");
+        var workflowsPath = Path.Combine(tempRoot, "workflows");
+        Directory.CreateDirectory(workflowsPath);
+
+        var workflowPath = Path.Combine(workflowsPath, "sample.workflow");
+        File.WriteAllText(workflowPath, "version: 0.1");
+        File.WriteAllText(Path.Combine(workflowsPath, "workflows.config"), """
+features:
+  openTelemetry: false
+secretProviders:
+  - plugin: vaultwarden
+    config:
+      baseUrl: https://vault.example.test
+      usernameEnv: VAULTWARDEN_USERNAME
+      passwordEnv: VAULTWARDEN_PASSWORD
+      mappings:
+        API_TOKEN: accounts.api-token
+""");
+
+        try
+        {
+            var loader = new WorkflowConfigLoader();
+            var config = loader.Load(workflowPath);
+
+            var provider = Assert.Single(config.SecretProviders!);
+            Assert.Equal("vaultwarden", provider.Plugin);
+            Assert.Equal("https://vault.example.test", provider.GetConfigString("baseUrl"));
+            Assert.Equal("accounts.api-token", provider.GetConfigStringDictionary("mappings")!["API_TOKEN"]);
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, true);
+        }
+    }
 }

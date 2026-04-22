@@ -1,4 +1,5 @@
 using SphereIntegrationHub.Services;
+using SphereIntegrationHub.Plugins;
 using SphereIntegrationHub.Services.Interfaces;
 
 namespace SphereIntegrationHub.cli;
@@ -37,8 +38,8 @@ internal sealed class CliServiceFactory : ICliServiceFactory
 
     public VarsFileLoader CreateVarsFileLoader() => new();
 
-    public WorkflowValidator CreateWorkflowValidator(WorkflowLoader workflowLoader)
-        => new(workflowLoader);
+    public WorkflowValidator CreateWorkflowValidator(WorkflowLoader workflowLoader, StagePluginRegistry? stagePluginRegistry = null)
+        => new(workflowLoader, stagePluginRegistry);
 
     public ApiCatalogReader CreateApiCatalogReader() => new();
 
@@ -47,8 +48,8 @@ internal sealed class CliServiceFactory : ICliServiceFactory
     public ApiSwaggerCacheService CreateApiSwaggerCacheService(HttpClient httpClient)
         => new(httpClient, _logger);
 
-    public ApiEndpointValidator CreateApiEndpointValidator()
-        => new(_logger);
+    public ApiEndpointValidator CreateApiEndpointValidator(StagePluginRegistry? stagePluginRegistry = null)
+        => new(_logger, stagePluginRegistry);
 
     public WorkflowPlanner CreateWorkflowPlanner(WorkflowLoader workflowLoader)
         => new(workflowLoader);
@@ -58,7 +59,9 @@ internal sealed class CliServiceFactory : ICliServiceFactory
         DynamicValueService dynamicValueService,
         ISystemTimeProvider systemTimeProvider,
         WorkflowExecutionReportOptions reportOptions,
-        IRequestBodyContractProcessor? requestBodyContractProcessor = null)
+        IRequestBodyContractProcessor? requestBodyContractProcessor = null,
+        StagePluginRegistry? stagePluginRegistry = null,
+        IReadOnlyCollection<string>? preloadedSecretValues = null)
         => new(
             httpClient,
             dynamicValueService,
@@ -66,5 +69,10 @@ internal sealed class CliServiceFactory : ICliServiceFactory
             requestBodyContractProcessor: requestBodyContractProcessor,
             logger: _logger,
             reportWriter: new WorkflowExecutionReportWriter(),
-            reportOptions: reportOptions);
+            reportOptions: reportOptions,
+            stagePluginRegistry: stagePluginRegistry,
+            preloadedSecretValues: preloadedSecretValues);
+
+    public SecretProviderRegistry CreateSecretProviderRegistry()
+        => new SecretProviderRegistryBuilder().Build();
 }

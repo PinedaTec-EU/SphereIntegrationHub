@@ -37,7 +37,7 @@ public sealed class WorkflowPlanner
             foreach (var stage in definition.Stages)
             {
                 WorkflowPlan? nestedPlan = null;
-                if (stage.Kind == WorkflowStageKind.Workflow && !string.IsNullOrWhiteSpace(stage.WorkflowRef))
+                if (WorkflowStageKind.IsWorkflow(stage.Kind) && !string.IsNullOrWhiteSpace(stage.WorkflowRef))
                 {
                     if (workflowRefs.TryGetValue(stage.WorkflowRef, out var referencePath))
                     {
@@ -85,7 +85,7 @@ public sealed class WorkflowPlanner
                     stage.ItemName,
                     stage.IndexName,
                     stage.WorkflowRef,
-                    stage.Kind == WorkflowStageKind.Workflow && !string.IsNullOrWhiteSpace(stage.WorkflowRef) && workflowRefs.TryGetValue(stage.WorkflowRef, out var resolvedWorkflowPath)
+                    WorkflowStageKind.IsWorkflow(stage.Kind) && !string.IsNullOrWhiteSpace(stage.WorkflowRef) && workflowRefs.TryGetValue(stage.WorkflowRef, out var resolvedWorkflowPath)
                         ? resolvedWorkflowPath
                         : null,
                     stage.Inputs,
@@ -130,7 +130,7 @@ public sealed record WorkflowPlan(
 
 public sealed record WorkflowStagePlan(
     string Name,
-    WorkflowStageKind Kind,
+    string Kind,
     string? ApiRef,
     string? Endpoint,
     string? HttpVerb,

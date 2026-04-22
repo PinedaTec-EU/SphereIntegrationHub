@@ -1,5 +1,6 @@
 using SphereIntegrationHub.cli;
 using SphereIntegrationHub.Services;
+using SphereIntegrationHub.Plugins;
 using SphereIntegrationHub.Services.Interfaces;
 
 namespace SphereIntegrationHub.Tests;
@@ -116,18 +117,21 @@ public sealed class CliAppTests
         public DynamicValueService CreateDynamicValueService(ISystemTimeProvider systemTimeProvider) => throw new InvalidOperationException("Unexpected factory call");
         public WorkflowLoader CreateWorkflowLoader() => throw new InvalidOperationException("Unexpected factory call");
         public VarsFileLoader CreateVarsFileLoader() => throw new InvalidOperationException("Unexpected factory call");
-        public WorkflowValidator CreateWorkflowValidator(WorkflowLoader workflowLoader) => throw new InvalidOperationException("Unexpected factory call");
+        public WorkflowValidator CreateWorkflowValidator(WorkflowLoader workflowLoader, StagePluginRegistry? stagePluginRegistry = null) => throw new InvalidOperationException("Unexpected factory call");
         public ApiCatalogReader CreateApiCatalogReader() => throw new InvalidOperationException("Unexpected factory call");
         public ApiHealthCheckProbe CreateApiHealthCheckProbe() => throw new InvalidOperationException("Unexpected factory call");
         public ApiSwaggerCacheService CreateApiSwaggerCacheService(HttpClient httpClient) => throw new InvalidOperationException("Unexpected factory call");
-        public ApiEndpointValidator CreateApiEndpointValidator() => throw new InvalidOperationException("Unexpected factory call");
+        public ApiEndpointValidator CreateApiEndpointValidator(StagePluginRegistry? stagePluginRegistry = null) => throw new InvalidOperationException("Unexpected factory call");
         public WorkflowPlanner CreateWorkflowPlanner(WorkflowLoader workflowLoader) => throw new InvalidOperationException("Unexpected factory call");
+        public SecretProviderRegistry CreateSecretProviderRegistry() => throw new InvalidOperationException("Unexpected factory call");
         public WorkflowExecutor CreateWorkflowExecutor(
             HttpClient httpClient,
             DynamicValueService dynamicValueService,
             ISystemTimeProvider systemTimeProvider,
             WorkflowExecutionReportOptions reportOptions,
-            IRequestBodyContractProcessor? requestBodyContractProcessor = null)
+            IRequestBodyContractProcessor? requestBodyContractProcessor = null,
+            StagePluginRegistry? stagePluginRegistry = null,
+            IReadOnlyCollection<string>? preloadedSecretValues = null)
             => throw new InvalidOperationException("Unexpected factory call");
     }
 }
