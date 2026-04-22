@@ -152,11 +152,16 @@ Validates workflow via:
 - `workflowPath`, or
 - `workflowYaml` (inline content)
 
+Validation covers structure, references, token usage, and template helpers such as `{{rand:*}}`.
+For invalid helper calls, the result includes the original token and the workflow location when the validator can determine them statically.
+
 ### `plan_workflow_execution`
 
 Builds execution plan via:
 - `workflowPath`, or
 - `workflowYaml` (inline content)
+
+The verbose dry-run plan includes stage-level orchestration detail such as `runIf`, `forEach`, `bodyFile`, `dataFile`, stage outputs, and resolved workflow references.
 
 ## Runtime Config (Paths)
 

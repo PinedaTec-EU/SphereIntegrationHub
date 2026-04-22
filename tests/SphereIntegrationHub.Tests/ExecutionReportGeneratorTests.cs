@@ -40,6 +40,7 @@ public sealed class ExecutionReportGeneratorTests
         Assert.Contains("01KNGXHCZZZZ6KMC3DZDZAJRTJ", html, StringComparison.Ordinal);
         Assert.Contains("Sphere Integration Hub (SIH)", html, StringComparison.Ordinal);
         Assert.Contains("aria-label=\"Sphere Integration Hub icon\"", html, StringComparison.Ordinal);
+        Assert.Contains("Stages:</span>", html, StringComparison.Ordinal);
         Assert.Contains("<link rel=\"icon\" type=\"image/svg+xml\" href=\"data:image/svg+xml,", html, StringComparison.Ordinal);
         Assert.True(
             html.IndexOf("id=\"version-badge\"", StringComparison.Ordinal) <
@@ -102,6 +103,7 @@ public sealed class ExecutionReportGeneratorTests
         Assert.Contains("syncTimelineLabels();", html, StringComparison.Ordinal);
         Assert.Contains("class=\"tree-indent\"", html, StringComparison.Ordinal);
         Assert.Contains("--uri-indent:", html, StringComparison.Ordinal);
+        Assert.Contains("Workflows: <strong>${workflowExecuted}/${workflowTotal}</strong>", html, StringComparison.Ordinal);
         Assert.DoesNotContain("tree-guide-cell", html, StringComparison.Ordinal);
         Assert.DoesNotContain("tree-guide-dot", html, StringComparison.Ordinal);
         Assert.Contains("return;", html, StringComparison.Ordinal);

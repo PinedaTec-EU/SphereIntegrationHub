@@ -82,6 +82,30 @@ public sealed class DynamicValueServiceTests
         Assert.Equal("14", value);
     }
 
+    [Fact]
+    public void Generate_Text_WithNumericCharacterSet_UsesOnlyDigits()
+    {
+        var service = new DynamicValueService();
+        var definition = new RandomValueDefinition(RandomValueType.Text, Length: 24, CharacterSet: "numeric");
+
+        var value = service.Generate(definition, new PayloadProcessorContext(1, string.Empty, string.Empty, string.Empty, string.Empty), RandomValueFormattingOptions.Default);
+
+        Assert.Equal(24, value.Length);
+        Assert.All(value, character => Assert.True(char.IsDigit(character)));
+    }
+
+    [Fact]
+    public void Generate_Text_WithUnsupportedCharacterSet_Throws()
+    {
+        var service = new DynamicValueService();
+        var definition = new RandomValueDefinition(RandomValueType.Text, Length: 8, CharacterSet: "emoji");
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => service.Generate(definition, new PayloadProcessorContext(1, string.Empty, string.Empty, string.Empty, string.Empty), RandomValueFormattingOptions.Default));
+
+        Assert.Contains("Unsupported character set", ex.Message);
+    }
+
     private sealed class TestSystemTimeProvider : ISystemTimeProvider
     {
         public TestSystemTimeProvider(DateTimeOffset now)

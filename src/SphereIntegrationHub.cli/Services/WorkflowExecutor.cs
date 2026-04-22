@@ -2272,6 +2272,7 @@ public sealed class WorkflowExecutor
                 variable.Max,
                 variable.Padding,
                 variable.Length,
+                variable.CharacterSet,
                 variable.FromDateTime,
                 variable.ToDateTime,
                 variable.FromDate,

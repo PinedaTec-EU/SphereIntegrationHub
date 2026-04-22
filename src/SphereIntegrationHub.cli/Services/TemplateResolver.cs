@@ -24,10 +24,12 @@ public sealed class TemplateResolver
         @"^P(?:(?<years>\d+)Y)?(?:(?<months>\d+)M)?(?:(?<days>\d+)D)?(?:T(?:(?<hours>\d+)H)?(?:(?<minutes>\d+)M)?(?:(?<seconds>\d+)S)?)?$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private readonly ISystemTimeProvider _systemProvider;
+    private readonly IRandomValueService _randomValueService;
 
-    public TemplateResolver(ISystemTimeProvider? systemProvider = null)
+    public TemplateResolver(ISystemTimeProvider? systemProvider = null, IRandomValueService? randomValueService = null)
     {
         _systemProvider = systemProvider ?? new SystemTimeProvider();
+        _randomValueService = randomValueService ?? new DynamicValueService(_systemProvider);
     }
 
     public string ResolveTemplate(string template, TemplateContext context, ResponseContext? responseContext = null)
@@ -87,6 +89,11 @@ public sealed class TemplateResolver
         if (token.StartsWith("coalesce(", StringComparison.OrdinalIgnoreCase))
         {
             return ResolveCoalesceTokenValue(token, context, responseContext, allowJsonStage);
+        }
+
+        if (token.StartsWith("rand:", StringComparison.OrdinalIgnoreCase))
+        {
+            return ResolveRandomTokenValue(token, context, responseContext, allowJsonStage);
         }
 
         var segments = SplitToken(token);
@@ -618,11 +625,26 @@ public sealed class TemplateResolver
     private static IEnumerable<string> SplitFunctionArguments(string content)
     {
         var depth = 0;
+        char? quote = null;
         var start = 0;
         for (var i = 0; i < content.Length; i++)
         {
+            if (quote.HasValue)
+            {
+                if (content[i] == quote.Value && (i == 0 || content[i - 1] != '\\'))
+                {
+                    quote = null;
+                }
+
+                continue;
+            }
+
             switch (content[i])
             {
+                case '\'':
+                case '"':
+                    quote = content[i];
+                    break;
                 case '(': depth++; break;
                 case ')': depth--; break;
                 case ',' when depth == 0:
@@ -633,6 +655,272 @@ public sealed class TemplateResolver
         }
 
         yield return content[start..];
+    }
+
+    private ResolvedTokenValue ResolveRandomTokenValue(
+        string token,
+        TemplateContext context,
+        ResponseContext? responseContext,
+        bool allowJsonStage)
+    {
+        var openIndex = token.IndexOf('(');
+        var closeIndex = token.LastIndexOf(')');
+        if (openIndex <= "rand:".Length || closeIndex != token.Length - 1)
+        {
+            throw new InvalidOperationException($"Invalid rand token '{token}'. Expected 'rand:<function>(...)'.");
+        }
+
+        var functionName = token["rand:".Length..openIndex].Trim().ToLowerInvariant();
+        var rawArguments = token[(openIndex + 1)..closeIndex];
+        var arguments = string.IsNullOrWhiteSpace(rawArguments)
+            ? Array.Empty<RandomArgument>()
+            : SplitFunctionArguments(rawArguments)
+                .Select(argument => ResolveRandomArgument(argument, context, responseContext, allowJsonStage))
+                .Where(argument => !argument.IsEmpty)
+                .ToArray();
+
+        return functionName switch
+        {
+            "number" => ResolvedTokenValue.FromString(GenerateRandomNumber(arguments)),
+            "text" => ResolvedTokenValue.FromString(GenerateRandomText(arguments)),
+            "guid" => ResolvedTokenValue.FromString(GenerateRandomGuid(arguments)),
+            "ulid" => ResolvedTokenValue.FromString(GenerateRandomUlid(arguments)),
+            "date" => ResolvedTokenValue.FromString(GenerateRandomDate(arguments)),
+            "datetime" => ResolvedTokenValue.FromString(GenerateRandomDateTime(arguments)),
+            "time" => ResolvedTokenValue.FromString(GenerateRandomTime(arguments)),
+            _ => throw new InvalidOperationException(
+                $"Unknown rand function '{functionName}'. Supported values: number, text, guid, ulid, date, datetime, time.")
+        };
+    }
+
+    private RandomArgument ResolveRandomArgument(
+        string rawArgument,
+        TemplateContext context,
+        ResponseContext? responseContext,
+        bool allowJsonStage)
+    {
+        var trimmed = rawArgument.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return RandomArgument.Empty;
+        }
+
+        if (IsQuotedLiteral(trimmed))
+        {
+            return new RandomArgument(Unquote(trimmed));
+        }
+
+        if (LooksLikeTemplateToken(trimmed))
+        {
+            var resolved = ResolveTokenValue(trimmed, context, responseContext, allowJsonStage);
+            return new RandomArgument(resolved.StringValue);
+        }
+
+        return new RandomArgument(trimmed);
+    }
+
+    private string GenerateRandomNumber(IReadOnlyList<RandomArgument> arguments)
+    {
+        if (arguments.Count > 2)
+        {
+            throw new InvalidOperationException("rand:number expects 0, 1 or 2 arguments.");
+        }
+
+        var min = arguments.Count >= 1 && !arguments[0].IsEmpty
+            ? ParseInt(arguments[0].Value!, "rand:number min")
+            : (int?)null;
+        var max = arguments.Count >= 2 && !arguments[1].IsEmpty
+            ? ParseInt(arguments[1].Value!, "rand:number max")
+            : (int?)null;
+
+        return _randomValueService.Generate(
+            new RandomValueDefinition(RandomValueType.Number, Min: min, Max: max),
+            new PayloadProcessorContext(1, string.Empty, string.Empty, string.Empty, string.Empty),
+            RandomValueFormattingOptions.Default);
+    }
+
+    private string GenerateRandomText(IReadOnlyList<RandomArgument> arguments)
+    {
+        if (arguments.Count > 2)
+        {
+            throw new InvalidOperationException("rand:text expects 0, 1 or 2 arguments.");
+        }
+
+        var length = arguments.Count >= 1 && !arguments[0].IsEmpty
+            ? ParseInt(arguments[0].Value!, "rand:text length")
+            : (int?)null;
+        var characterSet = arguments.Count >= 2 && !arguments[1].IsEmpty
+            ? arguments[1].Value
+            : null;
+
+        return _randomValueService.Generate(
+            new RandomValueDefinition(RandomValueType.Text, Length: length, CharacterSet: characterSet),
+            new PayloadProcessorContext(1, string.Empty, string.Empty, string.Empty, string.Empty),
+            RandomValueFormattingOptions.Default);
+    }
+
+    private string GenerateRandomGuid(IReadOnlyList<RandomArgument> arguments)
+    {
+        if (arguments.Count != 0)
+        {
+            throw new InvalidOperationException("rand:guid expects no arguments.");
+        }
+
+        return _randomValueService.Generate(
+            new RandomValueDefinition(RandomValueType.Guid),
+            new PayloadProcessorContext(1, string.Empty, string.Empty, string.Empty, string.Empty),
+            RandomValueFormattingOptions.Default);
+    }
+
+    private string GenerateRandomUlid(IReadOnlyList<RandomArgument> arguments)
+    {
+        if (arguments.Count != 0)
+        {
+            throw new InvalidOperationException("rand:ulid expects no arguments.");
+        }
+
+        return _randomValueService.Generate(
+            new RandomValueDefinition(RandomValueType.Ulid),
+            new PayloadProcessorContext(1, string.Empty, string.Empty, string.Empty, string.Empty),
+            RandomValueFormattingOptions.Default);
+    }
+
+    private string GenerateRandomDate(IReadOnlyList<RandomArgument> arguments)
+    {
+        if (arguments.Count > 3)
+        {
+            throw new InvalidOperationException("rand:date expects up to 3 arguments: from, to, format.");
+        }
+
+        var from = arguments.Count >= 1 && !arguments[0].IsEmpty
+            ? ParseDate(arguments[0].Value!, "rand:date from")
+            : (DateOnly?)null;
+        var to = arguments.Count >= 2 && !arguments[1].IsEmpty
+            ? ParseDate(arguments[1].Value!, "rand:date to")
+            : (DateOnly?)null;
+        var format = arguments.Count >= 3 && !arguments[2].IsEmpty
+            ? arguments[2].Value
+            : null;
+
+        return _randomValueService.Generate(
+            new RandomValueDefinition(RandomValueType.Date, FromDate: from, ToDate: to, Format: format),
+            new PayloadProcessorContext(1, string.Empty, string.Empty, string.Empty, string.Empty),
+            RandomValueFormattingOptions.Default);
+    }
+
+    private string GenerateRandomDateTime(IReadOnlyList<RandomArgument> arguments)
+    {
+        if (arguments.Count > 3)
+        {
+            throw new InvalidOperationException("rand:datetime expects up to 3 arguments: from, to, format.");
+        }
+
+        var from = arguments.Count >= 1 && !arguments[0].IsEmpty
+            ? ParseDateTimeOffset(arguments[0].Value!, "rand:datetime from")
+            : (DateTimeOffset?)null;
+        var to = arguments.Count >= 2 && !arguments[1].IsEmpty
+            ? ParseDateTimeOffset(arguments[1].Value!, "rand:datetime to")
+            : (DateTimeOffset?)null;
+        var format = arguments.Count >= 3 && !arguments[2].IsEmpty
+            ? arguments[2].Value
+            : null;
+
+        return _randomValueService.Generate(
+            new RandomValueDefinition(RandomValueType.DateTime, FromDateTime: from, ToDateTime: to, Format: format),
+            new PayloadProcessorContext(1, string.Empty, string.Empty, string.Empty, string.Empty),
+            RandomValueFormattingOptions.Default);
+    }
+
+    private string GenerateRandomTime(IReadOnlyList<RandomArgument> arguments)
+    {
+        if (arguments.Count > 3)
+        {
+            throw new InvalidOperationException("rand:time expects up to 3 arguments: from, to, format.");
+        }
+
+        var from = arguments.Count >= 1 && !arguments[0].IsEmpty
+            ? ParseTime(arguments[0].Value!, "rand:time from")
+            : (TimeOnly?)null;
+        var to = arguments.Count >= 2 && !arguments[1].IsEmpty
+            ? ParseTime(arguments[1].Value!, "rand:time to")
+            : (TimeOnly?)null;
+        var format = arguments.Count >= 3 && !arguments[2].IsEmpty
+            ? arguments[2].Value
+            : null;
+
+        return _randomValueService.Generate(
+            new RandomValueDefinition(RandomValueType.Time, FromTime: from, ToTime: to, Format: format),
+            new PayloadProcessorContext(1, string.Empty, string.Empty, string.Empty, string.Empty),
+            RandomValueFormattingOptions.Default);
+    }
+
+    private static bool LooksLikeTemplateToken(string value)
+    {
+        return value.StartsWith("input.", StringComparison.OrdinalIgnoreCase) ||
+               value.StartsWith("global.", StringComparison.OrdinalIgnoreCase) ||
+               value.StartsWith("context:", StringComparison.OrdinalIgnoreCase) ||
+               value.StartsWith("context.", StringComparison.OrdinalIgnoreCase) ||
+               value.StartsWith("endpoint:", StringComparison.OrdinalIgnoreCase) ||
+               value.StartsWith("workflow:", StringComparison.OrdinalIgnoreCase) ||
+               value.StartsWith("stage:", StringComparison.OrdinalIgnoreCase) ||
+               value.StartsWith("var:", StringComparison.OrdinalIgnoreCase) ||
+               value.StartsWith("env:", StringComparison.OrdinalIgnoreCase) ||
+               value.StartsWith("system:", StringComparison.OrdinalIgnoreCase) ||
+               value.StartsWith("coalesce(", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsQuotedLiteral(string value)
+    {
+        return value.Length >= 2 &&
+               ((value[0] == '\'' && value[^1] == '\'') ||
+                (value[0] == '"' && value[^1] == '"'));
+    }
+
+    private static string Unquote(string value)
+    {
+        return value[1..^1]
+            .Replace("\\'", "'")
+            .Replace("\\\"", "\"");
+    }
+
+    private static int ParseInt(string value, string label)
+    {
+        if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+        {
+            throw new InvalidOperationException($"{label} '{value}' is not a valid integer.");
+        }
+
+        return parsed;
+    }
+
+    private static DateOnly ParseDate(string value, string label)
+    {
+        if (!DateOnly.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+        {
+            throw new InvalidOperationException($"{label} '{value}' is not a valid date.");
+        }
+
+        return parsed;
+    }
+
+    private static DateTimeOffset ParseDateTimeOffset(string value, string label)
+    {
+        if (!DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed))
+        {
+            throw new InvalidOperationException($"{label} '{value}' is not a valid datetime.");
+        }
+
+        return parsed;
+    }
+
+    private static TimeOnly ParseTime(string value, string label)
+    {
+        if (!TimeOnly.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+        {
+            throw new InvalidOperationException($"{label} '{value}' is not a valid time.");
+        }
+
+        return parsed;
     }
 
     private static string ResolveStageJsonToken(string token, TemplateContext context)
@@ -720,4 +1008,11 @@ public readonly record struct ResolvedTokenValue(bool Exists, string? StringValu
 
     public static ResolvedTokenValue FromJson(JsonElement value)
         => new(true, JsonValueHelper.ToDisplayString(value), value.Clone());
+}
+
+public readonly record struct RandomArgument(string? Value)
+{
+    public static RandomArgument Empty { get; } = new(null);
+
+    public bool IsEmpty => string.IsNullOrWhiteSpace(Value);
 }

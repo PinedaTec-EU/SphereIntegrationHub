@@ -51,6 +51,20 @@ internal sealed class CliPlanPrinter : ICliPlanPrinter
                     {
                         writer.WriteLine($"{prefix}    Expected status: {stage.ExpectedStatus}");
                     }
+                    else if (stage.ExpectedStatuses is { Length: > 0 })
+                    {
+                        writer.WriteLine($"{prefix}    Expected statuses: [{string.Join(", ", stage.ExpectedStatuses)}]");
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(stage.BodyFile))
+                    {
+                        writer.WriteLine($"{prefix}    Body file: {stage.BodyFile}");
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(stage.DataFile))
+                    {
+                        writer.WriteLine($"{prefix}    Data file: {stage.DataFile}");
+                    }
 
                     if (verbose)
                     {
@@ -81,6 +95,31 @@ internal sealed class CliPlanPrinter : ICliPlanPrinter
                             writer.WriteLine($"{prefix}      {input.Key}: {WorkflowStageInputValueHelper.ToDisplayString(input.Value)}");
                         }
                     }
+                }
+
+                if (!string.IsNullOrWhiteSpace(stage.RunIf))
+                {
+                    writer.WriteLine($"{prefix}    Run if: {stage.RunIf}");
+                }
+
+                if (!string.IsNullOrWhiteSpace(stage.ForEach))
+                {
+                    var mode = stage.ForEachSequential == true ? "Sequential" : "Parallel";
+                    writer.WriteLine($"{prefix}    For each: {stage.ForEach} ({mode})");
+                    if (!string.IsNullOrWhiteSpace(stage.ItemName))
+                    {
+                        writer.WriteLine($"{prefix}    Item name: {stage.ItemName}");
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(stage.IndexName))
+                    {
+                        writer.WriteLine($"{prefix}    Index name: {stage.IndexName}");
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(stage.Message))
+                {
+                    writer.WriteLine($"{prefix}    Message: {stage.Message}");
                 }
 
                 if (stage.Output.Count > 0)

@@ -318,6 +318,68 @@ public sealed class TemplateResolverTests
     }
 
     [Fact]
+    public void ResolveTemplate_RandNumber_ResolvesWithinBounds()
+    {
+        var resolver = new TemplateResolver();
+        var context = EmptyContext();
+
+        var resolved = resolver.ResolveTemplate("{{rand:number(10, 20)}}", context);
+
+        Assert.True(int.TryParse(resolved, out var parsed));
+        Assert.InRange(parsed, 10, 20);
+    }
+
+    [Fact]
+    public void ResolveTemplate_RandText_UsesConfiguredCharacterSet()
+    {
+        var resolver = new TemplateResolver();
+        var context = EmptyContext();
+
+        var resolved = resolver.ResolveTemplate("{{rand:text(18, 'numeric')}}", context);
+
+        Assert.Equal(18, resolved.Length);
+        Assert.All(resolved, character => Assert.True(char.IsDigit(character)));
+    }
+
+    [Fact]
+    public void ResolveTemplate_RandDateTime_AcceptsSystemTokenArguments()
+    {
+        var fixedNow = new DateTimeOffset(2026, 4, 6, 12, 0, 0, TimeSpan.Zero);
+        var resolver = new TemplateResolver(new FixedTimeProvider(fixedNow));
+        var context = EmptyContext();
+
+        var resolved = resolver.ResolveTemplate(
+            "{{rand:datetime(system:datetime.utcnow - P7D, system:datetime.utcnow)}}",
+            context);
+
+        Assert.True(DateTimeOffset.TryParse(resolved, out var parsed));
+        Assert.InRange(parsed, fixedNow.AddDays(-7), fixedNow);
+    }
+
+    [Fact]
+    public void ResolveTemplate_RandGuid_ProducesGuid()
+    {
+        var resolver = new TemplateResolver();
+        var context = EmptyContext();
+
+        var resolved = resolver.ResolveTemplate("{{rand:guid()}}", context);
+
+        Assert.True(Guid.TryParse(resolved, out _));
+    }
+
+    [Fact]
+    public void ResolveTemplate_RandText_WithUnknownCharacterSet_Throws()
+    {
+        var resolver = new TemplateResolver();
+        var context = EmptyContext();
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => resolver.ResolveTemplate("{{rand:text(8, 'emoji')}}", context));
+
+        Assert.Contains("Unsupported character set", ex.Message);
+    }
+
+    [Fact]
     public void ResolveTemplate_EnvWithColon_Resolves()
     {
         var resolver = new TemplateResolver();
