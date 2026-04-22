@@ -24,6 +24,8 @@
 
 CLI tool to orchestrate API calls using versioned Swagger catalogs and YAML workflows. Workflows can reference other workflows, share context (like JWTs), validate endpoints against cached Swagger specs, and run in dry-run mode for validation.
 
+Stage execution is being opened through a versioned plugin contract: workflow orchestration stays in the runtime, while protocol/channel implementations such as HTTP can live in dedicated plugins.
+
 Documentation:
 
 - [`Overview`](.doc/overview.md)
@@ -38,6 +40,12 @@ Documentation:
 - [`MCP Server`](.doc/mcp-server.md) - AI-assisted workflow creation (35 tools, all levels)
 - [`GitHub Action`](.doc/github-action.md) - run workflows from any CI/CD pipeline
 - [`plugins`](.doc/plugins.md)
+
+Examples:
+
+- [`samples/sample-bootstrap.workflow`](samples/sample-bootstrap.workflow) uses the explicit `Http` plugin stage with a plugin-specific `config` block.
+- [`samples/workflows.config`](samples/workflows.config) shows explicit plugin activation.
+- [`samples/api.catalog`](samples/api.catalog) shows plugin declaration/version binding in the catalog.
 
 ## Community
 

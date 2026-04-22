@@ -13,7 +13,7 @@ Workflows are YAML files with extension `.workflow`. Each workflow has a unique 
 - `input` (array, optional): Required inputs from the caller.
 - `initStage` (object, optional): Workflow-specific variables and context defaults.
 - `resilience` (object, optional): Shared retry/circuit breaker policies.
-- `stages` (array, optional): Endpoint or workflow stages.
+- `stages` (array, optional): Plugin-backed transport stages or built-in workflow stages.
 - `endStage` (object, optional): Workflow output and context updates.
 
 ## references
@@ -108,24 +108,24 @@ Messages are defined per stage under `retry.messages` and `circuitBreaker.messag
 
 All stages accept `delaySeconds` (int, optional). Values must be between 0 and 60. Defaults to 0.
 
-### Endpoint stage
+### Plugin stage
 
 ```yaml
 stages:
   - name: "create-account"
-    kind: "Endpoint"
-    apiRef: "example-service"
-    endpoint: "/api/accounts"
-    httpVerb: "POST"
+    kind: "Http"
     expectedStatus: 201
+    config:
+      apiRef: "example-service"
+      endpoint: "/api/accounts"
+      httpVerb: "POST"
     # or: expectedStatuses: [200, 201, 409]
-    headers:
-      Authorization: "Bearer {{context.tokenId}}"
+      headers:
+        Authorization: "Bearer {{context.tokenId}}"
     delaySeconds: 2
-    body: |
-      { "name": "{{global:accountName}}" }
-    # or: bodyFile: "./payloads/create-account.json"
-    # bodyFile also supports templates, e.g. "./payloads/{{input.tenant}}/create-account.json"
+      body: |
+        { "name": "{{global:accountName}}" }
+      # or: bodyFile: "./payloads/create-account.json"
     debug:
       user: "{{input.username}}"
       token: "{{context.tokenId}}"
@@ -224,6 +224,8 @@ circuitBreaker:
 - After `breakMs` expires, the breaker is half-open; it closes after `closeOnSuccessAttempts` successful executions.
 - `retry` is required when `circuitBreaker` is defined.
 - If defined on a workflow stage, it is ignored with a warning.
+
+Plugin-specific properties should be defined under `config`. The current `http` plugin still accepts legacy top-level fields (`apiRef`, `endpoint`, `httpVerb`, `headers`, `query`, `body`, `bodyFile`) for backward compatibility, but new plugin work should use `config`.
 
 ### Workflow stage
 

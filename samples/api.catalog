@@ -1,4 +1,8 @@
 - version: 3.11
+  plugins:
+  - id: http
+    contractVersion: "1.0"
+    runtimeVersion: "1.0"
   definitions:
   - name: accounts
     basePath: /api/accounts
