@@ -1,5 +1,6 @@
 using System.Text.Json;
 
+using SphereIntegrationHub.Definitions;
 using SphereIntegrationHub.Services;
 
 namespace SphereIntegrationHub.Tests;
