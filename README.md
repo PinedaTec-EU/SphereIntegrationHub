@@ -40,12 +40,14 @@ Documentation:
 - [`MCP Server`](.doc/mcp-server.md) - AI-assisted workflow creation (35 tools, all levels)
 - [`GitHub Action`](.doc/github-action.md) - run workflows from any CI/CD pipeline
 - [`plugins`](.doc/plugins.md)
+- [`secret providers`](.doc/secret-providers.md)
 
 Examples:
 
 - [`samples/sample-bootstrap.workflow`](samples/sample-bootstrap.workflow) uses the explicit `Http` plugin stage with a plugin-specific `config` block.
 - [`samples/workflows.config`](samples/workflows.config) shows explicit plugin activation.
 - [`samples/api.catalog`](samples/api.catalog) shows plugin declaration/version binding in the catalog.
+- [`samples/vaultwarden-secrets`](samples/vaultwarden-secrets) shows the `vaultwarden` secret provider feeding `{{env:...}}` tokens.
 
 ## Community
 
@@ -622,8 +624,8 @@ SphereIntegrationHub is now strong as a local-first API orchestration runtime an
    Web-based workflow builder for teams that want graphical authoring on top of the YAML runtime.
 3. **Higher-Level Runtime Primitives**
    More semantic stage sugar beyond `ensure`, plus better assertions and reusable payload/template blocks.
-4. **External Secret Providers (Deferred)**
-   AWS Secrets Manager, Azure Key Vault, HashiCorp Vault, and similar providers stay out of the near-term plan until the local-first secret story, assertions, and extension model are more stable.
+4. **Broader Secret Provider Coverage**
+   After the initial Vaultwarden provider, extend the same secret-provider contract to other backends such as AWS Secrets Manager, Azure Key Vault, and HashiCorp Vault.
 
 ### Ongoing Investment
 
