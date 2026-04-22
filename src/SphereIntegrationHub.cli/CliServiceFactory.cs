@@ -60,7 +60,8 @@ internal sealed class CliServiceFactory : ICliServiceFactory
         ISystemTimeProvider systemTimeProvider,
         WorkflowExecutionReportOptions reportOptions,
         IRequestBodyContractProcessor? requestBodyContractProcessor = null,
-        StagePluginRegistry? stagePluginRegistry = null)
+        StagePluginRegistry? stagePluginRegistry = null,
+        IReadOnlyCollection<string>? preloadedSecretValues = null)
         => new(
             httpClient,
             dynamicValueService,
@@ -69,5 +70,9 @@ internal sealed class CliServiceFactory : ICliServiceFactory
             logger: _logger,
             reportWriter: new WorkflowExecutionReportWriter(),
             reportOptions: reportOptions,
-            stagePluginRegistry: stagePluginRegistry);
+            stagePluginRegistry: stagePluginRegistry,
+            preloadedSecretValues: preloadedSecretValues);
+
+    public SecretProviderRegistry CreateSecretProviderRegistry()
+        => new SecretProviderRegistryBuilder().Build();
 }

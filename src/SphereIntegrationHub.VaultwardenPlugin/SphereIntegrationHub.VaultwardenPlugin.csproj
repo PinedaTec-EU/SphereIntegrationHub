@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <ReleaseVersion>1.7.16.265</ReleaseVersion>
+    <AssemblyVersion>$(ReleaseVersion)</AssemblyVersion>
+    <FileVersion>$(ReleaseVersion)</FileVersion>
+    <Version>$(ReleaseVersion)</Version>
+    <LangVersion>12</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../SphereIntegrationHub.Shared/SphereIntegrationHub.Shared.csproj" />
+  </ItemGroup>
+</Project>

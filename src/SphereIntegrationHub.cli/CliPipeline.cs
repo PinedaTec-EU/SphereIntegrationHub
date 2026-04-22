@@ -67,7 +67,13 @@ internal sealed class CliPipeline : ICliPipeline
         EmitCatalogInfo(parseResult, catalogPath, messages);
 
         var workflowLoader = _serviceFactory.CreateWorkflowLoader();
-        if (!TryLoadWorkflow(parseResult, workflowLoader, messages, out var workflowDocument))
+        var secretProviderEnvironment = await ResolveSecretProviderEnvironmentAsync(config, messages, cancellationToken);
+        if (secretProviderEnvironment is null)
+        {
+            return new CliRunResult(1, messages, emittedMessageCount);
+        }
+
+        if (!TryLoadWorkflow(parseResult, workflowLoader, secretProviderEnvironment.Secrets, messages, out var workflowDocument))
         {
             return new CliRunResult(1, messages, emittedMessageCount);
         }
@@ -128,11 +134,11 @@ internal sealed class CliPipeline : ICliPipeline
 
         if (parseResult.DryRun)
         {
-            return BuildDryRunResult(workflowDocument, workflowLoader, parseResult, stopwatch, messages, emittedMessageCount);
+            return BuildDryRunResult(workflowDocument, workflowLoader, parseResult, stopwatch, secretProviderEnvironment.SecretValues, messages, emittedMessageCount);
         }
 
         var cacheRoot = Path.Combine(_pathResolver.ResolveDefaultCacheRoot(parseResult.WorkflowPath), selectedVersion.Version);
-        return await ExecuteWorkflowAsync(parseResult, workflowDocument, selectedVersion, cacheRoot, varsOverrideActive, reportOptions, preflightReport, stagePluginRegistry, messages, emittedMessageCount, cancellationToken);
+        return await ExecuteWorkflowAsync(parseResult, workflowDocument, selectedVersion, cacheRoot, varsOverrideActive, reportOptions, preflightReport, stagePluginRegistry, secretProviderEnvironment.SecretValues, messages, emittedMessageCount, cancellationToken);
     }
 
     private void EmitPreamble(InlineArguments parseResult, List<CliRunMessage> messages)
@@ -155,6 +161,65 @@ internal sealed class CliPipeline : ICliPipeline
         AddInfo(messages, $"Environment: {parseResult.Environment}");
     }
 
+    private async Task<ResolvedSecretProviderEnvironment?> ResolveSecretProviderEnvironmentAsync(
+        WorkflowConfig config,
+        List<CliRunMessage> messages,
+        CancellationToken cancellationToken)
+    {
+        if (config.SecretProviders is not { Count: > 0 })
+        {
+            return ResolvedSecretProviderEnvironment.Empty;
+        }
+
+        var registry = _serviceFactory.CreateSecretProviderRegistry();
+        var processEnvironment = Environment.GetEnvironmentVariables()
+            .Cast<System.Collections.DictionaryEntry>()
+            .ToDictionary(
+                entry => entry.Key.ToString() ?? string.Empty,
+                entry => entry.Value?.ToString() ?? string.Empty,
+                StringComparer.OrdinalIgnoreCase);
+
+        var resolvedSecrets = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var secretValues = new HashSet<string>(StringComparer.Ordinal);
+        using var httpClient = _serviceFactory.CreateHttpClient();
+
+        foreach (var provider in config.SecretProviders)
+        {
+            if (!registry.TryGet(provider.Plugin, out var plugin))
+            {
+                AddError(messages, $"Secret provider plugin '{provider.Plugin}' is not registered.");
+                return null;
+            }
+
+            try
+            {
+                var result = await plugin.ResolveAsync(
+                    provider,
+                    new SecretProviderExecutionContext(httpClient, processEnvironment),
+                    cancellationToken);
+
+                foreach (var pair in result.Secrets)
+                {
+                    resolvedSecrets[pair.Key] = pair.Value;
+                }
+
+                foreach (var secretValue in result.SecretValues.Where(static value => !string.IsNullOrWhiteSpace(value)))
+                {
+                    secretValues.Add(secretValue);
+                }
+
+                AddInfo(messages, $"Secret provider '{provider.Plugin}' resolved {result.Secrets.Count} secret(s).");
+            }
+            catch (Exception ex)
+            {
+                AddError(messages, $"Secret provider '{provider.Plugin}' failed: {ex.Message}");
+                return null;
+            }
+        }
+
+        return new ResolvedSecretProviderEnvironment(resolvedSecrets, secretValues);
+    }
+
     private void EmitPreflightFeatures(IReadOnlyList<ApiDefinition> definitions, List<CliRunMessage> messages)
     {
         var withHealthCheck = definitions.Where(definition => !string.IsNullOrWhiteSpace(definition.HealthCheck)).ToList();
@@ -173,12 +238,13 @@ internal sealed class CliPipeline : ICliPipeline
     private bool TryLoadWorkflow(
         InlineArguments parseResult,
         WorkflowLoader workflowLoader,
+        IReadOnlyDictionary<string, string> inheritedEnvironment,
         List<CliRunMessage> messages,
         out WorkflowDocument workflowDocument)
     {
         try
         {
-            workflowDocument = workflowLoader.Load(parseResult.WorkflowPath!, null, parseResult.EnvFileOverride);
+            workflowDocument = workflowLoader.Load(parseResult.WorkflowPath!, inheritedEnvironment, parseResult.EnvFileOverride);
             AddInfo(messages, $"Workflow [{workflowDocument.Definition.Name}] loaded successfully.");
             AddInfo(messages, $"Workflow version: {workflowDocument.Definition.Version}");
             return true;
@@ -454,6 +520,16 @@ internal sealed class CliPipeline : ICliPipeline
             ? "2xx"
             : $"[{string.Join(",", policy.HttpStatus.Order())}]";
 
+    private sealed record ResolvedSecretProviderEnvironment(
+        IReadOnlyDictionary<string, string> Secrets,
+        IReadOnlyCollection<string> SecretValues)
+    {
+        public static ResolvedSecretProviderEnvironment Empty { get; } =
+            new(
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                Array.Empty<string>());
+    }
+
     private async Task<bool> TryCacheSwaggerAndValidateEndpoints(
         InlineArguments parseResult,
         WorkflowDocument workflowDocument,
@@ -511,6 +587,7 @@ internal sealed class CliPipeline : ICliPipeline
         WorkflowLoader workflowLoader,
         InlineArguments parseResult,
         Stopwatch stopwatch,
+        IReadOnlyCollection<string> secretProviderValues,
         List<CliRunMessage> messages,
         int emittedMessageCount)
     {
@@ -523,7 +600,7 @@ internal sealed class CliPipeline : ICliPipeline
         var workflowPlan = planner.BuildPlan(workflowDocument, parseResult.Verbose);
         AddInfo(messages, string.Empty);
         using var writer = new StringWriter();
-        _planPrinter.PrintPlan(workflowPlan, 0, parseResult.Verbose, null, null, writer);
+        _planPrinter.PrintPlan(workflowPlan, 0, parseResult.Verbose, null, null, writer, secretProviderValues);
         AddInfo(messages, writer.ToString().TrimEnd('\r', '\n'));
         AddInfo(messages, string.Empty);
         AddInfo(messages, $"Dry-run completed successfully in {stopwatch.Elapsed.TotalMilliseconds:F0} ms.");
@@ -579,6 +656,7 @@ internal sealed class CliPipeline : ICliPipeline
         WorkflowExecutionReportOptions reportOptions,
         WorkflowPreflightReport preflightReport,
         StagePluginRegistry stagePluginRegistry,
+        IReadOnlyCollection<string> secretProviderValues,
         List<CliRunMessage> messages,
         int emittedMessageCount,
         CancellationToken cancellationToken)
@@ -596,7 +674,8 @@ internal sealed class CliPipeline : ICliPipeline
                 systemTimeProvider,
                 reportOptions,
                 requestBodyContractProcessor,
-                stagePluginRegistry);
+                stagePluginRegistry,
+                secretProviderValues);
             var result = await executor.ExecuteAsync(
                 workflowDocument,
                 selectedVersion,

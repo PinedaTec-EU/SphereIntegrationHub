@@ -29,6 +29,7 @@ public sealed class WorkflowExecutor
     private readonly WorkflowExpressionEvaluator _expressionEvaluator;
     private readonly WorkflowExecutionReportOptions _reportOptions;
     private readonly StagePluginRegistry _stagePluginRegistry;
+    private readonly IReadOnlyCollection<string> _preloadedSecretValues;
 
     public WorkflowExecutor(
         HttpClient httpClient,
@@ -45,7 +46,8 @@ public sealed class WorkflowExecutor
         IExecutionLogger? logger = null,
         IWorkflowExecutionReportWriter? reportWriter = null,
         WorkflowExecutionReportOptions? reportOptions = null,
-        StagePluginRegistry? stagePluginRegistry = null)
+        StagePluginRegistry? stagePluginRegistry = null,
+        IReadOnlyCollection<string>? preloadedSecretValues = null)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _dynamicValueService = dynamicValueService ?? throw new ArgumentNullException(nameof(dynamicValueService));
@@ -63,6 +65,7 @@ public sealed class WorkflowExecutor
         _expressionEvaluator = new WorkflowExpressionEvaluator(_templateResolver);
         _reportOptions = reportOptions ?? WorkflowExecutionReportOptions.Default;
         _stagePluginRegistry = stagePluginRegistry ?? new StagePluginRegistryBuilder().CreateBuiltInRegistry();
+        _preloadedSecretValues = preloadedSecretValues ?? Array.Empty<string>();
     }
 
     private static string FormatWorkflowTag(string name) => $"[{name}]";
@@ -222,6 +225,11 @@ public sealed class WorkflowExecutor
         CancellationToken cancellationToken)
     {
         var context = new ExecutionContext(inputs, document.EnvironmentVariables);
+        foreach (var secretValue in _preloadedSecretValues.Where(static value => !string.IsNullOrWhiteSpace(value)))
+        {
+            context.SecretValues.Add(secretValue);
+        }
+
         ApplyTypedInputs(document.Definition, context);
         context.Report = BuildExecutionReport(document, environment, inputs, mocked, preflightReport);
 

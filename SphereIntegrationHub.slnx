@@ -5,6 +5,7 @@
     <Project Path="src/SphereIntegrationHub.MCP/SphereIntegrationHub.MCP.csproj" />
     <Project Path="src/SphereIntegrationHub.Shared/SphereIntegrationHub.Shared.csproj" />
     <Project Path="src/SphereIntegrationHub.Telemetry/SphereIntegrationHub.Telemetry.csproj" />
+    <Project Path="src/SphereIntegrationHub.VaultwardenPlugin/SphereIntegrationHub.VaultwardenPlugin.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/SphereIntegrationHub.Tests/SphereIntegrationHub.Tests.csproj" />

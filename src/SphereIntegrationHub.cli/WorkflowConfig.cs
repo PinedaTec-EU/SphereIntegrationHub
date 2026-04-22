@@ -1,3 +1,5 @@
+using SphereIntegrationHub.Definitions;
+
 namespace SphereIntegrationHub.cli;
 
 public sealed class WorkflowConfig
@@ -6,6 +8,7 @@ public sealed class WorkflowConfig
     public OpenTelemetryConfig OpenTelemetry { get; set; } = new();
     public ReportingConfig Reporting { get; set; } = new();
     public List<string>? Plugins { get; set; }
+    public List<SecretProviderDefinition>? SecretProviders { get; set; }
 }
 
 public sealed class WorkflowFeaturesConfig

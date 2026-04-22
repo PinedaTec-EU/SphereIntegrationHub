@@ -18,6 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="../SphereIntegrationHub.HttpPlugin/SphereIntegrationHub.HttpPlugin.csproj" />
     <ProjectReference Include="../SphereIntegrationHub.Shared/SphereIntegrationHub.Shared.csproj" />
+    <ProjectReference Include="../SphereIntegrationHub.VaultwardenPlugin/SphereIntegrationHub.VaultwardenPlugin.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="System.CommandLine" />
