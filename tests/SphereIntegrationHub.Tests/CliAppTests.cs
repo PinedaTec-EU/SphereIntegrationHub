@@ -123,13 +123,15 @@ public sealed class CliAppTests
         public ApiSwaggerCacheService CreateApiSwaggerCacheService(HttpClient httpClient) => throw new InvalidOperationException("Unexpected factory call");
         public ApiEndpointValidator CreateApiEndpointValidator(StagePluginRegistry? stagePluginRegistry = null) => throw new InvalidOperationException("Unexpected factory call");
         public WorkflowPlanner CreateWorkflowPlanner(WorkflowLoader workflowLoader) => throw new InvalidOperationException("Unexpected factory call");
+        public SecretProviderRegistry CreateSecretProviderRegistry() => throw new InvalidOperationException("Unexpected factory call");
         public WorkflowExecutor CreateWorkflowExecutor(
             HttpClient httpClient,
             DynamicValueService dynamicValueService,
             ISystemTimeProvider systemTimeProvider,
             WorkflowExecutionReportOptions reportOptions,
             IRequestBodyContractProcessor? requestBodyContractProcessor = null,
-            StagePluginRegistry? stagePluginRegistry = null)
+            StagePluginRegistry? stagePluginRegistry = null,
+            IReadOnlyCollection<string>? preloadedSecretValues = null)
             => throw new InvalidOperationException("Unexpected factory call");
     }
 }
