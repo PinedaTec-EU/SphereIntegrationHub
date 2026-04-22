@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/SphereIntegrationHub.cli/SphereIntegrationHub.cli.csproj" />
+    <Project Path="src/SphereIntegrationHub.HttpPlugin/SphereIntegrationHub.HttpPlugin.csproj" />
     <Project Path="src/SphereIntegrationHub.MCP/SphereIntegrationHub.MCP.csproj" />
     <Project Path="src/SphereIntegrationHub.Shared/SphereIntegrationHub.Shared.csproj" />
     <Project Path="src/SphereIntegrationHub.Telemetry/SphereIntegrationHub.Telemetry.csproj" />

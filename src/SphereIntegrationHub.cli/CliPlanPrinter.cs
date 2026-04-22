@@ -42,7 +42,7 @@ internal sealed class CliPlanPrinter : ICliPlanPrinter
             foreach (var stage in plan.Stages)
             {
                 writer.WriteLine($"{prefix}  - {stage.Name} [{stage.Kind}]");
-                if (stage.Kind == WorkflowStageKind.Endpoint)
+                if (!WorkflowStageKind.IsWorkflow(stage.Kind))
                 {
                     writer.WriteLine($"{prefix}    Api: {stage.ApiRef}");
                     writer.WriteLine($"{prefix}    Endpoint: {stage.Endpoint}");

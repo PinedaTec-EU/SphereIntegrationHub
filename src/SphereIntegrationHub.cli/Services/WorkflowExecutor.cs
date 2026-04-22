@@ -2,14 +2,18 @@ using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Text.Json;
+using System.Net.Http.Headers;
+using System.Text;
 
 using SphereIntegrationHub.Definitions;
+using SphereIntegrationHub.Plugins;
 using SphereIntegrationHub.Services.Interfaces;
 
 namespace SphereIntegrationHub.Services;
 
 public sealed class WorkflowExecutor
 {
+    private readonly HttpClient _httpClient;
     private readonly DynamicValueService _dynamicValueService;
     private readonly TemplateResolver _templateResolver;
     private readonly RandomValueFormattingOptions _formatting;
@@ -24,6 +28,7 @@ public sealed class WorkflowExecutor
     private readonly IExecutionLogger _logger;
     private readonly WorkflowExpressionEvaluator _expressionEvaluator;
     private readonly WorkflowExecutionReportOptions _reportOptions;
+    private readonly StagePluginRegistry _stagePluginRegistry;
 
     public WorkflowExecutor(
         HttpClient httpClient,
@@ -39,8 +44,10 @@ public sealed class WorkflowExecutor
         IWorkflowOutputWriter? outputWriter = null,
         IExecutionLogger? logger = null,
         IWorkflowExecutionReportWriter? reportWriter = null,
-        WorkflowExecutionReportOptions? reportOptions = null)
+        WorkflowExecutionReportOptions? reportOptions = null,
+        StagePluginRegistry? stagePluginRegistry = null)
     {
+        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _dynamicValueService = dynamicValueService ?? throw new ArgumentNullException(nameof(dynamicValueService));
         _workflowLoader = workflowLoader ?? new WorkflowLoader();
         _varsFileLoader = varsFileLoader ?? new VarsFileLoader();
@@ -49,12 +56,13 @@ public sealed class WorkflowExecutor
         _mockPayloadService = mockPayloadService ?? new MockPayloadService();
         _dataFileService = new WorkflowDataFileService();
         _formatting = formatting ?? RandomValueFormattingOptions.Default;
-        _endpointInvoker = endpointInvoker ?? new HttpEndpointInvoker(httpClient, _templateResolver, requestBodyContractProcessor);
+        _endpointInvoker = endpointInvoker ?? new HttpEndpointInvoker(_httpClient, _templateResolver, requestBodyContractProcessor);
         _outputWriter = outputWriter ?? new WorkflowOutputWriter();
         _reportWriter = reportWriter ?? new WorkflowExecutionReportWriter();
         _logger = logger ?? new ConsoleExecutionLogger();
         _expressionEvaluator = new WorkflowExpressionEvaluator(_templateResolver);
         _reportOptions = reportOptions ?? WorkflowExecutionReportOptions.Default;
+        _stagePluginRegistry = stagePluginRegistry ?? new StagePluginRegistryBuilder().CreateBuiltInRegistry();
     }
 
     private static string FormatWorkflowTag(string name) => $"[{name}]";
@@ -297,12 +305,12 @@ public sealed class WorkflowExecutor
                         PrintStageDebug(definition, stage, context);
                     }
 
-                    if (stage.Kind == WorkflowStageKind.Workflow)
+                    if (WorkflowStageKind.IsWorkflow(stage.Kind))
                     {
                         var stageRecord = BeginStageRecord(definition.Name, stage, context, isMocked: mocked && stage.Mock is not null);
                         using var stageActivity = Telemetry.ActivitySource.StartActivity(TelemetryConstants.ActivityWorkflowStage);
                         stageActivity?.SetTag(TelemetryConstants.TagStageName, stage.Name);
-                        stageActivity?.SetTag(TelemetryConstants.TagStageKind, stage.Kind.ToString());
+                        stageActivity?.SetTag(TelemetryConstants.TagStageKind, stage.Kind);
                         if (verbose)
                         {
                             _logger.Info($"{indent}{FormatStageTag(definition.Name, stage.Name)} started [Workflow].");
@@ -352,10 +360,10 @@ public sealed class WorkflowExecutor
                         var stageRecord = BeginStageRecord(definition.Name, stage, context, isMocked: mocked && stage.Mock is not null);
                         using var stageActivity = Telemetry.ActivitySource.StartActivity(TelemetryConstants.ActivityWorkflowStage);
                         stageActivity?.SetTag(TelemetryConstants.TagStageName, stage.Name);
-                        stageActivity?.SetTag(TelemetryConstants.TagStageKind, stage.Kind.ToString());
+                        stageActivity?.SetTag(TelemetryConstants.TagStageKind, stage.Kind);
                         if (verbose)
                         {
-                            _logger.Info($"{indent}{FormatStageTag(definition.Name, stage.Name)} started [Endpoint].");
+                            _logger.Info($"{indent}{FormatStageTag(definition.Name, stage.Name)} started [{stage.Kind}].");
                         }
 
                         var stageTimer = Stopwatch.StartNew();
@@ -527,6 +535,57 @@ public sealed class WorkflowExecutor
         var trimmedBaseUrl = baseUrl.TrimEnd('/');
         var trimmedBasePath = basePath.Trim('/');
         return $"{trimmedBaseUrl}/{trimmedBasePath}";
+    }
+
+    private async Task<StageTransportResponse> SendTransportRequestAsync(
+        StageTransportRequest request,
+        CancellationToken cancellationToken)
+    {
+        using var message = new HttpRequestMessage(new HttpMethod(request.Method), request.RequestUri);
+        if (request.Headers is not null)
+        {
+            foreach (var header in request.Headers)
+            {
+                message.Headers.TryAddWithoutValidation(header.Key, header.Value);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Body))
+        {
+            var content = new StringContent(request.Body, Encoding.UTF8);
+            content.Headers.ContentType = MediaTypeHeaderValue.Parse(request.ContentType ?? "application/json");
+            message.Content = content;
+        }
+        else if (!string.IsNullOrWhiteSpace(request.ContentType))
+        {
+            message.Content = new StringContent(string.Empty, Encoding.UTF8);
+            message.Content.Headers.ContentType = MediaTypeHeaderValue.Parse(request.ContentType);
+        }
+
+        using var response = await _httpClient.SendAsync(message, cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var header in response.Headers)
+        {
+            headers[header.Key] = string.Join(",", header.Value);
+        }
+
+        foreach (var header in response.Content.Headers)
+        {
+            headers[header.Key] = string.Join(",", header.Value);
+        }
+
+        var requestBody = message.Content is null
+            ? null
+            : await message.Content.ReadAsStringAsync(cancellationToken);
+
+        return new StageTransportResponse(
+            (int)response.StatusCode,
+            body,
+            headers,
+            message.RequestUri?.ToString() ?? request.RequestUri,
+            request.Method,
+            requestBody);
     }
 
     private async Task ExecuteWorkflowStageAsync(
@@ -713,18 +772,36 @@ public sealed class WorkflowExecutor
             }
             else
             {
-                if (string.IsNullOrWhiteSpace(stage.ApiRef) || !apiBaseUrls.TryGetValue(stage.ApiRef, out var baseUrl))
+                if (!_stagePluginRegistry.TryGetByKind(stage.Kind, out var plugin))
                 {
-                    throw new InvalidOperationException($"Stage '{stage.Name}' apiRef '{stage.ApiRef}' was not found in workflow references.");
+                    throw new InvalidOperationException($"Stage '{stage.Name}' kind '{stage.Kind}' is not registered by any active plugin.");
                 }
 
-                EndpointInvocationResult invocation;
+                StagePluginExecutionResult invocation;
                 try
                 {
-                    invocation = await _endpointInvoker.InvokeAsync(
+                    invocation = await plugin.ExecuteAsync(
                         stage,
-                        baseUrl,
-                        context.BuildTemplateContext(workflowPath),
+                        new StagePluginExecutionContext(
+                            template => _templateResolver.ResolveTemplate(template, context.BuildTemplateContext(workflowPath)),
+                            path => _dataFileService.LoadText(path, context.BuildTemplateContext(workflowPath)),
+                            SendTransportRequestAsync,
+                            async (effectiveStage, baseUrl, ct) =>
+                            {
+                                var endpointInvocation = await _endpointInvoker.InvokeAsync(
+                                    effectiveStage,
+                                    baseUrl,
+                                    context.BuildTemplateContext(workflowPath),
+                                    ct);
+
+                                return new StagePluginExecutionResult(
+                                    endpointInvocation.Response,
+                                    endpointInvocation.RequestUri,
+                                    endpointInvocation.HttpMethod,
+                                    endpointInvocation.RequestBody);
+                            },
+                            apiBaseUrls,
+                            workflowPath),
                         cancellationToken);
                 }
                 catch (OperationCanceledException)
@@ -746,11 +823,11 @@ public sealed class WorkflowExecutor
                 }
 
                 responseContext = invocation.Response;
-                UpdateActiveStageRecordForResponse(context, stage, responseContext, invocation.RequestUri, invocation.HttpMethod, retriesUsed, workflowPath, mocked: false, invocation.RequestBody);
+                UpdateActiveStageRecordForResponse(context, stage, responseContext, invocation.RequestUri, invocation.Operation, retriesUsed, workflowPath, mocked: false, invocation.RequestBody);
 
                 if (verbose)
                 {
-                    _logger.Info($"{GetIndent(context)}{FormatStageTag(definition.Name, stage.Name)} request: {invocation.HttpMethod} {invocation.RequestUri}");
+                    _logger.Info($"{GetIndent(context)}{FormatStageTag(definition.Name, stage.Name)} request: {invocation.Operation} {invocation.RequestUri}");
                     _logger.Info($"{GetIndent(context)}{FormatStageTag(definition.Name, stage.Name)} response status: {responseContext.StatusCode}.");
                 }
 
@@ -1365,7 +1442,7 @@ public sealed class WorkflowExecutor
         {
             WorkflowName = workflowName,
             StageName = stage.Name,
-            StageKind = stage.Kind.ToString(),
+            StageKind = stage.Kind,
             Depth = context.IndentLevel,
             RunIf = stage.RunIf,
             Mocked = isMocked,
@@ -1423,7 +1500,7 @@ public sealed class WorkflowExecutor
                 context.Report.Metrics.MockedStages++;
             }
 
-            if (string.Equals(stageRecord.StageKind, WorkflowStageKind.Endpoint.ToString(), StringComparison.OrdinalIgnoreCase))
+            if (!WorkflowStageKind.IsWorkflow(stageRecord.StageKind))
             {
                 context.Report.Metrics.HttpStages++;
             }
@@ -1466,7 +1543,7 @@ public sealed class WorkflowExecutor
         {
             WorkflowName = workflowName,
             StageName = stage.Name,
-            StageKind = stage.Kind.ToString(),
+            StageKind = stage.Kind,
             Depth = context.IndentLevel,
             Status = "Skipped",
             RunIf = stage.RunIf,
@@ -1487,7 +1564,7 @@ public sealed class WorkflowExecutor
         if (context.Report is not null)
         {
             context.Report.Metrics.SkippedStages++;
-            if (string.Equals(record.StageKind, WorkflowStageKind.Endpoint.ToString(), StringComparison.OrdinalIgnoreCase))
+            if (!WorkflowStageKind.IsWorkflow(record.StageKind))
             {
                 context.Report.Metrics.HttpStages++;
             }

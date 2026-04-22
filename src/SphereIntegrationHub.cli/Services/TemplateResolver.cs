@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
+using SphereIntegrationHub.Definitions;
 using SphereIntegrationHub.Services.Interfaces;
 
 namespace SphereIntegrationHub.Services;
@@ -709,12 +710,6 @@ public sealed record TemplateContext(
     string? WorkflowPath = null,
     IReadOnlySet<string>? SkippedStages = null,
     IReadOnlyDictionary<string, string>? WorkflowVars = null);
-
-public sealed record ResponseContext(
-    int StatusCode,
-    string Body,
-    IReadOnlyDictionary<string, string> Headers,
-    JsonDocument? Json);
 
 public readonly record struct ResolvedTokenValue(bool Exists, string? StringValue, JsonElement? JsonValue)
 {

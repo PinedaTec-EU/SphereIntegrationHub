@@ -1,18 +1,19 @@
 namespace SphereIntegrationHub.cli;
 
-internal sealed class WorkflowConfig
+public sealed class WorkflowConfig
 {
     public WorkflowFeaturesConfig Features { get; set; } = new();
     public OpenTelemetryConfig OpenTelemetry { get; set; } = new();
     public ReportingConfig Reporting { get; set; } = new();
+    public List<string>? Plugins { get; set; }
 }
 
-internal sealed class WorkflowFeaturesConfig
+public sealed class WorkflowFeaturesConfig
 {
     public bool OpenTelemetry { get; set; } = CliConstants.OpenTelemetryDefaultEnabled;
 }
 
-internal sealed class ReportingConfig
+public sealed class ReportingConfig
 {
     public bool Enabled { get; set; } = true;
     public string Format { get; set; } = "json";
@@ -21,7 +22,7 @@ internal sealed class ReportingConfig
     public bool SummaryConsole { get; set; } = true;
 }
 
-internal sealed class OpenTelemetryConfig
+public sealed class OpenTelemetryConfig
 {
     public string? ServiceName { get; set; }
     public string? Endpoint { get; set; }

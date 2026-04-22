@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 
 using SphereIntegrationHub.Definitions;
+using SphereIntegrationHub.Plugins;
 using SphereIntegrationHub.Services.Interfaces;
 
 // path → (verb → operation)
@@ -24,10 +25,12 @@ public sealed class ApiEndpointValidator
             "Current number of Swagger API definitions held in the in-memory parse cache.");
 
     private readonly IExecutionLogger _logger;
+    private readonly StagePluginRegistry _stagePluginRegistry;
 
-    public ApiEndpointValidator(IExecutionLogger? logger = null)
+    public ApiEndpointValidator(IExecutionLogger? logger = null, StagePluginRegistry? stagePluginRegistry = null)
     {
         _logger = logger ?? new ConsoleExecutionLogger();
+        _stagePluginRegistry = stagePluginRegistry ?? new StagePluginRegistryBuilder().CreateBuiltInRegistry();
     }
 
     public IReadOnlyList<string> Validate(
@@ -54,16 +57,25 @@ public sealed class ApiEndpointValidator
             return errors;
         }
 
-        foreach (var stage in workflow.Stages.Where(stage => stage.Kind == WorkflowStageKind.Endpoint))
+        foreach (var stage in workflow.Stages.Where(stage => !WorkflowStageKind.IsWorkflow(stage.Kind)))
         {
-            if (string.IsNullOrWhiteSpace(stage.ApiRef) || string.IsNullOrWhiteSpace(stage.Endpoint) || string.IsNullOrWhiteSpace(stage.HttpVerb))
+            if (!_stagePluginRegistry.TryGetByKind(stage.Kind, out _))
+            {
+                errors.Add($"Stage '{stage.Name}' kind '{stage.Kind}' is not registered by any active plugin.");
+                continue;
+            }
+
+            var apiRef = stage.GetConfigString("apiRef") ?? stage.ApiRef;
+            var endpoint = stage.GetConfigString("endpoint") ?? stage.Endpoint;
+            var httpVerb = stage.GetConfigString("httpVerb") ?? stage.HttpVerb;
+            if (string.IsNullOrWhiteSpace(apiRef) || string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(httpVerb))
             {
                 continue;
             }
 
-            if (!apiLookup.TryGetValue(stage.ApiRef, out var definitionName))
+            if (!apiLookup.TryGetValue(apiRef, out var definitionName))
             {
-                errors.Add($"Stage '{stage.Name}' apiRef '{stage.ApiRef}' is not declared.");
+                errors.Add($"Stage '{stage.Name}' apiRef '{apiRef}' is not declared.");
                 continue;
             }
 
@@ -82,27 +94,27 @@ public sealed class ApiEndpointValidator
             }
 
             string? matchedPath = null;
-            if (!TryFindEndpointMatch(paths, stage.Endpoint, definition.BasePath, out var methods, out matchedPath))
+            if (!TryFindEndpointMatch(paths, endpoint, definition.BasePath, out var methods, out matchedPath))
             {
-                errors.Add($"Stage '{stage.Name}' endpoint '{stage.Endpoint}' was not found in swagger '{definitionName}'.");
+                errors.Add($"Stage '{stage.Name}' endpoint '{endpoint}' was not found in swagger '{definitionName}'.");
                 continue;
             }
 
-            var verb = stage.HttpVerb.Trim().ToLowerInvariant();
+            var verb = httpVerb.Trim().ToLowerInvariant();
             if (!methods.TryGetValue(verb, out var operation))
             {
-                errors.Add($"Stage '{stage.Name}' verb '{stage.HttpVerb}' was not found for endpoint '{stage.Endpoint}' in swagger '{definitionName}'.");
+                errors.Add($"Stage '{stage.Name}' verb '{httpVerb}' was not found for endpoint '{endpoint}' in swagger '{definitionName}'.");
                 continue;
             }
 
             if (verbose)
             {
-                _logger.Info($"Validated endpoint stage '{stage.Name}': {stage.HttpVerb} {stage.Endpoint} ({definitionName}).");
+                _logger.Info($"Validated endpoint stage '{stage.Name}': {httpVerb} {endpoint} ({definitionName}).");
             }
 
             if (validateRequiredParameters)
             {
-                ValidateRequiredParameters(stage, operation, matchedPath ?? stage.Endpoint, errors);
+                ValidateRequiredParameters(stage, operation, matchedPath ?? endpoint, errors);
             }
         }
 

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 
 using SphereIntegrationHub.Definitions;
+using SphereIntegrationHub.Plugins;
 using SphereIntegrationHub.Services;
 
 namespace SphereIntegrationHub.cli;
@@ -76,12 +77,23 @@ internal sealed class CliPipeline : ICliPipeline
             return new CliRunResult(1, messages, emittedMessageCount);
         }
 
-        if (!TryValidateWorkflow(parseResult, workflowDocument, workflowLoader, messages))
+        if (!TryLoadCatalog(catalogPath, workflowDocument, messages, out var catalog, out var selectedVersion))
         {
             return new CliRunResult(1, messages, emittedMessageCount);
         }
 
-        if (!TryLoadCatalog(catalogPath, workflowDocument, messages, out var catalog, out var selectedVersion))
+        StagePluginRegistry stagePluginRegistry;
+        try
+        {
+            stagePluginRegistry = new StagePluginRegistryBuilder().Build(config, selectedVersion, workflowPath);
+        }
+        catch (Exception ex)
+        {
+            AddError(messages, $"Plugin pre-check failed: {ex.Message}");
+            return new CliRunResult(1, messages, emittedMessageCount);
+        }
+
+        if (!TryValidateWorkflow(parseResult, workflowDocument, workflowLoader, stagePluginRegistry, messages))
         {
             return new CliRunResult(1, messages, emittedMessageCount);
         }
@@ -107,7 +119,7 @@ internal sealed class CliPipeline : ICliPipeline
         }
         emittedMessageCount = EmitPendingMessages(messages, emittedMessageCount);
 
-        if (!await TryCacheSwaggerAndValidateEndpoints(parseResult, workflowDocument, selectedVersion, messages, preflightReport, cancellationToken))
+        if (!await TryCacheSwaggerAndValidateEndpoints(parseResult, workflowDocument, selectedVersion, stagePluginRegistry, messages, preflightReport, cancellationToken))
         {
             return new CliRunResult(1, messages, emittedMessageCount);
         }
@@ -120,7 +132,7 @@ internal sealed class CliPipeline : ICliPipeline
         }
 
         var cacheRoot = Path.Combine(_pathResolver.ResolveDefaultCacheRoot(parseResult.WorkflowPath), selectedVersion.Version);
-        return await ExecuteWorkflowAsync(parseResult, workflowDocument, selectedVersion, cacheRoot, varsOverrideActive, reportOptions, preflightReport, messages, emittedMessageCount, cancellationToken);
+        return await ExecuteWorkflowAsync(parseResult, workflowDocument, selectedVersion, cacheRoot, varsOverrideActive, reportOptions, preflightReport, stagePluginRegistry, messages, emittedMessageCount, cancellationToken);
     }
 
     private void EmitPreamble(InlineArguments parseResult, List<CliRunMessage> messages)
@@ -230,9 +242,10 @@ internal sealed class CliPipeline : ICliPipeline
         InlineArguments parseResult,
         WorkflowDocument workflowDocument,
         WorkflowLoader workflowLoader,
+        StagePluginRegistry stagePluginRegistry,
         List<CliRunMessage> messages)
     {
-        var validator = _serviceFactory.CreateWorkflowValidator(workflowLoader);
+        var validator = _serviceFactory.CreateWorkflowValidator(workflowLoader, stagePluginRegistry);
         var validation = validator.ValidateWithDetails(workflowDocument, parseResult.Inputs);
         if (parseResult.DryRun && validation.Warnings.Count > 0)
         {
@@ -445,6 +458,7 @@ internal sealed class CliPipeline : ICliPipeline
         InlineArguments parseResult,
         WorkflowDocument workflowDocument,
         ApiCatalogVersion selectedVersion,
+        StagePluginRegistry stagePluginRegistry,
         List<CliRunMessage> messages,
         WorkflowPreflightReport preflightReport,
         CancellationToken cancellationToken)
@@ -470,7 +484,7 @@ internal sealed class CliPipeline : ICliPipeline
                 AddInfo(messages, "Validating endpoints against swagger cache...");
             }
 
-            var endpointValidator = _serviceFactory.CreateApiEndpointValidator();
+            var endpointValidator = _serviceFactory.CreateApiEndpointValidator(stagePluginRegistry);
             var endpointErrors = endpointValidator.Validate(workflowDocument.Definition, selectedVersion, cacheRoot, parseResult.DryRun, parseResult.Verbose && parseResult.DryRun);
             if (endpointErrors.Count > 0)
             {
@@ -564,6 +578,7 @@ internal sealed class CliPipeline : ICliPipeline
         bool varsOverrideActive,
         WorkflowExecutionReportOptions reportOptions,
         WorkflowPreflightReport preflightReport,
+        StagePluginRegistry stagePluginRegistry,
         List<CliRunMessage> messages,
         int emittedMessageCount,
         CancellationToken cancellationToken)
@@ -580,7 +595,8 @@ internal sealed class CliPipeline : ICliPipeline
                 dynamicValueService,
                 systemTimeProvider,
                 reportOptions,
-                requestBodyContractProcessor);
+                requestBodyContractProcessor,
+                stagePluginRegistry);
             var result = await executor.ExecuteAsync(
                 workflowDocument,
                 selectedVersion,

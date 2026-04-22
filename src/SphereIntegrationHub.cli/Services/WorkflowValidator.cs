@@ -1,6 +1,7 @@
 using System.Text.Json;
 
 using SphereIntegrationHub.Definitions;
+using SphereIntegrationHub.Plugins;
 
 namespace SphereIntegrationHub.Services;
 
@@ -11,11 +12,13 @@ public sealed class WorkflowValidator
 
     private readonly WorkflowLoader _loader;
     private readonly MockPayloadService _mockPayloadService;
+    private readonly StagePluginRegistry _stagePluginRegistry;
 
-    public WorkflowValidator(WorkflowLoader loader)
+    public WorkflowValidator(WorkflowLoader loader, StagePluginRegistry? stagePluginRegistry = null)
     {
         _loader = loader ?? throw new ArgumentNullException(nameof(loader));
         _mockPayloadService = new MockPayloadService();
+        _stagePluginRegistry = stagePluginRegistry ?? new StagePluginRegistryBuilder().CreateBuiltInRegistry();
     }
 
     public IReadOnlyList<string> Validate(
@@ -181,30 +184,16 @@ public sealed class WorkflowValidator
                 stageNames.Add(stage.Name);
             }
 
-            if (stage.Kind == WorkflowStageKind.Endpoint)
+            if (!WorkflowStageKind.IsWorkflow(stage.Kind))
             {
                 if (stage.DelaySeconds is not null && (stage.DelaySeconds < 0 || stage.DelaySeconds > 60))
                 {
                     errors.Add($"Stage '{stage.Name}' delaySeconds must be between 0 and 60.");
                 }
 
-                if (string.IsNullOrWhiteSpace(stage.ApiRef))
-                {
-                    errors.Add($"Stage '{stage.Name}' apiRef is required for endpoint stages.");
-                }
-                else if (!apiLookup.Contains(stage.ApiRef))
+                if (!string.IsNullOrWhiteSpace(stage.ApiRef) && !apiLookup.Contains(stage.ApiRef))
                 {
                     errors.Add($"Stage '{stage.Name}' apiRef '{stage.ApiRef}' is not declared in references.apis.");
-                }
-
-                if (string.IsNullOrWhiteSpace(stage.Endpoint))
-                {
-                    errors.Add($"Stage '{stage.Name}' endpoint is required for endpoint stages.");
-                }
-
-                if (string.IsNullOrWhiteSpace(stage.HttpVerb))
-                {
-                    errors.Add($"Stage '{stage.Name}' httpVerb is required for endpoint stages.");
                 }
 
                 if ((stage.ExpectedStatus is null || stage.ExpectedStatus <= 0) &&
@@ -271,8 +260,20 @@ public sealed class WorkflowValidator
 
                 ValidateStageRetry(definition.Resilience, stage, errors);
                 ValidateStageCircuitBreaker(definition.Resilience, stage, errors);
+
+                if (!_stagePluginRegistry.TryGetByKind(stage.Kind, out var plugin))
+                {
+                    errors.Add($"Stage '{stage.Name}' kind '{stage.Kind}' is not registered by any active plugin.");
+                    continue;
+                }
+
+                plugin.ValidateStage(
+                    stage,
+                    new StagePluginValidationContext(definition, workflowPath, null, null, ValidateRequiredParameters: false),
+                    errors,
+                    warnings);
             }
-            else if (stage.Kind == WorkflowStageKind.Workflow)
+            else
             {
                 if (stage.DelaySeconds is not null && (stage.DelaySeconds < 0 || stage.DelaySeconds > 60))
                 {
@@ -363,7 +364,7 @@ public sealed class WorkflowValidator
                 continue;
             }
 
-            if (stage.Kind != WorkflowStageKind.Endpoint)
+            if (WorkflowStageKind.IsWorkflow(stage.Kind))
             {
                 errors.Add($"Stage '{stage.Name}' jumpOnStatus is only supported for endpoint stages.");
                 continue;
@@ -525,7 +526,7 @@ public sealed class WorkflowValidator
         {
             foreach (var stage in definition.Stages)
             {
-                if (stage.Kind == WorkflowStageKind.Endpoint)
+                if (!WorkflowStageKind.IsWorkflow(stage.Kind))
                 {
                     var outputs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                     {
@@ -541,7 +542,7 @@ public sealed class WorkflowValidator
 
                     endpointOutputs[stage.Name] = outputs;
                 }
-                else if (stage.Kind == WorkflowStageKind.Workflow && !string.IsNullOrWhiteSpace(stage.WorkflowRef))
+                else if (WorkflowStageKind.IsWorkflow(stage.Kind) && !string.IsNullOrWhiteSpace(stage.WorkflowRef))
                 {
                     if (workflowRefs.TryGetValue(stage.WorkflowRef, out var referencePath))
                     {
@@ -667,14 +668,14 @@ public sealed class WorkflowValidator
 
                 if (!string.IsNullOrWhiteSpace(stage.Message))
                 {
-                    ValidateTemplate(stage.Message, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' message", errors, allowResponse: stage.Kind == WorkflowStageKind.Endpoint, responseSample: responseSample);
+                    ValidateTemplate(stage.Message, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' message", errors, allowResponse: !WorkflowStageKind.IsWorkflow(stage.Kind), responseSample: responseSample);
                 }
 
                 if (stage.Output is not null)
                 {
                     foreach (var output in stage.Output.Values)
                     {
-                        ValidateTemplate(output, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' output", errors, allowResponse: stage.Kind == WorkflowStageKind.Endpoint, responseSample: responseSample);
+                        ValidateTemplate(output, inputNames, globalNames, environmentVariables, endpointOutputs, workflowOutputs, $"stage '{stage.Name}' output", errors, allowResponse: !WorkflowStageKind.IsWorkflow(stage.Kind), responseSample: responseSample);
                     }
                 }
 
@@ -1425,7 +1426,7 @@ public sealed class WorkflowValidator
             errors.Add($"Stage '{stage.Name}' mock status must be a positive integer.");
         }
 
-        if (stage.Kind == WorkflowStageKind.Endpoint)
+        if (!WorkflowStageKind.IsWorkflow(stage.Kind))
         {
             if (stage.Mock?.Output is not null && stage.Mock.Output.Count > 0)
             {
@@ -1470,7 +1471,7 @@ public sealed class WorkflowValidator
                 errors.Add($"Stage '{stage.Name}' mock payload is not valid JSON: {error}");
             }
         }
-        else if (stage.Kind == WorkflowStageKind.Workflow)
+        else if (WorkflowStageKind.IsWorkflow(stage.Kind))
         {
             if (stage.Mock?.Payload is not null)
             {
@@ -1496,7 +1497,7 @@ public sealed class WorkflowValidator
         IReadOnlyDictionary<string, string> environmentVariables,
         IReadOnlyDictionary<string, string>? runtimeInputs)
     {
-        if (stage.Kind != WorkflowStageKind.Endpoint)
+        if (WorkflowStageKind.IsWorkflow(stage.Kind))
         {
             return null;
         }
