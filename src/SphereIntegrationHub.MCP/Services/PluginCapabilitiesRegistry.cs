@@ -193,15 +193,27 @@ internal static class PluginCapabilitiesRegistry
                 new
                 {
                     feature = "Authoring Guidance",
-                    description = "Prefer real runtime fields and avoid invented plugin stage types",
+                    description = "Prefer real runtime fields and keep plugin activation explicit in workflows.config",
                     examples = new[]
                     {
                         "Use kind: Endpoint or kind: Workflow",
+                        "Declare plugins in workflows.config: plugins: [http]",
                         "Prefer ensure for create-if-missing bootstrap stages",
                         "Prefer expectedStatuses for idempotent create/bootstrap flows",
                         "Prefer bodyFile/dataFile when payloads are large",
                         "Use forEachSequential only when ordering or shared-state constraints require sequential execution",
                         "Use sample workflows under samples/ as runtime-aligned references"
+                    }
+                },
+                new
+                {
+                    feature = "Secret Providers",
+                    description = "Secret providers resolve before workflow loading and fail the run immediately if resolution fails",
+                    examples = new[]
+                    {
+                        "Configure secretProviders in workflows.config to hydrate {{env:NAME}} tokens before workflow load",
+                        "If a configured provider is unreachable or invalid, runtime aborts before validation/execution",
+                        "Use samples/vaultwarden-secrets/ as the reference shape for provider config"
                     }
                 },
                 new

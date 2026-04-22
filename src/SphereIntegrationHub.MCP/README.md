@@ -210,6 +210,7 @@ The agent decides which MCP tools to call on your behalf.
 The MCP surface is aligned with the current SIH runtime schema. Agents should prefer:
 
 - `kind: Endpoint` and `kind: Workflow`
+- explicit plugin activation in `workflows.config`, for example `plugins: [http]`
 - `expectedStatuses` plus `onStatus` or `jumpOnStatus` for idempotent branching
 - `ensure` as the preferred semantic sugar for create-if-missing flows
 - `bodyFile` for large request payloads
@@ -218,6 +219,7 @@ The MCP surface is aligned with the current SIH runtime schema. Agents should pr
 - `type: Object` and `type: Array` for structured workflow inputs
 - JSON-aware expressions such as `jsonLength(...)`, `exists(...)`, `empty(...)`, `coalesce(...)`, `first(...)`, and `isEmptyJson(...)`
 - response tokens such as `{{response.status}}`, `{{response.body}}`, and `{{response.headers.HeaderName}}` on endpoint stages
+- `secretProviders` in `workflows.config` when `{{env:...}}` values must come from an external vault; provider resolution is fail-fast and aborts before workflow load if it fails
 - optional JSON path segments via `?`, for example `{{response.body.account.status?}}`
 - workflow-stage result tokens such as `{{stage:child.workflow.result.status}}` and `{{stage:child.workflow.result.message}}`
 - workflow-stage output tokens such as `{{stage:child.workflow.output.accountAppId}}`

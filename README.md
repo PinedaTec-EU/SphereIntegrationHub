@@ -45,9 +45,9 @@ Documentation:
 Examples:
 
 - [`samples/sample-bootstrap.workflow`](samples/sample-bootstrap.workflow) uses the explicit `Http` plugin stage with a plugin-specific `config` block.
-- [`samples/workflows.config`](samples/workflows.config) shows explicit plugin activation.
+- [`samples/workflows.config`](samples/workflows.config) shows explicit plugin activation. If `plugins` is omitted, the runtime still enables `http` for compatibility but emits a warning; a future release will require the section.
 - [`samples/api.catalog`](samples/api.catalog) shows plugin declaration/version binding in the catalog.
-- [`samples/vaultwarden-secrets`](samples/vaultwarden-secrets) shows the `vaultwarden` secret provider feeding `{{env:...}}` tokens.
+- [`samples/vaultwarden-secrets`](samples/vaultwarden-secrets) shows the `vaultwarden` secret provider feeding `{{env:...}}` tokens. Secret provider failures are fail-fast and abort the run before workflow loading continues.
 
 ## Community
 

@@ -22,7 +22,8 @@ plugins:
 Rules:
 
 - The `workflow` stage kind is built into the runtime.
-- If `plugins` is omitted, the built-in `http` plugin is enabled by default.
+- If `plugins` is omitted, the built-in `http` plugin is enabled by default for compatibility and the runtime emits a warning.
+- The warning is transitional; a future release will require the `plugins` section explicitly.
 - If `plugins` is present, only the listed plugins are enabled.
 - External plugins are loaded from a `plugins` folder next to `workflows.config`.
 - Each explicit plugin should also be declared in the selected `api.catalog` version under `plugins`.
