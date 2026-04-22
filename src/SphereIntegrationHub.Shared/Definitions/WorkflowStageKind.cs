@@ -1,7 +1,11 @@
 namespace SphereIntegrationHub.Definitions;
 
-public enum WorkflowStageKind
+public static class WorkflowStageKind
 {
-    Endpoint,
-    Workflow
+    public const string Endpoint = "Endpoint";
+    public const string Workflow = "Workflow";
+    public const string Http = "Http";
+
+    public static bool IsWorkflow(string? kind)
+        => string.Equals(kind, Workflow, StringComparison.OrdinalIgnoreCase);
 }
