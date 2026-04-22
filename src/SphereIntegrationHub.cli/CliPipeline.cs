@@ -42,6 +42,7 @@ internal sealed class CliPipeline : ICliPipeline
         var workflowPath = parseResult.WorkflowPath
             ?? throw new InvalidOperationException("Workflow path is required.");
         var config = _configLoader.Load(workflowPath);
+        EmitPluginConfigurationWarning(config, messages);
         if (parseResult.Debug)
         {
             config.OpenTelemetry.DebugConsole = true;
@@ -159,6 +160,18 @@ internal sealed class CliPipeline : ICliPipeline
         AddInfo(messages, $"Catalog: {_pathResolver.FormatPath(catalogPath)}");
         AddInfo(messages, $"Workflow path: {_pathResolver.FormatPath(parseResult.WorkflowPath)}");
         AddInfo(messages, $"Environment: {parseResult.Environment}");
+    }
+
+    private static void EmitPluginConfigurationWarning(WorkflowConfig config, List<CliRunMessage> messages)
+    {
+        if (config.Plugins is { Count: > 0 })
+        {
+            return;
+        }
+
+        AddInfo(
+            messages,
+            "Warning: workflows.config does not define a plugins section. HTTP will be enabled by default for compatibility, but this section will be mandatory in a future release.");
     }
 
     private async Task<ResolvedSecretProviderEnvironment?> ResolveSecretProviderEnvironmentAsync(
