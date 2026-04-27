@@ -11,5 +11,5 @@ dist/
 releases/dist/
 
 # Local-only publish helper and output
-scripts/local/publish-nuget-local.sh
+.env.local
 .local/nuget-packages/
