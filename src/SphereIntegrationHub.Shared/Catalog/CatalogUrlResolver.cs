@@ -24,13 +24,14 @@ public static class CatalogUrlResolver
         return false;
     }
 
-    public static Uri ResolveSwaggerUri(ApiCatalogVersion version, ApiDefinition definition, string environment)
+    public static Uri ResolveOpenApiUri(ApiCatalogVersion version, ApiDefinition definition, string environment)
     {
-        var hasExplicitFileScheme = definition.SwaggerUrl.StartsWith("file://", StringComparison.OrdinalIgnoreCase);
+        var contractUrl = definition.GetResolvedContractUrl();
+        var hasExplicitFileScheme = contractUrl.StartsWith("file://", StringComparison.OrdinalIgnoreCase);
 
-        // If the swagger URL is already absolute with no template tokens, return it directly
-        if (!definition.SwaggerUrl.Contains("{{", StringComparison.Ordinal) &&
-            Uri.TryCreate(definition.SwaggerUrl, UriKind.Absolute, out var directUri) &&
+        // If the contract URL is already absolute with no template tokens, return it directly
+        if (!contractUrl.Contains("{{", StringComparison.Ordinal) &&
+            Uri.TryCreate(contractUrl, UriKind.Absolute, out var directUri) &&
             (directUri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
              directUri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
              directUri.IsFile && hasExplicitFileScheme))
@@ -41,14 +42,14 @@ public static class CatalogUrlResolver
         if (!TryResolveBaseUrl(version, definition, environment, out var baseUrl))
         {
             throw new InvalidOperationException(
-                $"Cannot resolve swaggerUrl '{definition.SwaggerUrl}' because baseUrl is missing for version '{version.Version}' and definition '{definition.Name}'.");
+                $"Cannot resolve contract URL '{contractUrl}' because baseUrl is missing for version '{version.Version}' and definition '{definition.Name}'.");
         }
 
-        var expandedSwaggerUrl = ExpandSwaggerUrlTemplate(definition.SwaggerUrl, version, definition, environment, baseUrl!);
-        if (Uri.TryCreate(expandedSwaggerUrl, UriKind.Absolute, out var absolute)
+        var expandedContractUrl = ExpandContractUrlTemplate(contractUrl, version, definition, environment, baseUrl!);
+        if (Uri.TryCreate(expandedContractUrl, UriKind.Absolute, out var absolute)
             && (absolute.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
                 || absolute.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
-                || absolute.IsFile && expandedSwaggerUrl.StartsWith("file://", StringComparison.OrdinalIgnoreCase)))
+                || absolute.IsFile && expandedContractUrl.StartsWith("file://", StringComparison.OrdinalIgnoreCase)))
         {
             return absolute;
         }
@@ -59,8 +60,11 @@ public static class CatalogUrlResolver
                 $"Invalid baseUrl '{baseUrl}' for version '{version.Version}'.");
         }
 
-        return new Uri(baseUri, expandedSwaggerUrl.TrimStart('/'));
+        return new Uri(baseUri, expandedContractUrl.TrimStart('/'));
     }
+
+    public static Uri ResolveSwaggerUri(ApiCatalogVersion version, ApiDefinition definition, string environment)
+        => ResolveOpenApiUri(version, definition, environment);
 
     public static Uri ResolveHealthCheckUri(ApiCatalogVersion version, ApiDefinition definition, string environment)
     {
@@ -113,15 +117,15 @@ public static class CatalogUrlResolver
         return false;
     }
 
-    private static string ExpandSwaggerUrlTemplate(
-        string swaggerUrl,
+    private static string ExpandContractUrlTemplate(
+        string contractUrl,
         ApiCatalogVersion version,
         ApiDefinition definition,
         string environment,
         string resolvedBaseUrl)
     {
-        var hasExplicitPortToken = PortTokenRegex.IsMatch(swaggerUrl);
-        var replacedBaseUrl = BaseUrlTokenRegex.Replace(swaggerUrl, match =>
+        var hasExplicitPortToken = PortTokenRegex.IsMatch(contractUrl);
+        var replacedBaseUrl = BaseUrlTokenRegex.Replace(contractUrl, match =>
         {
             var requestedEnvironment = match.Groups["env"].Success
                 ? match.Groups["env"].Value

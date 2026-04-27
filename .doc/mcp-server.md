@@ -3,7 +3,7 @@
 The MCP server is **production-ready** and ships as a separate dotnet tool (`SphereIntegrationHub.Mcp.Tool`). It currently exposes **35 implemented tools** across four capability levels — from basic catalog exploration and workflow validation up to system synthesis and workflow optimization.
 
 **Key capabilities at a glance:**
-- Catalog exploration and Swagger introspection (L1)
+- Catalog exploration and API contract introspection (L1)
 - Workflow validation, dry-run planning, and stage generation (L1)
 - Variable scope analysis and context flow tracing (L1)
 - Execution report reading for agent-driven run inspection (L1)
@@ -40,7 +40,7 @@ The **SphereIntegrationHub MCP Server** exposes the intelligence and capabilitie
 
 ### Key Goals
 
-1. **Accelerate Workflow Creation** - From hours to minutes by leveraging cached Swagger specifications
+1. **Accelerate Workflow Creation** - From hours to minutes by leveraging cached API contract specifications
 2. **Reduce Human Error** - Real-time validation prevents syntax and semantic errors
 3. **Enable Autonomous Construction** - AI assistants can build complete systems from high-level descriptions
 4. **Democratize API Orchestration** - Non-technical users can describe workflows in natural language
@@ -51,13 +51,13 @@ The **SphereIntegrationHub MCP Server** exposes the intelligence and capabilitie
 Currently, creating a complex workflow in SphereIntegrationHub requires:
 
 - Deep understanding of the workflow YAML schema
-- Manual inspection of Swagger specs to find endpoints
+- Manual inspection of API contracts to find endpoints
 - Manual mapping of data flows between stages
 - Trial-and-error validation cycles
 
 **With the MCP Server**, AI assistants can:
 
-- ✅ Read all available APIs and endpoints from cached Swagger specs
+- ✅ Read all available APIs and endpoints from cached API contracts
 - ✅ Understand schema requirements (required fields, types, auth)
 - ✅ Infer dependencies between endpoints (e.g., "create account needs org ID first")
 - ✅ Generate complete, valid workflows from natural language descriptions
@@ -72,7 +72,7 @@ Currently, creating a complex workflow in SphereIntegrationHub requires:
 ### Key Concepts
 
 - **Tools**: Functions that AI can call with structured parameters (JSON schema)
-- **Resources**: Documents or data that AI can read (Swagger specs, workflows)
+- **Resources**: Documents or data that AI can read (API contracts, workflows)
 - **Prompts**: Pre-defined prompts for common tasks
 - **Transport**: stdio (standard input/output) for maximum compatibility
 
@@ -95,7 +95,7 @@ Currently, creating a complex workflow in SphereIntegrationHub requires:
 **AI with MCP:**
 
 - Inspects API catalog → finds "customers" and "payments" APIs
-- Reads Swagger specs → discovers `POST /api/customers` and `POST /api/payment-methods`
+- Reads cached API contracts → discovers `POST /api/customers` and `POST /api/payment-methods`
 - Analyzes schemas → detects `customerId` dependency
 - Generates complete workflow with auth, data flow, error handling
 
@@ -143,7 +143,7 @@ Currently, creating a complex workflow in SphereIntegrationHub requires:
 **AI with MCP:**
 
 - Lists all APIs from catalog
-- Filters Swagger specs for user-related endpoints
+- Filters cached API contracts for user-related endpoints
 - Explains available operations with examples
 - Shows existing workflows that use user APIs
 
@@ -207,7 +207,7 @@ Currently, creating a complex workflow in SphereIntegrationHub requires:
 │                  SphereIntegrationHub Data Files                 │
 │                                                                   │
 │  - src/resources/api-catalog.json                                │
-│  - src/resources/cache/{version}/{api}.json (Swagger specs)      │
+│  - src/resources/cache/{version}/{api}.json (API contracts)      │
 │  - samples/*.workflow (Example workflows)                        │
 │  - .doc/*.md (Documentation)                                     │
 └─────────────────────────────────────────────────────────────────┘
@@ -230,7 +230,7 @@ Currently, creating a complex workflow in SphereIntegrationHub requires:
 |------|------------|---------|---------|
 | `list_api_catalog_versions` | - | `Array<string>` | Lists available catalog versions (3.10, 3.11, etc.) |
 | `get_api_definitions` | `version: string` | `Array<ApiDefinition>` | Returns APIs in catalog with basePath, swagger URLs, optional healthCheck, and optional readiness policy |
-| `get_api_endpoints` | `version: string`<br>`apiName: string`<br>`httpVerb?: string` | `Array<EndpointInfo>` | Extracts endpoints from cached Swagger with schemas |
+| `get_api_endpoints` | `version: string`<br>`apiName: string`<br>`httpVerb?: string` | `Array<EndpointInfo>` | Extracts endpoints from cached API contracts with schemas |
 | `get_endpoint_schema` | `version: string`<br>`apiName: string`<br>`endpoint: string`<br>`httpVerb: string` | `EndpointSchema` | Returns detailed schema (query, headers, body, responses) |
 
 **Example Usage:**
@@ -674,7 +674,7 @@ This is the **"killer feature"** - full autonomous construction.
    - Detect constraints (authentication required, email notification)
 
 2. **API Matching**
-   - Search all cached Swagger specs for relevant endpoints
+   - Search all cached API contracts for relevant endpoints
    - Scoring based on:
      - Tag matching ("booking", "reservation", "payment")
      - Path matching ("/bookings", "/payments")
@@ -914,7 +914,7 @@ The MCP server wraps existing SphereIntegrationHub services:
 
 - `WorkflowValidator` → used by `validate_workflow` tool
 - `WorkflowLoader` → used to parse workflows
-- `ApiSwaggerCacheService` → reads cached Swagger specs
+- `ApiSwaggerCacheService` → reads cached API contracts
 - `ApiEndpointValidator` → validates endpoints against specs
 
 **Benefits:**
@@ -947,7 +947,7 @@ If advanced services fail (e.g., semantic analyzer), MCP falls back to basic too
 
 #### 4. Performance Optimization
 
-- **Lazy Loading**: Swagger specs loaded on demand, cached in memory
+- **Lazy Loading**: API contracts loaded on demand, cached in memory
 - **Async Operations**: All I/O operations are async
 - **Parallel Analysis**: When analyzing multiple endpoints, use `Task.WhenAll`
 - **Result Caching**: Cache dependency analysis results (TTL: 5 minutes)
@@ -1130,7 +1130,7 @@ If advanced services fail (e.g., semantic analyzer), MCP falls back to basic too
          - Actions: [authenticate, search, create reservation, pay, notify]
 
       b. API Matching
-         - Searches all Swagger specs
+         - Searches all cached API contracts
          - Finds: auth, rooms, bookings, payments, notifications APIs
 
       c. Dependency Analysis

@@ -14,7 +14,8 @@ This document summarizes the current MCP surface implemented in `src/SphereInteg
 
 Catalog authoring notes for agents:
 - Each definition provides its own `baseUrl` map (environment → absolute base URL). There is no version-level `baseUrl`.
-- `swaggerUrl` must be a relative path (e.g. `/swagger/v1/swagger.json`). It is resolved against `baseUrl[env]` at runtime.
+- `contractType` can be `openapi`, `swagger`, or `scala`.
+- Use `openApiUrl`, `swaggerUrl`, or `scalaUrl` accordingly. Relative paths are resolved against `baseUrl[env]` at runtime.
 - API definitions may include optional `healthCheck`
 - `healthCheck` can be an absolute URL or a relative path such as `/health`
 - when present, runtime probes it before swagger caching and workflow execution and reports failures without aborting the run
@@ -32,7 +33,7 @@ Authoring notes for agents:
 - use `forEachSequential: true` only when collection items must run one by one; default runtime behavior is parallel
 
 Input options:
-- Swagger mode: `version`, `apiName`, `endpoint`, `httpVerb`
+- Contract-cache mode: `version`, `apiName`, `endpoint`, `httpVerb`
 - No-cache mode: `endpointSchema` (fallback from model knowledge)
 
 ### `generate_workflow_skeleton`
@@ -62,7 +63,7 @@ And returns authoring hints for:
 Generates JSON payload draft from endpoint body schema.
 
 Input options:
-- Swagger mode: `version`, `apiName`, `endpoint`, `httpVerb`
+- Contract-cache mode: `version`, `apiName`, `endpoint`, `httpVerb`
 - No-cache mode: `endpointSchema`
 
 ### `generate_workflow_bundle`
@@ -183,7 +184,7 @@ This enables running MCP against repositories that do not use `src/resources`.
 
 ### `analyze_endpoint_dependencies`
 
-Analyzes Swagger schemas to detect which endpoints need to be called before a target endpoint.
+Analyzes cached API contract schemas to detect which endpoints need to be called before a target endpoint.
 
 Required parameters: `version: string`, `apiName: string`, `endpoint: string`, `httpVerb: string`
 

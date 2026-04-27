@@ -2,7 +2,7 @@
 
 The `--dry-run` mode validates workflows and prints an execution plan without executing workflow endpoints.
 
-If a referenced API definition includes `healthCheck` in the catalog, SIH performs that HTTP precheck before swagger caching. When the configured readiness policy is exhausted, dry-run fails immediately.
+If a referenced API definition includes `healthCheck` in the catalog, SIH performs that HTTP precheck before contract caching. When the configured readiness policy is exhausted, dry-run fails immediately.
 
 Dry-run reports failures by phase:
 
@@ -11,7 +11,7 @@ Dry-run reports failures by phase:
 3. Workflow validation
 4. Environment validation
 5. API health checks
-6. Swagger cache/bootstrap
+6. API contract cache/bootstrap
 7. Endpoint validation
 8. Execution plan rendering
 
@@ -71,11 +71,11 @@ Validated locations:
 
 ### 4) Endpoint validation
 
-Using the cached swagger for the workflow version:
+Using the cached API contract for the workflow version:
 
 - API references are resolved.
-- The endpoint path is validated against swagger paths.
-  - If the endpoint includes templates (e.g. `{{input.id}}`), the path is normalized and matched against swagger `{param}` paths.
+- The endpoint path is validated against contract paths.
+  - If the endpoint includes templates (e.g. `{{input.id}}`), the path is normalized and matched against `{param}` paths in the cached contract.
 - The HTTP verb must exist for the matched path.
 - Required parameters:
   - `query`: must exist in stage `query`.
@@ -116,7 +116,7 @@ Error reporting behavior:
 - Workflow validation errors are grouped and counted before dry-run exits.
 - Endpoint validation errors are grouped and counted separately from workflow validation.
 - Health-check failures include target URL, retry count, duration, and the final reason.
-- Swagger bootstrap failures report the preflight phase explicitly.
+- API contract bootstrap failures report the preflight phase explicitly.
 
 ## Exit behavior
 

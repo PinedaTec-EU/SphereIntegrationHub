@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.7.19] – 2026-04-27
+
+- **OpenAPI-first catalog support completed**:
+  - `api.catalog` now supports `contractType` with the values `openapi`, `swagger`, and `scala`.
+  - Catalog definitions can now declare `openApiUrl`, `swaggerUrl`, or `scalaUrl` depending on the selected contract source mode.
+  - Runtime and MCP contract resolution now use the selected contract type when resolving/falling back from HTML endpoints to JSON contract URLs.
+- **Docs and samples aligned with the feature**:
+  - README, catalog docs, MCP reference, and samples now describe the catalog as OpenAPI/API-contract based instead of Swagger-only where the behavior is generic.
+  - Samples now show `contractType: openapi` with `openApiUrl`.
+- **Scala contract mode clarified**:
+  - `scala` is documented as a contract-source URL resolution mode for Scala ecosystem conventions.
+  - Downloaded contracts are still validated as OpenAPI/Swagger JSON.
+
 ## [1.7.18.269] – 2026-04-16
 
 - **Inline fake data generation with `rand:*`**:

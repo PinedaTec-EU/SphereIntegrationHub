@@ -5,8 +5,9 @@
     runtimeVersion: "1.0"
   definitions:
   - name: accounts
+    contractType: openapi
     basePath: /api/accounts
-    swaggerUrl: /swagger/v1/swagger.json
+    openApiUrl: /swagger/v1/swagger.json
     healthCheck: /health
     readiness:
       maxRetries: 12

@@ -80,8 +80,12 @@ public sealed class GetApiDefinitionsTool : IMcpTool
             apis = definitions.Select(d => new
             {
                 name = d.Name,
+                contractType = d.GetResolvedContractType(),
+                contractUrl = d.GetResolvedContractUrl(),
+                openApiUrl = d.OpenApiUrl,
                 basePath = d.BasePath,
                 swaggerUrl = d.SwaggerUrl,
+                scalaUrl = d.ScalaUrl,
                 healthCheck = d.HealthCheck,
                 readiness = d.Readiness
             }).ToList(),

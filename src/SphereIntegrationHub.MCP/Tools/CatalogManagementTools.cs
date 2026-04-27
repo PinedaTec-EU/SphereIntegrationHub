@@ -245,7 +245,10 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
                                     name = new { type = "string" },
                                     port = new { type = "integer" },
                                     basePath = new { type = "string" },
+                                    contractType = new { type = "string" },
+                                    openApiUrl = new { type = "string" },
                                     swaggerUrl = new { type = "string" },
+                                    scalaUrl = new { type = "string" },
                                     healthCheck = new { type = "string" },
                                     readiness = new
                                     {
@@ -269,7 +272,7 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
                                         description = "Optional per-definition baseUrl map keyed by environment."
                                     }
                                 },
-                                required = new[] { "name", "basePath", "swaggerUrl" }
+                                required = new[] { "name", "basePath" }
                             }
                         }
                     },
@@ -317,16 +320,20 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
                     ? parsedPort
                     : (int?)null;
                 var basePath = definitionItem.TryGetProperty("basePath", out var basePathEl) ? basePathEl.GetString() : null;
+                var contractType = definitionItem.TryGetProperty("contractType", out var contractTypeEl) ? contractTypeEl.GetString() : null;
+                var openApiUrl = definitionItem.TryGetProperty("openApiUrl", out var openApiUrlEl) ? openApiUrlEl.GetString() : null;
                 var swaggerUrl = definitionItem.TryGetProperty("swaggerUrl", out var swaggerEl) ? swaggerEl.GetString() : null;
+                var scalaUrl = definitionItem.TryGetProperty("scalaUrl", out var scalaUrlEl) ? scalaUrlEl.GetString() : null;
                 var healthCheck = definitionItem.TryGetProperty("healthCheck", out var healthCheckEl) ? healthCheckEl.GetString() : null;
+                var sourceUrl = openApiUrl ?? swaggerUrl ?? scalaUrl;
                 if (string.IsNullOrWhiteSpace(name) ||
                     string.IsNullOrWhiteSpace(basePath) ||
-                    string.IsNullOrWhiteSpace(swaggerUrl))
+                    string.IsNullOrWhiteSpace(sourceUrl))
                 {
-                    throw new ArgumentException("Definition requires name, basePath, swaggerUrl");
+                    throw new ArgumentException("Definition requires name, basePath, and one of openApiUrl/swaggerUrl/scalaUrl");
                 }
 
-                var normalizedSwaggerUrl = CatalogSwaggerUrlNormalizer.NormalizeForCatalog(swaggerUrl!);
+                var normalizedSwaggerUrl = CatalogSwaggerUrlNormalizer.NormalizeForCatalog(sourceUrl!);
                 var definitionBaseUrl = ParseDefinitionBaseUrl(definitionItem);
                 var readiness = ParseReadinessFromElement(definitionItem);
 
@@ -360,9 +367,18 @@ public sealed class GenerateApiCatalogFileTool : IMcpTool
                 definitions.Add(new ApiDefinition
                 {
                     Name = name!,
+                    ContractType = !string.IsNullOrWhiteSpace(contractType)
+                        ? contractType.Trim().Replace("-", string.Empty, StringComparison.Ordinal).ToLowerInvariant()
+                        : !string.IsNullOrWhiteSpace(openApiUrl)
+                            ? ApiContractTypes.OpenApi
+                            : !string.IsNullOrWhiteSpace(scalaUrl)
+                                ? ApiContractTypes.Scala
+                                : ApiContractTypes.Swagger,
                     Port = port,
                     BasePath = basePath!,
-                    SwaggerUrl = normalizedSwaggerUrl,
+                    OpenApiUrl = !string.IsNullOrWhiteSpace(openApiUrl) ? normalizedSwaggerUrl : null,
+                    SwaggerUrl = string.IsNullOrWhiteSpace(openApiUrl) && !string.IsNullOrWhiteSpace(swaggerUrl) ? normalizedSwaggerUrl : null,
+                    ScalaUrl = string.IsNullOrWhiteSpace(openApiUrl) && string.IsNullOrWhiteSpace(swaggerUrl) && !string.IsNullOrWhiteSpace(scalaUrl) ? normalizedSwaggerUrl : null,
                     HealthCheck = healthCheck,
                     Readiness = readiness,
                     BaseUrl = definitionBaseUrl.Count > 0 ? definitionBaseUrl : null
@@ -667,7 +683,10 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
         {
             version = new { type = "string", description = "Catalog version (e.g. 3.11)" },
             apiName = new { type = "string", description = "Definition name" },
+            contractType = new { type = "string", description = "Contract type: openapi, swagger, or scala" },
+            openApiUrl = new { type = "string", description = "OpenAPI URL (absolute or relative)" },
             swaggerUrl = new { type = "string", description = "Swagger URL (absolute or relative)" },
+            scalaUrl = new { type = "string", description = "Scala contract URL (absolute or relative)" },
             port = new { type = "integer", description = "Optional API port to apply on resolved baseUrl for runtime and swagger resolution" },
             basePath = new { type = "string", description = "API base path (e.g. /api/accounts)" },
             healthCheck = new { type = "string", description = "Optional health check path (e.g. /health)" },
@@ -688,7 +707,7 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
                     }
                 }
             },
-            environment = new { type = "string", description = "Environment key to resolve relative swaggerUrl (default: pre)" },
+            environment = new { type = "string", description = "Environment key to resolve relative contract URL (default: pre)" },
             baseUrl = new
             {
                 type = "object",
@@ -697,7 +716,7 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
             downloadCache = new { type = "boolean", description = "Download cache after upsert (default: true)" },
             overwriteDefinition = new { type = "boolean", description = "Overwrite existing definition values (default: true)" }
         },
-        required = new[] { "version", "apiName", "swaggerUrl" }
+        required = new[] { "version", "apiName" }
     };
 
     public async Task<object> ExecuteAsync(Dictionary<string, object>? arguments)
@@ -706,9 +725,12 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
             ?? throw new ArgumentException("version is required");
         var apiName = arguments?.GetValueOrDefault("apiName")?.ToString()
             ?? throw new ArgumentException("apiName is required");
-        var swaggerUrl = arguments?.GetValueOrDefault("swaggerUrl")?.ToString()
-            ?? throw new ArgumentException("swaggerUrl is required");
-        swaggerUrl = CatalogSwaggerUrlNormalizer.NormalizeForCatalog(swaggerUrl);
+        var openApiUrl = arguments?.GetValueOrDefault("openApiUrl")?.ToString();
+        var swaggerUrl = arguments?.GetValueOrDefault("swaggerUrl")?.ToString();
+        var scalaUrl = arguments?.GetValueOrDefault("scalaUrl")?.ToString();
+        var rawContractUrl = FirstNonEmpty(openApiUrl, swaggerUrl, scalaUrl)
+            ?? throw new ArgumentException("One of openApiUrl, swaggerUrl, or scalaUrl is required");
+        swaggerUrl = CatalogSwaggerUrlNormalizer.NormalizeForCatalog(rawContractUrl);
         var port = arguments?.TryGetValue("port", out var portObj) == true &&
                    int.TryParse(portObj?.ToString(), out var parsedPort)
             ? parsedPort
@@ -740,7 +762,8 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
         }
 
         var basePathValue = string.IsNullOrWhiteSpace(basePath) ? "/" : basePath;
-        var storedSwaggerUrl = swaggerUrl;
+        var contractType = ResolveContractType(arguments, swaggerUrl);
+        var storedContractUrl = swaggerUrl;
         var storedPort = port;
         if (CatalogSwaggerTemplateBuilder.TryBuildTemplate(
                 swaggerUrl,
@@ -749,7 +772,7 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
                 out var templatedSwaggerUrl,
                 out var inferredPort))
         {
-            storedSwaggerUrl = templatedSwaggerUrl;
+            storedContractUrl = templatedSwaggerUrl;
             storedPort ??= inferredPort;
         }
 
@@ -763,16 +786,19 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
                 var tempDefinition = new ApiDefinition
                 {
                     Name = apiName,
+                    ContractType = contractType,
                     Port = storedPort,
                     BasePath = basePathValue,
-                    SwaggerUrl = storedSwaggerUrl,
+                    OpenApiUrl = contractType == ApiContractTypes.OpenApi ? storedContractUrl : null,
+                    SwaggerUrl = contractType == ApiContractTypes.Swagger ? storedContractUrl : null,
+                    ScalaUrl = contractType == ApiContractTypes.Scala ? storedContractUrl : null,
                     BaseUrl = MergeBaseUrls(
                         InferDefinitionBaseUrl(swaggerUrl, environment),
                         definitionBaseUrlOverrides)
                 };
 
                 var swaggerUri = SwaggerUriResolver.Resolve(versionEntry,tempDefinition, environment);
-                prefetchedPayload = await SwaggerDownloader.DownloadAsync(swaggerUri);
+                prefetchedPayload = await SwaggerDownloader.DownloadAsync(swaggerUri, tempDefinition.GetResolvedContractType());
                 var title = TryExtractOpenApiTitle(prefetchedPayload);
                 inferredApiName = NormalizeApiName(title);
                 if (!string.IsNullOrWhiteSpace(inferredApiName) &&
@@ -799,22 +825,27 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
             definition = new ApiDefinition
             {
                 Name = apiName,
+                ContractType = contractType,
                 Port = storedPort,
                 BasePath = basePathValue,
-                SwaggerUrl = storedSwaggerUrl,
                 HealthCheck = healthCheck,
                 Readiness = readiness,
                 BaseUrl = MergeBaseUrls(
                     InferDefinitionBaseUrl(swaggerUrl, environment),
                     definitionBaseUrlOverrides)
             };
+            definition.SetContractUrl(storedContractUrl);
             versionEntry.Definitions.Add(definition);
             definitionAction = "created";
         }
         else if (overwriteDefinition)
         {
             definition.BasePath = basePathValue;
-            definition.SwaggerUrl = storedSwaggerUrl;
+            definition.ContractType = contractType;
+            definition.OpenApiUrl = null;
+            definition.SwaggerUrl = null;
+            definition.ScalaUrl = null;
+            definition.SetContractUrl(storedContractUrl);
             definition.Port = storedPort;
             if (!string.IsNullOrWhiteSpace(healthCheck))
             {
@@ -962,7 +993,7 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
         if (string.IsNullOrWhiteSpace(payload))
         {
             var swaggerUri = SwaggerUriResolver.Resolve(versionEntry,definition, environment);
-            payload = await SwaggerDownloader.DownloadAsync(swaggerUri);
+            payload = await SwaggerDownloader.DownloadAsync(swaggerUri, definition.GetResolvedContractType());
         }
 
         var directory = Path.GetDirectoryName(cachePath);
@@ -1035,6 +1066,71 @@ public sealed class UpsertApiCatalogAndCacheTool : IMcpTool
         normalized = normalized.Trim('.', '-', '_');
 
         return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+    }
+
+    private static string ResolveContractType(Dictionary<string, object>? arguments, string normalizedContractUrl)
+    {
+        var requestedType = arguments?.GetValueOrDefault("contractType")?.ToString();
+        var openApiUrl = arguments?.GetValueOrDefault("openApiUrl")?.ToString();
+        var swaggerUrl = arguments?.GetValueOrDefault("swaggerUrl")?.ToString();
+        var scalaUrl = arguments?.GetValueOrDefault("scalaUrl")?.ToString();
+        return NormalizeContractType(requestedType, openApiUrl, swaggerUrl, scalaUrl, normalizedContractUrl);
+    }
+
+    private static string NormalizeContractType(
+        string? requestedType,
+        string? openApiUrl,
+        string? swaggerUrl,
+        string? scalaUrl,
+        string? fallbackUrl = null)
+    {
+        if (!string.IsNullOrWhiteSpace(requestedType))
+        {
+            var normalized = requestedType.Trim().Replace("-", string.Empty, StringComparison.Ordinal).ToLowerInvariant();
+            return normalized switch
+            {
+                "openapi" => ApiContractTypes.OpenApi,
+                "swagger" => ApiContractTypes.Swagger,
+                "scala" => ApiContractTypes.Scala,
+                _ => requestedType.Trim().ToLowerInvariant()
+            };
+        }
+
+        if (!string.IsNullOrWhiteSpace(openApiUrl))
+        {
+            return ApiContractTypes.OpenApi;
+        }
+
+        if (!string.IsNullOrWhiteSpace(scalaUrl))
+        {
+            return ApiContractTypes.Scala;
+        }
+
+        if (!string.IsNullOrWhiteSpace(swaggerUrl))
+        {
+            return ApiContractTypes.Swagger;
+        }
+
+        if (!string.IsNullOrWhiteSpace(fallbackUrl) &&
+            fallbackUrl.Contains("openapi", StringComparison.OrdinalIgnoreCase))
+        {
+            return ApiContractTypes.OpenApi;
+        }
+
+        return ApiContractTypes.Swagger;
+    }
+
+    private static string? FirstNonEmpty(params string?[] values)
+    {
+        foreach (var value in values)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return null;
     }
 
     private static Dictionary<string, string> InferDefinitionBaseUrl(string swaggerUrl, string environment)
@@ -1154,7 +1250,7 @@ public sealed class RefreshSwaggerCacheFromCatalogTool : IMcpTool
                 }
 
                 var swaggerUri = SwaggerUriResolver.Resolve(versionEntry,definition, environment);
-                var payload = await SwaggerDownloader.DownloadAsync(swaggerUri);
+                var payload = await SwaggerDownloader.DownloadAsync(swaggerUri, definition.GetResolvedContractType());
                 if (IsGenericApiName(definition.Name))
                 {
                     var inferredName = NormalizeApiName(TryExtractOpenApiTitle(payload));

@@ -22,7 +22,7 @@
   <img src="./.doc/icon.svg" width="90" height="90" alt="SphereIntegrationHub icon"/>
 </p>
 
-CLI tool to orchestrate API calls using versioned Swagger catalogs and YAML workflows. Workflows can reference other workflows, share context (like JWTs), validate endpoints against cached Swagger specs, and run in dry-run mode for validation.
+CLI tool to orchestrate API calls using versioned OpenAPI catalogs and YAML workflows. Workflows can reference other workflows, share context (like JWTs), validate endpoints against cached API contracts, and run in dry-run mode for validation.
 
 Stage execution is being opened through a versioned plugin contract: workflow orchestration stays in the runtime, while protocol/channel implementations such as HTTP can live in dedicated plugins.
 
@@ -31,7 +31,7 @@ Documentation:
 - [`Overview`](.doc/overview.md)
 - [`Why SphereIntegrationHub`](.doc/why-sih.md)
 - [`workflow schema`](.doc/workflow-schema.md)
-- [`swagger catalog`](.doc/swagger-catalog.md)
+- [`OpenAPI catalog`](.doc/swagger-catalog.md)
 - [`cli help`](.doc/cli.md)
 - [`variables and context`](.doc/variables.md)
 - [`dry-run validation`](.doc/dry-run.md)
@@ -171,7 +171,7 @@ Compatibility policy:
 - Starting in `1.8`, the recommended migration path is the MCP tool `migrate_api_catalog`.
 - Legacy JSON support is transitional and will be removed after that compatibility window, so new catalog authoring should target `api.catalog` directly.
 
-Swagger definitions are cached per version in:
+API contract definitions are cached per version in:
 
 `src/resources/cache/{version}/{definition}.json`
 
@@ -533,7 +533,7 @@ Execution resolves child workflow paths right before a workflow stage runs. Vali
 
 #### 🛡️ 2. Contract-First Validation
 
-Validate endpoints against cached Swagger specifications **before execution**:
+Validate endpoints against cached API contract specifications **before execution**:
 
 ```bash
 --dry-run --verbose  # Validates without making HTTP calls
@@ -585,25 +585,22 @@ variables:
 
 Manage multiple API versions and environments in a single catalog:
 
-```json
-{
-  "version": "3.11",
-  "definitions": [
-    {
-      "name": "example-service",
-      "swaggerUrl": "/example/swagger/v1.0/swagger.json",
-      "basePath": "/ocapi",
-      "baseUrl": {
-        "dev": "https://dev.api.com",
-        "pre": "https://pre.api.com",
-        "prod": "https://api.com"
-      }
-    }
-  ]
-}
+```yaml
+- version: "3.11"
+  definitions:
+    - name: example-service
+      contractType: openapi
+      openApiUrl: /example/swagger/v1/swagger.json
+      basePath: /ocapi
+      baseUrl:
+        dev: https://dev.api.com
+        pre: https://pre.api.com
+        prod: https://api.com
 ```
 
-Swagger definitions are cached per version, ensuring validation against the correct contract.
+`contractType` accepts `openapi`, `swagger`, or `scala`. Use the matching URL field: `openApiUrl`, `swaggerUrl`, or `scalaUrl`.
+
+API contract definitions are cached per version, ensuring validation against the correct contract.
 
 #### 🚀 7. CI/CD Native
 
@@ -620,7 +617,7 @@ sih \
 
 No account required. No cloud dependency. No internet connection needed for execution:
 
-- **All-in-one-place**: Workflows, catalogs, and Swagger cache live on disk
+- **All-in-one-place**: Workflows, catalogs, and contract cache live on disk
 - **No vendor lock-in**: No subscription, no API limits
 - **Optional telemetry**: OpenTelemetry is supported but disabled by default
 - **Edit anywhere**: YAML files editable with any text editor (VS Code, vim, nano)
@@ -643,7 +640,7 @@ Unlike Postman (cloud sync required) or Apidog (account-based), SphereIntegratio
 - Complex multi-step orchestration (10+ sequential calls)
 - Automated integration testing in CI/CD
 - Reproducible API workflows in Git
-- Contract validation against versioned Swagger specs
+- Contract validation against versioned OpenAPI specs
 - Production smoke tests and health checks
 - Scenarios requiring workflow composition and reuse
 
@@ -653,7 +650,7 @@ Unlike Postman (cloud sync required) or Apidog (account-based), SphereIntegratio
 
 SphereIntegrationHub is now strong as a local-first API orchestration runtime and AI-assisted workflow authoring tool.
 
-- ✅ Contract-aware endpoint execution with versioned Swagger validation
+- ✅ Contract-aware endpoint execution with versioned OpenAPI validation
 - ✅ Workflow composition and reusable child workflows
 - ✅ Child workflow failures propagate to the parent workflow
 - ✅ Idempotent HTTP branching with `expectedStatuses`, `onStatus`, `jumpOnStatus`, and `ensure`

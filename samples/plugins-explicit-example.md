@@ -19,7 +19,8 @@ plugins:
       runtimeVersion: "1.0"
   definitions:
     - name: accounts
-      swaggerUrl: /swagger/v1/swagger.json
+      contractType: openapi
+      openApiUrl: /swagger/v1/swagger.json
       baseUrl:
         local: http://localhost:5000
 ```

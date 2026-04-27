@@ -4,7 +4,7 @@ namespace SphereIntegrationHub.MCP.Services.Catalog;
 
 internal static class SwaggerDownloader
 {
-    public static async Task<string> DownloadAsync(Uri swaggerUri)
+    public static async Task<string> DownloadAsync(Uri swaggerUri, string contractType = ApiContractTypes.Swagger)
     {
         string payload;
         if (swaggerUri.IsFile)
@@ -19,13 +19,13 @@ internal static class SwaggerDownloader
             if (IsLikelyHtml(payload))
             {
                 Console.Error.WriteLine(
-                    $"[SphereIntegrationHub.MCP] Warning: swagger source '{swaggerUri}' returned HTML. Trying known JSON fallback URLs.");
-                var fallback = await TryResolveOpenApiFromHtmlFallbackAsync(swaggerUri);
+                    $"[SphereIntegrationHub.MCP] Warning: contract source '{swaggerUri}' returned HTML. Trying known JSON fallback URLs.");
+                var fallback = await TryResolveOpenApiFromHtmlFallbackAsync(swaggerUri, contractType: contractType);
                 if (fallback != null)
                     return fallback;
 
                 throw new InvalidOperationException(
-                    $"Swagger source '{swaggerUri}' returned HTML content. Tried JSON fallbacks but none returned a valid OpenAPI document.");
+                    $"Contract source '{swaggerUri}' returned HTML content. Tried JSON fallbacks but none returned a valid OpenAPI document.");
             }
 
             ValidatePayload(payload, swaggerUri);
@@ -37,13 +37,13 @@ internal static class SwaggerDownloader
         if (IsLikelyHtml(payload))
         {
             Console.Error.WriteLine(
-                $"[SphereIntegrationHub.MCP] Warning: swagger source '{swaggerUri}' returned HTML. Trying known JSON fallback URLs.");
-            var fallback = await TryResolveOpenApiFromHtmlFallbackAsync(swaggerUri, httpClient);
+                $"[SphereIntegrationHub.MCP] Warning: contract source '{swaggerUri}' returned HTML. Trying known JSON fallback URLs.");
+            var fallback = await TryResolveOpenApiFromHtmlFallbackAsync(swaggerUri, httpClient, contractType);
             if (fallback != null)
                 return fallback;
 
             throw new InvalidOperationException(
-                $"Swagger source '{swaggerUri}' returned HTML content. Tried JSON fallbacks but none returned a valid OpenAPI document.");
+                $"Contract source '{swaggerUri}' returned HTML content. Tried JSON fallbacks but none returned a valid OpenAPI document.");
         }
 
         ValidatePayload(payload, swaggerUri);
@@ -62,7 +62,7 @@ internal static class SwaggerDownloader
         if (trimmed.StartsWith("<", StringComparison.Ordinal))
         {
             throw new InvalidOperationException(
-                $"Swagger source '{sourceUri}' returned HTML content. Use the OpenAPI JSON endpoint (for example: /swagger/v1/swagger.json or /openapi.json).");
+                $"Contract source '{sourceUri}' returned HTML content. Use the OpenAPI JSON endpoint (for example: /swagger/v1/swagger.json or /openapi.json).");
         }
 
         JsonDocument document;
@@ -73,7 +73,7 @@ internal static class SwaggerDownloader
         catch (JsonException ex)
         {
             throw new InvalidOperationException(
-                $"Swagger source '{sourceUri}' did not return valid JSON: {ex.Message}", ex);
+                $"Contract source '{sourceUri}' did not return valid JSON: {ex.Message}", ex);
         }
 
         using (document)
@@ -81,22 +81,22 @@ internal static class SwaggerDownloader
             if (document.RootElement.ValueKind != JsonValueKind.Object)
             {
                 throw new InvalidOperationException(
-                    $"Swagger source '{sourceUri}' returned JSON but not an OpenAPI document object.");
+                    $"Contract source '{sourceUri}' returned JSON but not an OpenAPI document object.");
             }
 
             var root = document.RootElement;
             if (!root.TryGetProperty("openapi", out _) && !root.TryGetProperty("swagger", out _))
             {
                 throw new InvalidOperationException(
-                    $"Swagger source '{sourceUri}' returned JSON but missing 'openapi'/'swagger' fields.");
+                    $"Contract source '{sourceUri}' returned JSON but missing 'openapi'/'swagger' fields.");
             }
         }
     }
 
     private static async Task<string?> TryResolveOpenApiFromHtmlFallbackAsync(
-        Uri sourceUri, HttpClient? sharedClient = null)
+        Uri sourceUri, HttpClient? sharedClient = null, string contractType = ApiContractTypes.Swagger)
     {
-        var candidates = BuildFallbackCandidates(sourceUri);
+        var candidates = BuildFallbackCandidates(sourceUri, contractType);
         if (candidates.Count == 0)
             return null;
 
@@ -138,7 +138,7 @@ internal static class SwaggerDownloader
         return null;
     }
 
-    private static List<Uri> BuildFallbackCandidates(Uri sourceUri)
+    private static List<Uri> BuildFallbackCandidates(Uri sourceUri, string contractType)
     {
         var path = sourceUri.AbsolutePath;
         if (string.IsNullOrWhiteSpace(path))
@@ -157,12 +157,7 @@ internal static class SwaggerDownloader
         if (string.IsNullOrWhiteSpace(prefix))
             return [];
 
-        var candidatePaths = new List<string>
-        {
-            $"{prefix}/v1/swagger.json",
-            $"{prefix}/swagger.json",
-            $"{prefix}/openapi.json"
-        };
+        var candidatePaths = BuildCandidatePaths(prefix, contractType);
 
         if (prefix.EndsWith("/swagger", StringComparison.OrdinalIgnoreCase))
         {
@@ -194,6 +189,52 @@ internal static class SwaggerDownloader
         }
 
         return candidates;
+    }
+
+    private static List<string> BuildCandidatePaths(string prefix, string contractType)
+    {
+        var normalizedType = contractType.Trim().ToLowerInvariant();
+        var candidatePaths = normalizedType switch
+        {
+            ApiContractTypes.OpenApi => new List<string>
+            {
+                $"{prefix}/openapi.json",
+                $"{prefix}/swagger.json",
+                $"{prefix}/v1/swagger.json"
+            },
+            ApiContractTypes.Scala => new List<string>
+            {
+                $"{prefix}/openapi.json",
+                $"{prefix}/api-docs",
+                $"{prefix}/docs/openapi",
+                $"{prefix}/swagger.json",
+                $"{prefix}/v1/swagger.json"
+            },
+            _ => new List<string>
+            {
+                $"{prefix}/v1/swagger.json",
+                $"{prefix}/swagger.json",
+                $"{prefix}/openapi.json"
+            }
+        };
+
+        if (prefix.EndsWith("/swagger", StringComparison.OrdinalIgnoreCase))
+        {
+            var parent = prefix[..^"/swagger".Length];
+            if (!string.IsNullOrWhiteSpace(parent))
+            {
+                candidatePaths.Add($"{parent}/swagger/v1/swagger.json");
+                candidatePaths.Add($"{parent}/swagger.json");
+                candidatePaths.Add($"{parent}/openapi.json");
+                if (normalizedType == ApiContractTypes.Scala)
+                {
+                    candidatePaths.Add($"{parent}/api-docs");
+                    candidatePaths.Add($"{parent}/docs/openapi");
+                }
+            }
+        }
+
+        return candidatePaths;
     }
 
     private static HttpClient CreateHttpClient()

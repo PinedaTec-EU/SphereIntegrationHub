@@ -69,8 +69,8 @@ static async Task WarnIfCatalogContainsHtmlSwaggerUrlsAsync(string catalogPath)
         var catalog = (await ApiCatalogFile.LoadAsync(catalogPath)).ToList();
 
         var htmlEntries = catalog
-            .SelectMany(v => v.Definitions.Select(d => new { v.Version, d.Name, d.SwaggerUrl }))
-            .Where(x => LooksLikeHtmlSwaggerUrl(x.SwaggerUrl))
+            .SelectMany(v => v.Definitions.Select(d => new { v.Version, d.Name, ContractType = d.GetResolvedContractType(), ContractUrl = d.GetResolvedContractUrl() }))
+            .Where(x => LooksLikeHtmlSwaggerUrl(x.ContractUrl))
             .ToList();
 
         if (htmlEntries.Count == 0)
@@ -79,19 +79,19 @@ static async Task WarnIfCatalogContainsHtmlSwaggerUrlsAsync(string catalogPath)
         }
 
         Console.Error.WriteLine(
-            $"[SphereIntegrationHub.MCP] Warning: Found {htmlEntries.Count} catalog definition(s) using HTML swaggerUrl. " +
+            $"[SphereIntegrationHub.MCP] Warning: Found {htmlEntries.Count} catalog definition(s) using an HTML contract URL. " +
             "MCP will try JSON fallback patterns, but this should be corrected to JSON spec URLs.");
 
         foreach (var entry in htmlEntries)
         {
             Console.Error.WriteLine(
-                $"[SphereIntegrationHub.MCP] Warning: version={entry.Version}, api={entry.Name}, swaggerUrl={entry.SwaggerUrl}");
+                $"[SphereIntegrationHub.MCP] Warning: version={entry.Version}, api={entry.Name}, contractType={entry.ContractType}, contractUrl={entry.ContractUrl}");
         }
     }
     catch (Exception ex)
     {
         Console.Error.WriteLine(
-            $"[SphereIntegrationHub.MCP] Warning: Could not inspect catalog for HTML swaggerUrl entries: {ex.Message}");
+            $"[SphereIntegrationHub.MCP] Warning: Could not inspect catalog for HTML contractUrl entries: {ex.Message}");
     }
 }
 

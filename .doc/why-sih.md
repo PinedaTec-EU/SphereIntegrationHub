@@ -5,7 +5,7 @@ SphereIntegrationHub (SIH) is a CLI-first, YAML-driven API orchestration tool bu
 ## When SIH is a fit
 
 - You need repeatable API workflows for seeding, smoke tests, regression flows, or scripted scenarios.
-- You want contract validation against versioned Swagger before execution.
+- You want contract validation against versioned OpenAPI contracts before execution.
 - You prefer Git-friendly YAML over GUI-only or code-only pipelines.
 - You need offline execution with local caches and no external services.
 
@@ -22,9 +22,9 @@ While tools like Postman, Apidog, and Bruno are excellent for interactive API de
 | **Sequential API calls** | ✅ Via Collection Runner | ✅ Native workflow stages |
 | **Modular workflow composition** | ⚠️ Limited (copy/paste collections) | ✅ **References between workflows** |
 | **Declarative YAML workflows** | ❌ JSON exports (GUI-oriented) | ✅ **Git-friendly YAML** |
-| **Version-controlled API catalog** | ⚠️ Environments only | ✅ **Versioned catalog with Swagger** |
+| **Version-controlled API catalog** | ⚠️ Environments only | ✅ **Versioned catalog with OpenAPI contracts** |
 | **Pre-execution validation** | ❌ Run to discover errors | ✅ **Dry-run mode validates before execution** |
-| **Swagger contract validation** | ⚠️ Import only | ✅ **Cached Swagger validation per version** |
+| **OpenAPI contract validation** | ⚠️ Import only | ✅ **Cached contract validation per version** |
 | **Context sharing across workflows** | ⚠️ Scripts + environment variables | ✅ **Built-in context propagation** |
 | **Control flow (conditionals, jumps)** | ⚠️ Via `setNextRequest()` scripts | ✅ **Declarative `jumpTo` and `runCondition`** |
 | **Dynamic value generation** | ⚠️ Via pre-request scripts | ✅ **Native random value service with formatting** |
@@ -39,7 +39,7 @@ While tools like Postman, Apidog, and Bruno are excellent for interactive API de
 | **Authoring** | ✅ GUI-first | ✅ YAML + CLI |
 | **Runtime** | ❌ Requires service | ✅ Local CLI |
 | **Git friendliness** | ⚠️ Exported flows | ✅ Native YAML |
-| **Validation** | ⚠️ Limited | ✅ Dry-run + Swagger |
+| **Validation** | ⚠️ Limited | ✅ Dry-run + OpenAPI |
 | **Offline-first** | ❌ | ✅ |
 | **Choose SIH when** | You want versioned API flows without a running orchestration UI | You need GUI-driven integrations and connectors |
 
@@ -60,7 +60,7 @@ While tools like Postman, Apidog, and Bruno are excellent for interactive API de
 | **Primary focus** | 🔎 Managed cloud orchestration | 🔎 Local API orchestration |
 | **Authoring** | ✅ JSON/Amazon States | ✅ YAML + CLI |
 | **Runtime** | ✅ AWS managed | ✅ Local CLI |
-| **Integrations** | ✅ Deep AWS ecosystem | ⚠️ API-driven via swagger catalog |
+| **Integrations** | ✅ Deep AWS ecosystem | ⚠️ API-driven via OpenAPI catalog |
 | **Vendor lock-in** | ❌ AWS | ✅ None |
 | **Offline-first** | ❌ | ✅ |
 | **Choose SIH when** | You want local, portable workflows | You are all-in on AWS managed orchestration |
