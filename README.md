@@ -616,6 +616,7 @@ SphereIntegrationHub is now strong as a local-first API orchestration runtime an
 - ✅ Built-in `http` stage plugin for `Http` / `Endpoint` stages
 - ✅ Built-in `openai` stage plugin for `LLM` / `OpenAI` stages with prompt files, JSON schema output, token limits, timeout, and usage-token outputs
 - ✅ Built-in `vaultwarden` secret provider plugin for fail-fast pre-load secret hydration and report masking
+- ✅ Plugin documentation and examples split by built-in plugin, with runtime, MCP capability metadata, and samples aligned
 - ✅ MCP server with 35 implemented tools across all capability levels — catalog exploration, workflow validation, stage generation, variable analysis, semantic dependency inference, pattern detection, full system synthesis, and optimization
 - ✅ GitHub Action (`run-sphere-workflow`) for executing workflows from any CI/CD pipeline, with optional version pinning
 
@@ -625,11 +626,9 @@ SphereIntegrationHub is now strong as a local-first API orchestration runtime an
    First-class assertions, golden snapshots, and failure diffs on top of the existing execution reports.
 2. **Snapshot and Regression Testing**
    Snapshot authoring helpers and update workflows for intentional baseline changes.
-3. **Documentation and Surface Alignment**
-   Keep runtime, CLI, MCP, GitHub Action, and examples synchronized so the documented contract matches the implemented one.
-4. **External Plugin Packaging**
+3. **External Plugin Packaging**
    Harden discovery, packaging, diagnostics, and examples for custom third-party stage plugins beyond the built-in `http`, `openai`, and `vaultwarden` plugins.
-5. **Transport-Level Retry Controls**
+4. **Transport-Level Retry Controls**
    Keep catalog-driven readiness strict at preflight time, and evaluate future per-stage boolean controls to opt workflow endpoint calls into the same transport retry policy when that surface is stable.
 
 ### Mid-Term Roadmap
