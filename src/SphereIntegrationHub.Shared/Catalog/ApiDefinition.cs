@@ -12,6 +12,8 @@ public sealed class ApiDefinition
     public Dictionary<string, string>? BaseUrl { get; set; }
     public int? Port { get; set; }
     public string? BasePath { get; set; }
+    public string? ApiKey { get; set; }
+    public string? ApiKeySecret { get; set; }
 
     public string GetResolvedContractType()
     {
@@ -39,6 +41,7 @@ public sealed class ApiDefinition
         {
             ApiContractTypes.OpenApi => FirstNonEmpty(OpenApiUrl, SwaggerUrl, ScalaUrl),
             ApiContractTypes.Scala => FirstNonEmpty(ScalaUrl, OpenApiUrl, SwaggerUrl),
+            ApiContractTypes.Llm => throw new InvalidOperationException("LLM API definitions do not define an OpenAPI contract URL."),
             _ => FirstNonEmpty(SwaggerUrl, OpenApiUrl, ScalaUrl)
         };
     }
@@ -68,6 +71,7 @@ public sealed class ApiDefinition
             "openapi" => ApiContractTypes.OpenApi,
             "swagger" => ApiContractTypes.Swagger,
             "scala" => ApiContractTypes.Scala,
+            "llm" => ApiContractTypes.Llm,
             _ => contractType.Trim()
         };
     }
@@ -91,6 +95,7 @@ public static class ApiContractTypes
     public const string OpenApi = "openapi";
     public const string Swagger = "swagger";
     public const string Scala = "scala";
+    public const string Llm = "llm";
 }
 
 public sealed class ApiReadinessPolicyDefinition

@@ -19,6 +19,11 @@ public interface IStagePlugin
 public abstract class StagePluginBase : IStagePlugin
 {
     protected StagePluginBase(string id, params string[] stageKinds)
+        : this(id, StagePluginCapabilities.OpenApiEndpoint, stageKinds)
+    {
+    }
+
+    protected StagePluginBase(string id, StagePluginCapabilities capabilities, params string[] stageKinds)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(stageKinds);
@@ -27,7 +32,8 @@ public abstract class StagePluginBase : IStagePlugin
             id,
             StagePluginContract.Version,
             GetType().Assembly.GetName().Version?.ToString() ?? StagePluginContract.Version,
-            stageKinds);
+            stageKinds,
+            capabilities);
     }
 
     public StagePluginDescriptor Descriptor { get; }
@@ -53,7 +59,33 @@ public sealed record StagePluginDescriptor(
     string Id,
     string ContractVersion,
     string RuntimeVersion,
-    IReadOnlyCollection<string> StageKinds);
+    IReadOnlyCollection<string> StageKinds,
+    StagePluginCapabilities Capabilities);
+
+public sealed record StagePluginCapabilities(
+    bool RequiresApiDefinition,
+    bool RequiresConnection,
+    bool RequiresOpenApiCache,
+    bool SupportsEndpointValidation,
+    bool SupportsMockPayload,
+    bool EmitsNormalizedOutput)
+{
+    public static StagePluginCapabilities OpenApiEndpoint { get; } = new(
+        RequiresApiDefinition: true,
+        RequiresConnection: false,
+        RequiresOpenApiCache: true,
+        SupportsEndpointValidation: true,
+        SupportsMockPayload: true,
+        EmitsNormalizedOutput: false);
+
+    public static StagePluginCapabilities ConnectionStage { get; } = new(
+        RequiresApiDefinition: false,
+        RequiresConnection: true,
+        RequiresOpenApiCache: false,
+        SupportsEndpointValidation: false,
+        SupportsMockPayload: true,
+        EmitsNormalizedOutput: true);
+}
 
 public sealed record StagePluginValidationContext(
     WorkflowDefinition Workflow,
@@ -68,13 +100,18 @@ public sealed record StagePluginExecutionContext(
     Func<StageTransportRequest, CancellationToken, Task<StageTransportResponse>> SendAsync,
     Func<WorkflowStageDefinition, string, CancellationToken, Task<StagePluginExecutionResult>>? InvokeEndpointAsync,
     IReadOnlyDictionary<string, string> ApiBaseUrls,
+    IReadOnlyDictionary<string, ApiDefinition> ApiDefinitions,
+    IReadOnlyDictionary<string, string> ConnectionBaseUrls,
+    IReadOnlyDictionary<string, ApiConnectionDefinition> Connections,
     string WorkflowPath);
 
 public sealed record StagePluginExecutionResult(
     ResponseContext Response,
     string RequestUri,
     string Operation,
-    string? RequestBody);
+    string? RequestBody,
+    IReadOnlyDictionary<string, string>? Output = null,
+    IReadOnlyDictionary<string, System.Text.Json.JsonElement>? OutputJson = null);
 
 public sealed record StageTransportRequest(
     string Method,

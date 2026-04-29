@@ -59,9 +59,14 @@ public sealed class ApiEndpointValidator
 
         foreach (var stage in workflow.Stages.Where(stage => !WorkflowStageKind.IsWorkflow(stage.Kind)))
         {
-            if (!_stagePluginRegistry.TryGetByKind(stage.Kind, out _))
+            if (!_stagePluginRegistry.TryGetByKind(stage.Kind, out var plugin))
             {
                 errors.Add($"Stage '{stage.Name}' kind '{stage.Kind}' is not registered by any active plugin.");
+                continue;
+            }
+
+            if (!plugin.Descriptor.Capabilities.SupportsEndpointValidation)
+            {
                 continue;
             }
 
@@ -197,6 +202,11 @@ public sealed class ApiEndpointValidator
             if (definition is null)
             {
                 errors.Add($"API definition '{definitionName}' was not found in catalog version '{catalogVersion.Version}'.");
+                continue;
+            }
+
+            if (string.Equals(definition.GetResolvedContractType(), ApiContractTypes.Llm, StringComparison.OrdinalIgnoreCase))
+            {
                 continue;
             }
 
