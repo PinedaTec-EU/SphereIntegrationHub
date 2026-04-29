@@ -40,7 +40,10 @@ Documentation:
 - [`MCP Server`](.doc/mcp-server.md) - AI-assisted workflow creation (35 tools, all levels)
 - [`GitHub Action`](.doc/github-action.md) - run workflows from any CI/CD pipeline
 - [`plugins`](.doc/plugins.md)
+- [`HTTP plugin`](.doc/plugins-http.md)
+- [`OpenAI LLM plugin`](.doc/plugins-openai.md)
 - [`secret providers`](.doc/secret-providers.md)
+- [`Vaultwarden secret provider`](.doc/plugins-vaultwarden.md)
 
 Examples:
 

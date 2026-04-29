@@ -30,27 +30,7 @@ Behavior:
 
 ## Vaultwarden provider
 
-The `vaultwarden` provider currently follows a pragmatic two-step flow:
-
-1. Authenticate against a Vaultwarden-compatible token endpoint such as `/identity/connect/token`.
-2. Call a secrets projection endpoint that returns decrypted values in a simple JSON map.
-
-Example response:
-
-```json
-{
-  "secrets": {
-    "accounts.api-token": "token-value",
-    "accounts.client-secret": "secret-value"
-  }
-}
-```
-
-Why this shape:
-
-- Vaultwarden stores vault items encrypted.
-- Full client-side decryption is intentionally kept out of the runtime in this initial provider implementation.
-- The provider is therefore suitable when your Vaultwarden deployment exposes a trusted companion endpoint that projects decrypted secrets for automation use.
+See [`Vaultwarden secret provider plugin`](plugins-vaultwarden.md) for plugin-specific configuration and behavior.
 
 ## Example
 
