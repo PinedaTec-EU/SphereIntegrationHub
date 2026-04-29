@@ -50,6 +50,50 @@ internal static class PluginCapabilitiesRegistry
             },
             new
             {
+                type = "llm",
+                description = "Calls an OpenAI-compatible LLM/SLM endpoint through the openai stage plugin",
+                requiredFields = new[] { "name", "kind", "config.connectionRef", "config.model", "config.prompts.input.text|file" },
+                optionalFields = new[]
+                {
+                    "config.prompts.system.text",
+                    "config.prompts.system.file",
+                    "config.prompts.developer.text",
+                    "config.prompts.developer.file",
+                    "config.prompts.output.text",
+                    "config.prompts.output.file",
+                    "config.reasoning.effort",
+                    "config.generation.temperature",
+                    "config.generation.topP",
+                    "config.generation.responseFormat",
+                    "config.output.schema",
+                    "config.output.schemaFile",
+                    "config.output.schemaName",
+                    "config.output.schemaStrict",
+                    "config.limits.maxInputTokens",
+                    "config.limits.maxOutputTokens",
+                    "config.limits.maxTotalTokens",
+                    "config.limits.timeoutSeconds",
+                    "output",
+                    "secretOutputs",
+                    "retry",
+                    "circuitBreaker",
+                    "message",
+                    "debug",
+                    "set",
+                    "context",
+                    "mock"
+                },
+                capabilities = new[]
+                {
+                    "OpenAI Responses API requests through api.catalog connections baseUrl/apiKeySecret",
+                    "Inline or file-based system/developer/input/output prompts with template resolution",
+                    "Reasoning effort, generation controls, JSON mode, and JSON schema structured output",
+                    "Token limit guardrails and optional request timeout",
+                    "Normalized outputs for text, inputTokens, outputTokens, totalTokens, cachedInputTokens, reasoningTokens, finishReason, durationMs, and requestId"
+                }
+            },
+            new
+            {
                 type = "workflow",
                 description = "Executes another workflow using workflowRef",
                 requiredFields = new[] { "name", "kind", "workflowRef" },
@@ -196,8 +240,8 @@ internal static class PluginCapabilitiesRegistry
                     description = "Prefer real runtime fields and keep plugin activation explicit in workflows.config",
                     examples = new[]
                     {
-                        "Use kind: Endpoint or kind: Workflow",
-                        "Declare plugins in workflows.config: plugins: [http]",
+                        "Use kind: Endpoint, kind: LLM, or kind: Workflow",
+                        "Declare plugins in workflows.config: plugins: [http, openai]",
                         "Prefer ensure for create-if-missing bootstrap stages",
                         "Prefer expectedStatuses for idempotent create/bootstrap flows",
                         "Prefer bodyFile/dataFile when payloads are large",

@@ -125,6 +125,54 @@ public sealed class ApiEndpointValidatorLoggerTests
         Assert.Empty(errors);
     }
 
+    [Fact]
+    public void Validate_SkipsLlmDefinitionsWithoutSwaggerCache()
+    {
+        var validator = new ApiEndpointValidator();
+        var workflow = new WorkflowDefinition
+        {
+            Stages = new List<WorkflowStageDefinition>
+            {
+                new()
+                {
+                    Name = "prepare-payload",
+                    Kind = WorkflowStageKind.Llm,
+                    Config = new Dictionary<string, object?>
+                    {
+                        ["connectionRef"] = "openai-main",
+                        ["model"] = "gpt-test",
+                        ["apiKey"] = "sk-test",
+                        ["inputPrompt"] = "Build JSON."
+                    }
+                }
+            }
+        };
+
+        var catalog = new ApiCatalogVersion
+        {
+            Version = "v1",
+            Definitions = new List<ApiDefinition>
+            {
+                new ApiDefinition
+                {
+                    Name = "openai-main",
+                    ContractType = ApiContractTypes.Llm,
+                    BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["local"] = "https://api.openai.com/v1"
+                    }
+                }
+            }
+        };
+
+        var cacheRoot = Path.Combine(Path.GetTempPath(), $"aos-cache-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(cacheRoot);
+
+        var errors = validator.Validate(workflow, catalog, cacheRoot, validateRequiredParameters: false, verbose: true);
+
+        Assert.Empty(errors);
+    }
+
     private sealed class TestLogger : IExecutionLogger
     {
         public List<string> Messages { get; } = new();
