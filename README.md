@@ -107,60 +107,6 @@ dotnet tool restore        # teammates and CI run this to pick it up
 
 NuGet packages: [CLI](https://www.nuget.org/packages/SphereIntegrationHub.Tool/) · [MCP](https://www.nuget.org/packages/SphereIntegrationHub.Mcp.Tool/)
 
-## Community
-
-If you use SphereIntegrationHub in your company or project, we'd love to hear about it!
-
-- Give us a ⭐ on GitHub — it helps the project grow
-- Share your experience on [LinkedIn](https://www.linkedin.com/in/jmrpineda) mentioning **#SphereIntegrationHub** — we repost and feature use cases
-- Drop us a line at [sih@pinedatec.eu](mailto:sih@pinedatec.eu) — tell us what you're automating, we'd love to feature it
-
-## Installation
-
-### npm / npx — no .NET required
-
-The fastest way to get started. No runtime dependencies, no SDK to install.
-
-**Global install** (run `sih` and `sih-mcp` anywhere):
-
-```bash
-npm install -g @pinedatec.eu/sphere-integration-hub
-sih --version
-```
-
-**One-off via npx** (MCP server, ideal for Claude Desktop / VS Code):
-
-```bash
-npx @pinedatec.eu/sphere-integration-hub          # launches the MCP server
-npx -p @pinedatec.eu/sphere-integration-hub sih --version   # CLI one-off
-```
-
-**For teams and CI** (pin to repo):
-
-```bash
-npm install --save-dev @pinedatec.eu/sphere-integration-hub
-# teammates and CI: npm install picks it up automatically
-```
-
-### dotnet tool — for .NET developers
-
-If you already have .NET 10+ installed, the tool is also available on NuGet:
-
-```bash
-dotnet tool install -g SphereIntegrationHub.Tool        # CLI
-dotnet tool install -g SphereIntegrationHub.Mcp.Tool   # MCP server
-```
-
-Or as a local tool (recommended for teams using dotnet):
-
-```bash
-dotnet new tool-manifest   # only if .config/dotnet-tools.json doesn't exist yet
-dotnet tool install SphereIntegrationHub.Tool
-dotnet tool restore        # teammates and CI run this to pick it up
-```
-
-NuGet packages: [CLI](https://www.nuget.org/packages/SphereIntegrationHub.Tool/) · [MCP](https://www.nuget.org/packages/SphereIntegrationHub.Mcp.Tool/)
-
 ## Catalog
 
 The API catalog is a fixed file with versions and API definitions. `api.catalog` is the preferred name and is stored as YAML, though existing legacy JSON/YAML catalog files are still supported during the transition. Each definition provides its own environment base URLs and a relative swagger path. An optional `healthCheck` probes the API before swagger caching and workflow execution, and an optional `readiness` policy controls retries/timeouts and accepted HTTP status codes:
