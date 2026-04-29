@@ -1,0 +1,13 @@
+- version: 3.11
+  plugins:
+    - id: openai
+      contractVersion: "1.0"
+      runtimeVersion: "1.0"
+  definitions: []
+  connections:
+    - name: openai-main
+      type: llm
+      provider: openai
+      baseUrl:
+        local: https://api.openai.com/v1
+      apiKeySecret: "{{input.openaiApiKey}}"

@@ -201,6 +201,73 @@ retry:
 - Do not use `retry.httpStatus` for business outcomes such as lookup `404`, validation `422`, or conflict `409`. Model those with `expectedStatuses`, `onStatus`, or `ensure`.
 - If defined on a workflow stage, it is ignored with a warning.
 
+### LLM stage
+
+`kind: LLM` is handled by the built-in `openai` plugin. It calls an OpenAI-compatible Responses API endpoint declared under `api.catalog` `connections`.
+
+```yaml
+stages:
+  - name: "prepare-customer-payload"
+    kind: "LLM"
+    expectedStatus: 200
+    config:
+      connectionRef: "openai-main"
+      model: "gpt-5.4-mini"
+      prompts:
+        system:
+          text: "You transform workflow data into API-ready JSON."
+        input:
+          text: "Build a customer payload for {{input.customerName}}."
+        output:
+          text: "Return only JSON matching the configured schema."
+      reasoning:
+        effort: "low"
+      generation:
+        temperature: 0.2
+        responseFormat: "schema"
+      output:
+        schemaName: "customer_payload"
+        schemaStrict: true
+        schema:
+          type: object
+          required: [name]
+          properties:
+            name:
+              type: string
+      limits:
+        maxInputTokens: 8000
+        maxOutputTokens: 1200
+        maxTotalTokens: 9200
+        timeoutSeconds: 60
+```
+
+Prompt blocks support either `text` or `file` and are resolved through the normal template engine. `config.output.schema` can also be moved to `config.output.schemaFile`.
+
+`limits.maxInputTokens` is checked locally with an estimate before the request. `limits.maxOutputTokens` is sent to the provider. `limits.maxTotalTokens` is checked before and after the request when provider usage is available. `limits.timeoutSeconds` cancels long-running requests.
+
+The stage exposes normalized outputs without requiring response parsing:
+
+- `text`
+- `inputTokens`
+- `outputTokens`
+- `totalTokens`
+- `cachedInputTokens`
+- `reasoningTokens`
+- `finishReason`
+- `durationMs`
+- `requestId`
+- `model`
+- `provider`
+
+Example references:
+
+```yaml
+endStage:
+  output:
+    payload: "{{stage:prepare-customer-payload.output.text}}"
+    totalTokens: "{{stage:prepare-customer-payload.output.totalTokens}}"
+```
+
 #### Circuit breaker (endpoint only)
 
 ```yaml

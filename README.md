@@ -45,6 +45,7 @@ Documentation:
 Examples:
 
 - [`samples/sample-bootstrap.workflow`](samples/sample-bootstrap.workflow) uses the explicit `Http` plugin stage with a plugin-specific `config` block.
+- [`samples/openai-llm/sample-openai-llm.workflow`](samples/openai-llm/sample-openai-llm.workflow) shows the `openai` plugin with `kind: LLM`, structured output, token limits, timeout, and usage-token outputs.
 - [`samples/workflows.config`](samples/workflows.config) shows explicit plugin activation. If `plugins` is omitted, the runtime still enables `http` for compatibility but emits a warning; a future release will require the section.
 - [`samples/api.catalog`](samples/api.catalog) shows plugin declaration/version binding in the catalog.
 - [`samples/vaultwarden-secrets`](samples/vaultwarden-secrets) shows the `vaultwarden` secret provider feeding `{{env:...}}` tokens. Secret provider failures are fail-fast and abort the run before workflow loading continues.
@@ -233,6 +234,7 @@ SphereIntegrationHub workflows are plain YAML and are designed to stay readable 
 - Reference APIs from the versioned catalog and compose parent/child workflows.
 - Accept typed inputs, `.wfvars`, and `.env` values.
 - Mix endpoint calls, workflow stages, retries, circuit breakers, delays, and conditional branches.
+- Add LLM/SLM stages through the OpenAI plugin, including prompt files, JSON schema output, token limits, timeout, and usage reporting.
 - Work with structured JSON, file-backed payloads, `forEach`, and idempotent `ensure` flows.
 - Generate inline fake data with `{{rand:*}}` helpers for numbers, text, dates, datetimes, times, GUIDs, and ULIDs.
 - Emit JSON and HTML execution reports for post-run diagnosis.
