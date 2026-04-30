@@ -16,6 +16,7 @@ openTelemetry:
   debugConsole: false
 plugins:
   - http
+  - openai
   - amqp
 ```
 
@@ -72,6 +73,13 @@ The plugin `StageKind` decides how a stage is validated and executed. The built-
 
 - `Workflow` (built-in stage kind)
 - `Http` / `Endpoint` (handled by the `http` plugin)
+- `LLM` / `OpenAI` (handled by the `openai` plugin)
+
+Built-in plugin references:
+
+- [`HTTP stage plugin`](plugins-http.md)
+- [`OpenAI LLM stage plugin`](plugins-openai.md)
+- [`Vaultwarden secret provider plugin`](plugins-vaultwarden.md)
 
 Example:
 

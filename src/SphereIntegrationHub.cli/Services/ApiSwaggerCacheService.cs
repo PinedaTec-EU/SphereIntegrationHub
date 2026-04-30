@@ -34,6 +34,16 @@ public sealed class ApiSwaggerCacheService
 
         foreach (var definition in catalogVersion.Definitions.OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase))
         {
+            if (string.Equals(definition.GetResolvedContractType(), ApiContractTypes.Llm, StringComparison.OrdinalIgnoreCase))
+            {
+                if (verbose)
+                {
+                    _logger.Info($"Skipping swagger cache for LLM definition '{definition.Name}'.");
+                }
+
+                continue;
+            }
+
             using var activity = Telemetry.ActivitySource.StartActivity(TelemetryConstants.ActivitySwaggerCache);
 
             activity?.SetTag(TelemetryConstants.TagApiDefinition, definition.Name);

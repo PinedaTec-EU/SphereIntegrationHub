@@ -3,6 +3,9 @@
   - id: http
     contractVersion: "1.0"
     runtimeVersion: "1.0"
+  - id: openai
+    contractVersion: "1.0"
+    runtimeVersion: "1.0"
   definitions:
   - name: accounts
     contractType: openapi
@@ -24,3 +27,10 @@
     basePath: /
     baseUrl:
       local: http://localhost:5100
+  connections:
+  - name: openai-main
+    type: llm
+    provider: openai
+    baseUrl:
+      local: https://api.openai.com/v1
+    apiKeySecret: "{{input.openaiApiKey}}"

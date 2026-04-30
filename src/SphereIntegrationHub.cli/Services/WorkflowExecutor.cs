@@ -275,7 +275,7 @@ public sealed class WorkflowExecutor
         workflowActivity?.SetTag(TelemetryConstants.TagWorkflowName, definition.Name);
         workflowActivity?.SetTag(TelemetryConstants.TagWorkflowId, definition.Id);
         workflowActivity?.SetTag(TelemetryConstants.TagWorkflowVersion, definition.Version);
-        var apiBaseUrls = BuildApiBaseUrlLookup(definition, catalogVersion, environment);
+        var resourceLookup = BuildResourceLookup(definition, catalogVersion, environment);
         var indent = GetIndent(context);
 
         try
@@ -380,7 +380,10 @@ public sealed class WorkflowExecutor
                             jumpTarget = await ExecuteEndpointStageWithOptionalForEachAsync(
                                 definition,
                                 stage,
-                                apiBaseUrls,
+                                resourceLookup.ApiBaseUrls,
+                                resourceLookup.ApiDefinitions,
+                                resourceLookup.ConnectionBaseUrls,
+                                resourceLookup.Connections,
                                 context,
                                 verbose,
                                 document.FilePath,
@@ -482,15 +485,31 @@ public sealed class WorkflowExecutor
         }
     }
 
-    private static Dictionary<string, string> BuildApiBaseUrlLookup(
+    private static WorkflowResourceLookup BuildResourceLookup(
         WorkflowDefinition definition,
         ApiCatalogVersion catalogVersion,
         string environment)
     {
         var apiBaseUrls = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var apiDefinitions = new Dictionary<string, ApiDefinition>(StringComparer.OrdinalIgnoreCase);
+        var connectionBaseUrls = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var connections = new Dictionary<string, ApiConnectionDefinition>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var connection in catalogVersion.Connections ?? Enumerable.Empty<ApiConnectionDefinition>())
+        {
+            if (!TryResolveConnectionBaseUrl(connection, environment, out var baseUrl))
+            {
+                throw new InvalidOperationException(
+                    $"Environment '{environment}' was not found for connection '{connection.Name}' in catalog version '{catalogVersion.Version}'.");
+            }
+
+            connectionBaseUrls[connection.Name] = CombineBaseUrl(baseUrl!, connection.BasePath);
+            connections[connection.Name] = connection;
+        }
+
         if (definition.References?.Apis is null || definition.References.Apis.Count == 0)
         {
-            return apiBaseUrls;
+            return new WorkflowResourceLookup(apiBaseUrls, apiDefinitions, connectionBaseUrls, connections);
         }
 
         foreach (var apiReference in definition.References.Apis)
@@ -510,9 +529,24 @@ public sealed class WorkflowExecutor
             }
 
             apiBaseUrls[apiReference.Name] = CombineBaseUrl(baseUrl!, apiDefinition.BasePath);
+            apiDefinitions[apiReference.Name] = apiDefinition;
         }
 
-        return apiBaseUrls;
+        return new WorkflowResourceLookup(apiBaseUrls, apiDefinitions, connectionBaseUrls, connections);
+    }
+
+    private static bool TryResolveConnectionBaseUrl(
+        ApiConnectionDefinition connection,
+        string environment,
+        out string? baseUrl)
+    {
+        if (connection.BaseUrl is null || connection.BaseUrl.Count == 0)
+        {
+            baseUrl = null;
+            return false;
+        }
+
+        return ApiBaseUrlResolver.TryResolveBaseUrl(connection.BaseUrl, environment, out baseUrl);
     }
 
     private async Task ApplyStageDelayAsync(
@@ -754,6 +788,9 @@ public sealed class WorkflowExecutor
         WorkflowDefinition definition,
         WorkflowStageDefinition stage,
         IReadOnlyDictionary<string, string> apiBaseUrls,
+        IReadOnlyDictionary<string, ApiDefinition> apiDefinitions,
+        IReadOnlyDictionary<string, string> connectionBaseUrls,
+        IReadOnlyDictionary<string, ApiConnectionDefinition> connections,
         ExecutionContext context,
         bool verbose,
         string workflowPath,
@@ -769,6 +806,7 @@ public sealed class WorkflowExecutor
         }
 
         ResponseContext responseContext;
+        StagePluginExecutionResult? invocation = null;
         var retriesUsed = 0;
         while (true)
         {
@@ -784,7 +822,6 @@ public sealed class WorkflowExecutor
                     throw new InvalidOperationException($"Stage '{stage.Name}' kind '{stage.Kind}' is not registered by any active plugin.");
                 }
 
-                StagePluginExecutionResult invocation;
                 try
                 {
                     invocation = await plugin.ExecuteAsync(
@@ -808,6 +845,9 @@ public sealed class WorkflowExecutor
                                     endpointInvocation.RequestBody);
                             },
                             apiBaseUrls,
+                            apiDefinitions,
+                            connectionBaseUrls,
+                            connections,
                             workflowPath),
                         cancellationToken);
                 }
@@ -882,6 +922,22 @@ public sealed class WorkflowExecutor
 
         var stageOutput = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var stageOutputJson = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+        if (invocation?.Output is not null)
+        {
+            foreach (var output in invocation.Output)
+            {
+                stageOutput[output.Key] = output.Value;
+            }
+        }
+
+        if (invocation?.OutputJson is not null)
+        {
+            foreach (var output in invocation.OutputJson)
+            {
+                stageOutputJson[output.Key] = output.Value.Clone();
+            }
+        }
+
         if (stage.Output is not null)
         {
             foreach (var output in stage.Output)
@@ -1089,6 +1145,9 @@ public sealed class WorkflowExecutor
         WorkflowDefinition definition,
         WorkflowStageDefinition stage,
         IReadOnlyDictionary<string, string> apiBaseUrls,
+        IReadOnlyDictionary<string, ApiDefinition> apiDefinitions,
+        IReadOnlyDictionary<string, string> connectionBaseUrls,
+        IReadOnlyDictionary<string, ApiConnectionDefinition> connections,
         ExecutionContext context,
         bool verbose,
         string workflowPath,
@@ -1097,7 +1156,7 @@ public sealed class WorkflowExecutor
     {
         if (!HasForEach(stage))
         {
-            return await ExecuteEndpointStageAsync(definition, stage, apiBaseUrls, context, verbose, workflowPath, mocked, cancellationToken);
+            return await ExecuteEndpointStageAsync(definition, stage, apiBaseUrls, apiDefinitions, connectionBaseUrls, connections, context, verbose, workflowPath, mocked, cancellationToken);
         }
 
         var iterations = ResolveForEachItems(stage, context, workflowPath);
@@ -1112,6 +1171,9 @@ public sealed class WorkflowExecutor
                     definition,
                     stage,
                     apiBaseUrls,
+                    apiDefinitions,
+                    connectionBaseUrls,
+                    connections,
                     context,
                     verbose,
                     workflowPath,
@@ -1139,7 +1201,7 @@ public sealed class WorkflowExecutor
         foreach (var iteration in iterations.Select((item, index) => new { item, index }))
         {
             using var scope = BeginIterationScope(stage, context, iteration.item, iteration.index);
-            var jumpTarget = await ExecuteEndpointStageAsync(definition, stage, apiBaseUrls, context, verbose, workflowPath, mocked, cancellationToken);
+            var jumpTarget = await ExecuteEndpointStageAsync(definition, stage, apiBaseUrls, apiDefinitions, connectionBaseUrls, connections, context, verbose, workflowPath, mocked, cancellationToken);
             if (context.EndpointOutputs.TryGetValue(stage.Name, out var output))
             {
                 results.Add(new Dictionary<string, string>(output, StringComparer.OrdinalIgnoreCase));
@@ -1212,6 +1274,9 @@ public sealed class WorkflowExecutor
         WorkflowDefinition definition,
         WorkflowStageDefinition stage,
         IReadOnlyDictionary<string, string> apiBaseUrls,
+        IReadOnlyDictionary<string, ApiDefinition> apiDefinitions,
+        IReadOnlyDictionary<string, string> connectionBaseUrls,
+        IReadOnlyDictionary<string, ApiConnectionDefinition> connections,
         ExecutionContext context,
         bool verbose,
         string workflowPath,
@@ -1221,7 +1286,7 @@ public sealed class WorkflowExecutor
         int index)
     {
         var iterationContext = CreateIterationContext(context, stage, item, index);
-        var jumpTarget = await ExecuteEndpointStageAsync(definition, stage, apiBaseUrls, iterationContext, verbose, workflowPath, mocked, cancellationToken);
+        var jumpTarget = await ExecuteEndpointStageAsync(definition, stage, apiBaseUrls, apiDefinitions, connectionBaseUrls, connections, iterationContext, verbose, workflowPath, mocked, cancellationToken);
         var output = iterationContext.EndpointOutputs.TryGetValue(stage.Name, out var endpointOutput)
             ? new Dictionary<string, string>(endpointOutput, StringComparer.OrdinalIgnoreCase)
             : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -2755,6 +2820,12 @@ public sealed class WorkflowExecutor
     }
 
 }
+
+internal sealed record WorkflowResourceLookup(
+    IReadOnlyDictionary<string, string> ApiBaseUrls,
+    IReadOnlyDictionary<string, ApiDefinition> ApiDefinitions,
+    IReadOnlyDictionary<string, string> ConnectionBaseUrls,
+    IReadOnlyDictionary<string, ApiConnectionDefinition> Connections);
 
 public sealed record WorkflowExecutionResult(
     IReadOnlyDictionary<string, string> Output,

@@ -426,7 +426,8 @@ internal sealed class CliPipeline : ICliPipeline
         string environment,
         List<CliRunMessage> messages)
     {
-        if (referencedDefinitions.Count == 0)
+        var connections = selectedVersion.Connections ?? [];
+        if (referencedDefinitions.Count == 0 && connections.Count == 0)
         {
             AddInfo(messages, $"Base url: [per-definition, env={environment}]");
             return;
@@ -440,6 +441,15 @@ internal sealed class CliPipeline : ICliPipeline
                 ? resolved
                 : "(unresolved)";
             AddInfo(messages, $"  {definition.Name} -> {baseUrl}");
+        }
+
+        foreach (var connection in connections.OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            var baseUrl = connection.BaseUrl is not null &&
+                ApiBaseUrlResolver.TryResolveBaseUrl(connection.BaseUrl, environment, out var resolved)
+                    ? resolved
+                    : "(unresolved)";
+            AddInfo(messages, $"  {connection.Name} -> {baseUrl}");
         }
     }
 

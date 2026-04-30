@@ -24,7 +24,7 @@
 
 CLI tool to orchestrate API calls using versioned OpenAPI catalogs and YAML workflows. Workflows can reference other workflows, share context (like JWTs), validate endpoints against cached API contracts, and run in dry-run mode for validation.
 
-Stage execution is being opened through a versioned plugin contract: workflow orchestration stays in the runtime, while protocol/channel implementations such as HTTP can live in dedicated plugins.
+Stage execution runs through a versioned plugin contract: workflow orchestration stays in the runtime, while protocol/channel implementations such as HTTP and OpenAI LLM stages live in dedicated plugins.
 
 Documentation:
 
@@ -40,68 +40,18 @@ Documentation:
 - [`MCP Server`](.doc/mcp-server.md) - AI-assisted workflow creation (35 tools, all levels)
 - [`GitHub Action`](.doc/github-action.md) - run workflows from any CI/CD pipeline
 - [`plugins`](.doc/plugins.md)
+- [`HTTP plugin`](.doc/plugins-http.md)
+- [`OpenAI LLM plugin`](.doc/plugins-openai.md)
 - [`secret providers`](.doc/secret-providers.md)
+- [`Vaultwarden secret provider`](.doc/plugins-vaultwarden.md)
 
 Examples:
 
 - [`samples/sample-bootstrap.workflow`](samples/sample-bootstrap.workflow) uses the explicit `Http` plugin stage with a plugin-specific `config` block.
+- [`samples/openai-llm/sample-openai-llm.workflow`](samples/openai-llm/sample-openai-llm.workflow) shows the `openai` plugin with `kind: LLM`, structured output, token limits, timeout, and usage-token outputs.
 - [`samples/workflows.config`](samples/workflows.config) shows explicit plugin activation. If `plugins` is omitted, the runtime still enables `http` for compatibility but emits a warning; a future release will require the section.
 - [`samples/api.catalog`](samples/api.catalog) shows plugin declaration/version binding in the catalog.
 - [`samples/vaultwarden-secrets`](samples/vaultwarden-secrets) shows the `vaultwarden` secret provider feeding `{{env:...}}` tokens. Secret provider failures are fail-fast and abort the run before workflow loading continues.
-
-## Community
-
-If you use SphereIntegrationHub in your company or project, we'd love to hear about it!
-
-- Give us a ⭐ on GitHub — it helps the project grow
-- Share your experience on [LinkedIn](https://www.linkedin.com/in/jmrpineda) mentioning **#SphereIntegrationHub** — we repost and feature use cases
-- Drop us a line at [sih@pinedatec.eu](mailto:sih@pinedatec.eu) — tell us what you're automating, we'd love to feature it
-
-## Installation
-
-### npm / npx — no .NET required
-
-The fastest way to get started. No runtime dependencies, no SDK to install.
-
-**Global install** (run `sih` and `sih-mcp` anywhere):
-
-```bash
-npm install -g @pinedatec.eu/sphere-integration-hub
-sih --version
-```
-
-**One-off via npx** (MCP server, ideal for Claude Desktop / VS Code):
-
-```bash
-npx @pinedatec.eu/sphere-integration-hub          # launches the MCP server
-npx -p @pinedatec.eu/sphere-integration-hub sih --version   # CLI one-off
-```
-
-**For teams and CI** (pin to repo):
-
-```bash
-npm install --save-dev @pinedatec.eu/sphere-integration-hub
-# teammates and CI: npm install picks it up automatically
-```
-
-### dotnet tool — for .NET developers
-
-If you already have .NET 10+ installed, the tool is also available on NuGet:
-
-```bash
-dotnet tool install -g SphereIntegrationHub.Tool        # CLI
-dotnet tool install -g SphereIntegrationHub.Mcp.Tool   # MCP server
-```
-
-Or as a local tool (recommended for teams using dotnet):
-
-```bash
-dotnet new tool-manifest   # only if .config/dotnet-tools.json doesn't exist yet
-dotnet tool install SphereIntegrationHub.Tool
-dotnet tool restore        # teammates and CI run this to pick it up
-```
-
-NuGet packages: [CLI](https://www.nuget.org/packages/SphereIntegrationHub.Tool/) · [MCP](https://www.nuget.org/packages/SphereIntegrationHub.Mcp.Tool/)
 
 ## Community
 
@@ -233,6 +183,7 @@ SphereIntegrationHub workflows are plain YAML and are designed to stay readable 
 - Reference APIs from the versioned catalog and compose parent/child workflows.
 - Accept typed inputs, `.wfvars`, and `.env` values.
 - Mix endpoint calls, workflow stages, retries, circuit breakers, delays, and conditional branches.
+- Add LLM/SLM stages through the OpenAI plugin, including prompt files, JSON schema output, token limits, timeout, and usage reporting.
 - Work with structured JSON, file-backed payloads, `forEach`, and idempotent `ensure` flows.
 - Generate inline fake data with `{{rand:*}}` helpers for numbers, text, dates, datetimes, times, GUIDs, and ULIDs.
 - Emit JSON and HTML execution reports for post-run diagnosis.
@@ -661,6 +612,11 @@ SphereIntegrationHub is now strong as a local-first API orchestration runtime an
 - ✅ Aggregated `forEach` workflow result state via `foreach_results`, `foreach_success_count`, and `foreach_failed_count`
 - ✅ Post-execution observability with JSON/HTML reports, stage timelines, and summary output
 - ✅ Interactive HTML trace report (`sih report`) — Jaeger-style timeline with per-stage drill-down, HTTP details, and file picker to load prior executions; generated as a standalone command from any `.workflow.report.json` artifact
+- ✅ Versioned plugin contract with plugin-declared capabilities, OpenAPI-backed API definitions, and non-OpenAPI `connections`
+- ✅ Built-in `http` stage plugin for `Http` / `Endpoint` stages
+- ✅ Built-in `openai` stage plugin for `LLM` / `OpenAI` stages with prompt files, JSON schema output, token limits, timeout, and usage-token outputs
+- ✅ Built-in `vaultwarden` secret provider plugin for fail-fast pre-load secret hydration and report masking
+- ✅ Plugin documentation and examples split by built-in plugin, with runtime, MCP capability metadata, and samples aligned
 - ✅ MCP server with 35 implemented tools across all capability levels — catalog exploration, workflow validation, stage generation, variable analysis, semantic dependency inference, pattern detection, full system synthesis, and optimization
 - ✅ GitHub Action (`run-sphere-workflow`) for executing workflows from any CI/CD pipeline, with optional version pinning
 
@@ -670,11 +626,9 @@ SphereIntegrationHub is now strong as a local-first API orchestration runtime an
    First-class assertions, golden snapshots, and failure diffs on top of the existing execution reports.
 2. **Snapshot and Regression Testing**
    Snapshot authoring helpers and update workflows for intentional baseline changes.
-3. **Documentation and Surface Alignment**
-   Keep runtime, CLI, MCP, GitHub Action, and examples synchronized so the documented contract matches the implemented one.
-4. **Plugin/Transformer Extensibility**
-   Load custom .NET transformations and stage extensions safely.
-5. **Transport-Level Retry Controls**
+3. **External Plugin Packaging**
+   Harden discovery, packaging, diagnostics, and examples for custom third-party stage plugins beyond the built-in `http`, `openai`, and `vaultwarden` plugins.
+4. **Transport-Level Retry Controls**
    Keep catalog-driven readiness strict at preflight time, and evaluate future per-stage boolean controls to opt workflow endpoint calls into the same transport retry policy when that surface is stable.
 
 ### Mid-Term Roadmap

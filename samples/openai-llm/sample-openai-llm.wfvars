@@ -1,0 +1,4 @@
+local:
+  openaiApiKey: "replace-with-openai-api-key"
+  customerName: "Ada Lovelace"
+  country: "GB"

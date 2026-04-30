@@ -62,6 +62,7 @@ public sealed class StagePluginRegistryBuilder
 {
     private static readonly string[] DefaultPluginIds = [HttpStagePluginId];
     private const string HttpStagePluginId = "http";
+    private const string OpenAIStagePluginId = "openai";
 
     public StagePluginRegistry Build(WorkflowConfig config, ApiCatalogVersion catalogVersion, string workflowPath)
     {
@@ -81,7 +82,7 @@ public sealed class StagePluginRegistryBuilder
     }
 
     public StagePluginRegistry CreateBuiltInRegistry()
-        => new([new HttpPlugin.HttpStagePlugin()]);
+        => new([new HttpPlugin.HttpStagePlugin(), new OpenAIPlugin.OpenAIStagePlugin()]);
 
     private static IReadOnlyList<string> ResolveRequestedPluginIds(WorkflowConfig config)
     {
@@ -105,6 +106,11 @@ public sealed class StagePluginRegistryBuilder
         if (string.Equals(pluginId, HttpStagePluginId, StringComparison.OrdinalIgnoreCase))
         {
             return new HttpPlugin.HttpStagePlugin();
+        }
+
+        if (string.Equals(pluginId, OpenAIStagePluginId, StringComparison.OrdinalIgnoreCase))
+        {
+            return new OpenAIPlugin.OpenAIStagePlugin();
         }
 
         var catalogPlugin = catalogVersion.Plugins?.FirstOrDefault(item =>

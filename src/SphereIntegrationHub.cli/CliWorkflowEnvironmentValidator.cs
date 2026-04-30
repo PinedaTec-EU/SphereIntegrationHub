@@ -24,6 +24,15 @@ internal sealed class CliWorkflowEnvironmentValidator : ICliWorkflowEnvironmentV
             }
         }
 
+        foreach (var connection in catalogVersion.Connections ?? Enumerable.Empty<ApiConnectionDefinition>())
+        {
+            if (connection.BaseUrl is null ||
+                !ApiBaseUrlResolver.TryResolveBaseUrl(connection.BaseUrl, environment, out _))
+            {
+                errors.Add($"Environment '{environment}' was not found for connection '{connection.Name}' in catalog version '{catalogVersion.Version}'.");
+            }
+        }
+
         return errors;
     }
 }

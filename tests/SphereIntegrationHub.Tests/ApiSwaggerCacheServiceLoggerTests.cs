@@ -68,6 +68,44 @@ public sealed class ApiSwaggerCacheServiceLoggerTests
         Assert.DoesNotContain(logger.Messages, message => message.Contains("Swagger source file was not found", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public async Task CacheSwaggerAsync_SkipsLlmDefinitions()
+    {
+        var logger = new TestLogger();
+        var handler = new FakeHttpMessageHandler("""{"openapi":"3.0.1","paths":{}}""");
+        var httpClient = new HttpClient(handler);
+        var service = new ApiSwaggerCacheService(httpClient, logger);
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"aos-swagger-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+
+        var catalog = new ApiCatalogVersion
+        {
+            Version = "v1",
+            Definitions = new List<ApiDefinition>
+            {
+                new ApiDefinition
+                {
+                    Name = "openai-main",
+                    ContractType = ApiContractTypes.Llm,
+                    BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["local"] = "https://api.openai.com/v1"
+                    },
+                    ApiKeySecret = "{{input.openaiApiKey}}"
+                }
+            }
+        };
+
+        var cacheRoot = Path.Combine(tempRoot, "cache");
+
+        var operations = await service.CacheSwaggerAsync(catalog, "local", cacheRoot, refresh: true, verbose: true, CancellationToken.None);
+
+        Assert.Empty(operations);
+        Assert.Null(handler.LastRequestUri);
+        Assert.False(File.Exists(Path.Combine(cacheRoot, "openai-main.json")));
+        Assert.Contains(logger.Messages, message => message.Contains("Skipping swagger cache for LLM definition", StringComparison.OrdinalIgnoreCase));
+    }
+
     private sealed class TestLogger : IExecutionLogger
     {
         public List<string> Messages { get; } = new();

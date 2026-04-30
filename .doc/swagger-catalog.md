@@ -25,12 +25,19 @@ Example:
         pre: https://pre.api.example.com
         prod: https://api.example.com
       basePath: /ocapi
+  connections:
+    - name: openai-main
+      type: llm
+      provider: openai
+      baseUrl:
+        local: https://api.openai.com/v1
+      apiKeySecret: "{{input.openaiApiKey}}"
 ```
 
 Notes:
 
 - `version` matches the workflow `version`.
-- `contractType` is optional. Allowed values are `openapi`, `swagger`, and `scala`.
+- `contractType` is optional. Allowed values are `openapi`, `swagger`, `scala`, and `llm`.
 - URL fields supported by the catalog are `openApiUrl`, `swaggerUrl`, and `scalaUrl`.
 - Use one contract URL field per definition. Relative contract URLs are resolved against `definitions[].baseUrl[env]` for the active environment.
 - If `contractType` is omitted, SIH infers it from the populated URL field.
@@ -39,7 +46,11 @@ Notes:
 - `readiness` is optional. When present, SIH applies strict retry/timeout behavior during `healthCheck` probes and contract downloads.
 - `readiness.httpStatus` optionally overrides which health-check HTTP status codes count as healthy. If omitted, any `2xx` response is treated as healthy.
 - `definitions[].basePath` is optional. When present, it is appended between the resolved base URL and the endpoint path.
+- `connections` is optional. Use it for non-OpenAPI resources such as LLM providers, queues, storage, SMTP, and other plugin-owned resources.
+- `connections[].baseUrl` maps environment names to provider base URLs.
+- `connections[].apiKeySecret` or `connections[].apiKey` is optional. Plugins such as `openai` can use it as a templated credential reference; mark the source workflow input as `secret: true`.
 - `scala` changes URL-resolution/fallback conventions only. Downloaded contracts are still validated as OpenAPI/Swagger JSON.
+- `llm` marks a legacy connection-style definition for plugins such as `openai`; prefer `connections` for new workflows.
 - Contract files are cached per version:
   - `src/resources/cache/{version}/{definition}.json`
 
