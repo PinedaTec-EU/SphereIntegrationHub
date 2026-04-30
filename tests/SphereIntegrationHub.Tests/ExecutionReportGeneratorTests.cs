@@ -170,6 +170,37 @@ public sealed class ExecutionReportGeneratorTests
         Assert.Contains("stage.ForEachExecutionMode", html, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task GenerateAndOpenAsync_RendersResizableDetailPanelAndPopup()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"sih-report-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+
+        var reportPath = Path.Combine(root, "sample.01KNGXHCZZZZ6KMC3DZDZAJRTJ.workflow.report.json");
+        await File.WriteAllTextAsync(reportPath, CreateReportJson("01KNGXHCZZZZ6KMC3DZDZAJRTJ", "Detail Workflow"));
+
+        var output = new TestOutputProvider();
+        var generator = new ExecutionReportGenerator(output);
+
+        var result = await generator.GenerateAndOpenAsync(
+            new InlineArguments(
+                IsReportCommand: true,
+                ExecutionReportPath: root,
+                OpenAfterGenerate: false),
+            CancellationToken.None);
+
+        Assert.Equal(0, result);
+
+        var htmlPath = Path.Combine(root, $"{Path.GetFileName(root)}.reports.workflow.report.html");
+        var html = await File.ReadAllTextAsync(htmlPath);
+        Assert.Contains("id=\"detail-resizer\"", html, StringComparison.Ordinal);
+        Assert.Contains("function initDetailResize()", html, StringComparison.Ordinal);
+        Assert.Contains("--detail-panel-height", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"detail-modal-backdrop\"", html, StringComparison.Ordinal);
+        Assert.Contains("function openDetailModal()", html, StringComparison.Ordinal);
+        Assert.Contains("syncDetailModal();", html, StringComparison.Ordinal);
+    }
+
     private static string CreateReportJson(string executionId, string workflowName)
     {
         var report = new WorkflowExecutionReport

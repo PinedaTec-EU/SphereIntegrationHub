@@ -299,14 +299,22 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .children-group{display:none;margin-left:0}
 .children-group.open{display:block}
 /* ── Detail panel ────────────────────────────────────────────────── */
-.detail-panel{border-top:2px solid #3b82f6;background:var(--surface);overflow-y:auto;flex-shrink:0;max-height:340px;transition:background .2s}
+.detail-panel{border-top:2px solid #3b82f6;background:var(--surface);overflow:hidden;flex-shrink:0;height:var(--detail-panel-height,340px);min-height:160px;max-height:calc(100vh - 140px);display:flex;flex-direction:column;transition:background .2s}
 .detail-panel.hidden{display:none}
+.detail-resizer{height:8px;min-height:8px;cursor:ns-resize;background:linear-gradient(to bottom,rgba(59,130,246,.22),transparent);border-bottom:1px solid var(--detail-border);flex-shrink:0;touch-action:none}
+.detail-resizer::after{content:"";display:block;width:42px;height:3px;margin:2px auto 0;border-radius:999px;background:var(--border-strong)}
 .detail-header{background:var(--detail-bg);padding:8px 16px;display:flex;gap:12px;align-items:center;border-bottom:1px solid var(--detail-border);flex-wrap:wrap;transition:background .2s}
 .detail-title{font-weight:700;font-size:14px;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .detail-meta{color:var(--text-muted);font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.detail-close{cursor:pointer;color:var(--text-subtle);font-size:18px;line-height:1;padding:0 4px;flex-shrink:0;transition:color .1s}
-.detail-close:hover{color:var(--text)}
-.detail-body{padding:12px 16px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.detail-action{cursor:pointer;color:var(--text-subtle);background:transparent;border:1px solid transparent;border-radius:5px;font-size:16px;line-height:1;padding:3px 6px;flex-shrink:0;transition:color .1s,border-color .1s,background .1s}
+.detail-action:hover{color:var(--text);border-color:var(--detail-border);background:var(--surface)}
+.detail-body{padding:12px 16px;display:grid;grid-template-columns:1fr 1fr;gap:10px;overflow-y:auto;min-height:0}
+.detail-modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,.7);display:flex;align-items:center;justify-content:center;padding:32px;z-index:50}
+.detail-modal-backdrop.hidden{display:none}
+.detail-modal{width:min(1200px,calc(100vw - 64px));height:min(820px,calc(100vh - 64px));background:var(--surface);color:var(--text);border:1px solid var(--border-strong);border-radius:8px;box-shadow:0 24px 80px rgba(0,0,0,.35);display:flex;flex-direction:column;overflow:hidden}
+.detail-modal .detail-header{flex-shrink:0}
+.detail-modal .detail-body{flex:1;grid-template-columns:1fr 1fr}
+@media (max-width: 760px){.detail-body,.detail-modal .detail-body{grid-template-columns:1fr}.detail-modal-backdrop{padding:12px}.detail-modal{width:calc(100vw - 24px);height:calc(100vh - 24px)} }
 .detail-section h3{margin:0 0 6px;font-size:10px;text-transform:uppercase;color:var(--text-subtle);letter-spacing:.6px;border-bottom:1px solid var(--border);padding-bottom:4px;font-weight:700}
 .kv{display:flex;flex-direction:column;gap:3px}
 .kv-row{display:flex;gap:8px;align-items:baseline}
@@ -357,12 +365,25 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 </div>
 
 <div class="detail-panel hidden" id="detail-panel">
+  <div class="detail-resizer" id="detail-resizer" title="Resize detail panel"></div>
   <div class="detail-header">
     <span class="detail-title" id="detail-title"></span>
     <span class="detail-meta" id="detail-meta"></span>
-    <span class="detail-close" onclick="closeDetail()" title="Close">&#10005;</span>
+    <button class="detail-action" onclick="openDetailModal()" title="Open detail popup" aria-label="Open detail popup">&#9974;</button>
+    <button class="detail-action" onclick="closeDetail()" title="Close" aria-label="Close detail">&#10005;</button>
   </div>
   <div class="detail-body" id="detail-body"></div>
+</div>
+
+<div class="detail-modal-backdrop hidden" id="detail-modal-backdrop" onclick="backdropCloseDetailModal(event)">
+  <div class="detail-modal" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title">
+    <div class="detail-header">
+      <span class="detail-title" id="detail-modal-title"></span>
+      <span class="detail-meta" id="detail-modal-meta"></span>
+      <button class="detail-action" onclick="closeDetailModal()" title="Close popup" aria-label="Close popup">&#10005;</button>
+    </div>
+    <div class="detail-body" id="detail-modal-body"></div>
+  </div>
 </div>
 
 <script>
@@ -373,6 +394,7 @@ let _report   = null;
 let _tree     = null;   // root nodes
 let _expanded = new Set();  // indices of expanded workflow rows
 let _selected = -1;
+let _detailResizeState = null;
 
 /* ── Theme ───────────────────────────────────────────────────────── */
 function applyTheme(dark) {
@@ -861,12 +883,71 @@ function showDetail(idx) {
 
   document.getElementById('detail-body').innerHTML = body;
   document.getElementById('detail-panel').classList.remove('hidden');
+  syncDetailModal();
 }
 
 function closeDetail() {
   document.getElementById('detail-panel').classList.add('hidden');
+  closeDetailModal();
   document.querySelectorAll('.trace-row').forEach(r => r.classList.remove('selected'));
   _selected = -1;
+}
+
+function openDetailModal() {
+  if (_selected < 0) return;
+  syncDetailModal();
+  document.getElementById('detail-modal-backdrop').classList.remove('hidden');
+}
+
+function closeDetailModal() {
+  document.getElementById('detail-modal-backdrop').classList.add('hidden');
+}
+
+function backdropCloseDetailModal(event) {
+  if (event.target && event.target.id === 'detail-modal-backdrop') closeDetailModal();
+}
+
+function syncDetailModal() {
+  const modal = document.getElementById('detail-modal-backdrop');
+  document.getElementById('detail-modal-title').textContent = document.getElementById('detail-title').textContent;
+  document.getElementById('detail-modal-meta').innerHTML = document.getElementById('detail-meta').innerHTML;
+  document.getElementById('detail-modal-body').innerHTML = document.getElementById('detail-body').innerHTML;
+  if (!modal.classList.contains('hidden')) {
+    const firstBlock = document.getElementById('detail-modal-body');
+    if (firstBlock) firstBlock.scrollTop = 0;
+  }
+}
+
+function initDetailResize() {
+  const handle = document.getElementById('detail-resizer');
+  const panel = document.getElementById('detail-panel');
+  if (!handle || !panel) return;
+
+  handle.addEventListener('pointerdown', event => {
+    event.preventDefault();
+    handle.setPointerCapture(event.pointerId);
+    _detailResizeState = {
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      startHeight: panel.getBoundingClientRect().height
+    };
+  });
+
+  handle.addEventListener('pointermove', event => {
+    if (!_detailResizeState || _detailResizeState.pointerId !== event.pointerId) return;
+    const delta = _detailResizeState.startY - event.clientY;
+    const maxHeight = Math.max(window.innerHeight - 140, 180);
+    const nextHeight = Math.max(160, Math.min(_detailResizeState.startHeight + delta, maxHeight));
+    panel.style.setProperty('--detail-panel-height', `${Math.round(nextHeight)}px`);
+  });
+
+  handle.addEventListener('pointerup', event => {
+    if (_detailResizeState && _detailResizeState.pointerId === event.pointerId) _detailResizeState = null;
+  });
+
+  handle.addEventListener('pointercancel', () => {
+    _detailResizeState = null;
+  });
 }
 
 /* ── Load file ───────────────────────────────────────────────────── */
@@ -887,6 +968,7 @@ document.getElementById('file-input').addEventListener('change', function(e) {
 
 /* ── Boot ────────────────────────────────────────────────────────── */
 initReportPicker();
+initDetailResize();
 loadReportByIndex(_initialReportIndex);
 window.addEventListener('resize', syncTimelineLabels);
 </script>
