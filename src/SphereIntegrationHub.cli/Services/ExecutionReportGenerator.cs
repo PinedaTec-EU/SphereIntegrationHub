@@ -166,6 +166,7 @@ internal sealed class ExecutionReportGenerator
 :root {
   --bg:#f5f7fa;--surface:#ffffff;--border:#e2e8f0;--border-strong:#cbd5e1;
   --text:#1e293b;--text-muted:#64748b;--text-subtle:#94a3b8;
+  --timeline-label-gutter:96px;
   --banner-bg:#0f172a;--banner-text:#f1f5f9;--banner-muted:#475569;
   --header-bg:#f8fafc;--row-hover:#f0f9ff;--row-selected:#dbeafe;--row-border:#f1f5f9;
   --wf-row-bg:#f0f4ff;--wf-row-hover:#e0ebff;--wf-row-selected:#c7d9ff;
@@ -235,7 +236,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .trace-left-header{width:380px;min-width:380px;padding:6px 12px;font-weight:700;border-right:1px solid var(--border-strong);font-size:10.5px;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.5px}
 .trace-status-header{width:64px;min-width:64px;padding:6px 8px;font-weight:700;border-right:1px solid var(--border-strong);font-size:10.5px;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.5px;text-align:center;flex-shrink:0}
 .trace-right-header{flex:1;position:relative;padding:6px 0}
-.ruler{display:flex;justify-content:space-between;padding:0 8px;font-size:10.5px;color:var(--text-subtle)}
+.ruler{display:flex;justify-content:space-between;padding:0 calc(var(--timeline-label-gutter) + 8px) 0 8px;font-size:10.5px;color:var(--text-subtle)}
 .trace-rows{flex:1;overflow-y:auto;overflow-x:hidden}
 .trace-rows::-webkit-scrollbar{width:6px}
 .trace-rows::-webkit-scrollbar-track{background:transparent}
@@ -718,7 +719,7 @@ function buildRow(node, totalMs, startTs) {
   // Timeline bar
   html += `<div class="trace-right">`;
   const barTitle = timelineLabel;
-  html += `<div class="timeline-span" style="left:${offsetPct}%;width:${widthPct}%" title="${esc(barTitle)}"${timelineLabel ? ` data-duration-label="${esc(timelineLabel)}"` : ''}>`;
+  html += `<div class="timeline-span" style="left:calc(${offsetPct} * (100% - var(--timeline-label-gutter)) / 100);width:calc(${widthPct} * (100% - var(--timeline-label-gutter)) / 100)" title="${esc(barTitle)}"${timelineLabel ? ` data-duration-label="${esc(timelineLabel)}"` : ''}>`;
   html += `<div class="span-bar ${bCls}"></div>`;
   if (timelineLabel) {
     html += `<div class="span-bar-duration">${esc(timelineLabel)}</div>`;

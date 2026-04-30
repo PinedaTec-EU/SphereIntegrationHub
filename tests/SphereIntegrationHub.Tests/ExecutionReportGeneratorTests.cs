@@ -137,6 +137,8 @@ public sealed class ExecutionReportGeneratorTests
         Assert.Contains("class=\"timeline-span\"", html, StringComparison.Ordinal);
         Assert.Contains("span-bar-duration", html, StringComparison.Ordinal);
         Assert.Contains("--timeline-label-offset", html, StringComparison.Ordinal);
+        Assert.Contains("--timeline-label-gutter", html, StringComparison.Ordinal);
+        Assert.Contains("width:calc(${widthPct} * (100% - var(--timeline-label-gutter)) / 100)", html, StringComparison.Ordinal);
         Assert.Contains("span.style.setProperty('--timeline-label-offset'", html, StringComparison.Ordinal);
         Assert.DoesNotContain("is-inline", html, StringComparison.Ordinal);
         Assert.DoesNotContain("is-before", html, StringComparison.Ordinal);
