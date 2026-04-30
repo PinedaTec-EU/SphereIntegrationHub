@@ -87,8 +87,11 @@ public sealed class WorkflowExecutionReportWriterTests
         Assert.Equal(1, parsed.RootElement.GetProperty("Preflight").GetProperty("TotalRetries").GetInt32());
         Assert.Equal("Parallel", parsed.RootElement.GetProperty("Stages")[0].GetProperty("ForEachExecutionMode").GetString());
         var html = await File.ReadAllTextAsync(artifacts.HtmlReportPath!);
-        Assert.Contains("Workflow Report", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Preflight", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Workflow Trace", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("trace-container", html, StringComparison.Ordinal);
+        Assert.Contains("report-picker", html, StringComparison.Ordinal);
+        Assert.Contains("workflow-report", html, StringComparison.Ordinal);
+        Assert.Contains("create", html, StringComparison.Ordinal);
         Assert.Contains("Sphere Integration Hub (SIH)", html, StringComparison.Ordinal);
         Assert.Contains("aria-label=\"Sphere Integration Hub icon\"", html, StringComparison.Ordinal);
     }

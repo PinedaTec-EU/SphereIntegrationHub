@@ -138,7 +138,7 @@ internal sealed class ExecutionReportGenerator
         return baseName;
     }
 
-    private static string BuildHtml(IReadOnlyList<ReportArtifact> reports, int initialReportIndex, string appVersion)
+    internal static string BuildHtml(IReadOnlyList<ExecutionReportHtmlArtifact> reports, int initialReportIndex, string appVersion)
     {
         var faviconDataUri = $"data:image/svg+xml,{Uri.EscapeDataString(ReportBranding.FaviconSvg)}";
         var reportsJson = JsonSerializer.Serialize(reports.Select(report => new
@@ -899,5 +899,11 @@ window.addEventListener('resize', syncTimelineLabels);
         string Path,
         string FileName,
         string RawJson,
-        WorkflowExecutionReport Report);
+        WorkflowExecutionReport Report) : ExecutionReportHtmlArtifact(Path, FileName, RawJson, Report);
 }
+
+internal record ExecutionReportHtmlArtifact(
+    string Path,
+    string FileName,
+    string RawJson,
+    WorkflowExecutionReport Report);
