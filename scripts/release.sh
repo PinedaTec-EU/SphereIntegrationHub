@@ -131,14 +131,17 @@ fi
 
 # ─── GitHub Release ───────────────────────────────────────────────────────────
 echo ""
-echo "▸ Creando GitHub Release $TAG..."
+echo "▸ Comprobando GitHub Release $TAG..."
 
-gh release create "$TAG" \
-  --title "$TAG" \
-  --generate-notes \
-  "$DIST_DIR"/*
-
-echo "  ✓ GitHub Release creado"
+if gh release view "$TAG" &>/dev/null; then
+  echo "  ⚠ GitHub Release $TAG ya existe, continuando con npm..."
+else
+  gh release create "$TAG" \
+    --title "$TAG" \
+    --generate-notes \
+    "$DIST_DIR"/*
+  echo "  ✓ GitHub Release creado"
+fi
 
 # ─── npm publish ──────────────────────────────────────────────────────────────
 echo ""
