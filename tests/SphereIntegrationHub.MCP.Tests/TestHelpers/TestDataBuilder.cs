@@ -337,16 +337,21 @@ outputs:
         }
 
         return $@"
+id: 01J7Z6J1KQZV8Y6J9G4E2ZB6QH
 name: {name}
 description: A test workflow
 version: 1.0.0
+references:
+  apis:
+    - name: AccountsAPI
+      definition: AccountsAPI
 
 input:
   - name: userId
-    type: string
+    type: Text
     required: true
   - name: limit
-    type: integer
+    type: Number
     required: false
 
 init-stage:
@@ -360,43 +365,66 @@ init-stage:
 
 stages:
   - name: get-user
-    plugin: HttpClientPlugin
-    config:
-      url: ""{{{{ global.baseUrl }}}}/users/{{{{ input.userId }}}}""
-      method: GET
-      headers:
-        Authorization: Bearer {{{{ env.API_TOKEN }}}}
-    saveResponseAs: userData
+    kind: Endpoint
+    apiRef: AccountsAPI
+    endpoint: /api/accounts
+    httpVerb: GET
+    expectedStatus: 200
 
   - name: get-accounts
-    plugin: HttpClientPlugin
-    dependsOn:
-      - get-user
-    config:
-      url: ""{{{{ global.baseUrl }}}}/accounts""
-      method: GET
-      queryParameters:
-        userId: ""{{{{ context.userData.id }}}}""
-        limit: ""{{{{ input.limit }}}}""
-    saveResponseAs: accountsData
-
-  - name: process-data
-    plugin: DataTransformPlugin
-    dependsOn:
-      - get-accounts
-    config:
-      transformation: |
-        {{
-          user: context.userData,
-          accounts: context.accountsData,
-          totalAccounts: context.accountsData.length
-        }}
-    saveResponseAs: processedData
-
-outputs:
-  - source: {{{{ context.processedData }}}}
-    target: result
+    kind: Endpoint
+    apiRef: AccountsAPI
+    endpoint: /api/accounts
+    httpVerb: GET
+    expectedStatus: 200
+    query:
+      limit: ""{{{{input.limit}}}}""
 ";
+    }
+
+    public static string CreateWorkflowWithObjectBody()
+    {
+        return """
+id: 01J7Z6J1KQZV8Y6J9G4E2ZB6QH
+name: invalid-body
+description: Invalid workflow with body as an object
+version: 1.0.0
+references:
+  apis:
+    - name: AccountsAPI
+      definition: AccountsAPI
+stages:
+  - name: create-account
+    kind: Endpoint
+    apiRef: AccountsAPI
+    endpoint: /api/accounts
+    httpVerb: POST
+    expectedStatus: 201
+    body:
+      name: Test
+      email: test@example.com
+""";
+    }
+
+    public static string CreateWorkflowWithUndeclaredApiRef()
+    {
+        return """
+id: 01J7Z6J1KQZV8Y6J9G4E2ZB6QH
+name: invalid-api-ref
+description: Invalid workflow with undeclared apiRef
+version: 1.0.0
+references:
+  apis:
+    - name: AccountsAPI
+      definition: AccountsAPI
+stages:
+  - name: get-user
+    kind: Endpoint
+    apiRef: MissingAPI
+    endpoint: /api/accounts
+    httpVerb: GET
+    expectedStatus: 200
+""";
     }
 
     /// <summary>

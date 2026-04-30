@@ -5,6 +5,7 @@ using System.Text;
 
 using SphereIntegrationHub.MCP.Models;
 using SphereIntegrationHub.MCP.Services.Integration;
+using SphereIntegrationHub.Services;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -71,39 +72,9 @@ public sealed class WorkflowValidatorService
 
             McpTelemetry.ValidationCacheMisses.Add(1);
 
-            var workflow = _yamlDeserializer.Deserialize<Dictionary<string, object>>(yamlContent);
+            var result = ValidateWorkflowWithCliRules(workflowPath);
 
-            var errors = new List<ValidationError>();
-            var warnings = new List<ValidationWarning>();
-
-            // Basic structure validation
-            ValidateWorkflowStructure(workflow, errors);
-
-            // Validate stages if present
-            if (workflow.TryGetValue("stages", out var stagesObj) && stagesObj is List<object> stages)
-            {
-                ValidateStages(stages, errors, warnings);
-            }
-
-            var result = new ValidationResult
-            {
-                Valid = errors.Count == 0,
-                Errors = errors,
-                Warnings = warnings
-            };
-
-            if (_validationCache.Count >= MaxValidationCacheEntries)
-            {
-                var evict = _validationCache.Keys.FirstOrDefault();
-                if (evict is not null && _validationCache.TryRemove(evict, out _))
-                {
-                    McpTelemetry.ValidationCacheEvictions.Add(1);
-                    McpTelemetry.ValidationCacheSize.Add(-1);
-                }
-            }
-
-            _validationCache[cacheKey] = result;
-            McpTelemetry.ValidationCacheSize.Add(1);
+            StoreValidationResult(cacheKey, result);
 
             sw.Stop();
             McpTelemetry.ValidationDuration.Record(sw.Elapsed.TotalMilliseconds, new KeyValuePair<string, object?>("cache.hit", false));
@@ -190,6 +161,63 @@ public sealed class WorkflowValidatorService
             Warnings = warnings
         };
     }
+
+    private ValidationResult ValidateWorkflowWithCliRules(string workflowPath)
+    {
+        try
+        {
+            var loader = new WorkflowLoader();
+            var document = loader.Load(workflowPath);
+            var validation = new WorkflowValidator(loader).ValidateWithDetails(document);
+
+            return new ValidationResult
+            {
+                Valid = validation.Errors.Count == 0,
+                Errors = validation.Errors.Select(ToWorkflowValidationError).ToList(),
+                Warnings = validation.Warnings.Select(ToWorkflowValidationWarning).ToList()
+            };
+        }
+        catch (Exception ex)
+        {
+            return new ValidationResult
+            {
+                Valid = false,
+                Errors = [new ValidationError
+                {
+                    Category = "Parse",
+                    Message = $"Failed to parse workflow: {ex.Message}"
+                }]
+            };
+        }
+    }
+
+    private void StoreValidationResult(string cacheKey, ValidationResult result)
+    {
+        if (_validationCache.Count >= MaxValidationCacheEntries)
+        {
+            var evict = _validationCache.Keys.FirstOrDefault();
+            if (evict is not null && _validationCache.TryRemove(evict, out _))
+            {
+                McpTelemetry.ValidationCacheEvictions.Add(1);
+                McpTelemetry.ValidationCacheSize.Add(-1);
+            }
+        }
+
+        _validationCache[cacheKey] = result;
+        McpTelemetry.ValidationCacheSize.Add(1);
+    }
+
+    private static ValidationError ToWorkflowValidationError(string message) => new()
+    {
+        Category = "Workflow",
+        Message = message
+    };
+
+    private static ValidationWarning ToWorkflowValidationWarning(string message) => new()
+    {
+        Category = "Workflow",
+        Message = message
+    };
 
     /// <summary>
     /// Plans workflow execution by analyzing stage dependencies

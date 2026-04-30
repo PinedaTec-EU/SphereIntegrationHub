@@ -145,6 +145,54 @@ description: [this is malformed
     }
 
     [Fact]
+    public async Task ValidateWorkflow_WithObjectBody_ReturnsCliDeserializationError()
+    {
+        // Arrange
+        _mockFs.AddWorkflow("object-body.workflow", TestDataBuilder.CreateWorkflowWithObjectBody());
+
+        var tool = new ValidateWorkflowTool(_adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["workflowPath"] = "object-body.workflow"
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.TryGetProperty("isValid", out var isValidEl).Should().BeTrue();
+        json.TryGetProperty("errors", out var errorsEl).Should().BeTrue();
+
+        isValidEl.GetBoolean().Should().BeFalse();
+        errorsEl[0].GetProperty("message").GetString().Should().Contain("System.String");
+    }
+
+    [Fact]
+    public async Task ValidateWorkflow_WithUndeclaredApiRef_ReturnsCliValidationError()
+    {
+        // Arrange
+        _mockFs.AddWorkflow("undeclared-api-ref.workflow", TestDataBuilder.CreateWorkflowWithUndeclaredApiRef());
+
+        var tool = new ValidateWorkflowTool(_adapter);
+        var args = new Dictionary<string, object>
+        {
+            ["workflowPath"] = "undeclared-api-ref.workflow"
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(args);
+        var json = ToJson(result);
+
+        // Assert
+        json.TryGetProperty("isValid", out var isValidEl).Should().BeTrue();
+        json.TryGetProperty("errors", out var errorsEl).Should().BeTrue();
+
+        isValidEl.GetBoolean().Should().BeFalse();
+        errorsEl[0].GetProperty("message").GetString().Should().Contain("is not declared in references.apis");
+    }
+
+    [Fact]
     public async Task ValidateWorkflow_WithInlineYaml_Works()
     {
         // Arrange
