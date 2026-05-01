@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.7.20] – 2026-04-30
+
+- **Plugin system extended with named connections**:
+  - New `connections:` block in `api.catalog` — define named external connections (`ApiConnectionDefinition`) with `type`, `provider`, `baseUrl`, `apiKey`, `apiKeySecret`, and a free-form `config` map.
+  - `ApiDefinition` now supports `apiKey` and `apiKeySecret` fields for API-level authentication.
+  - New `contractType: llm` added; LLM definitions explicitly opt out of OpenAPI contract URL resolution.
+  - `IStagePlugin` extended with a `StagePluginCapabilities` flags enum so each plugin declares the capabilities it requires (e.g. `OpenApiEndpoint`, `LlmConnection`).
+  - `StagePluginBase` exposes a new constructor overload that accepts explicit capabilities.
+- **OpenAI LLM stage plugin** (`SphereIntegrationHub.OpenAIPlugin`):
+  - New project and `OpenAIStagePlugin` implementation for `WorkflowStageKind.LLM` stages.
+  - Integrates with `connections:` catalog entries of type `llm` / provider `openai`.
+  - Full unit-test coverage (`OpenAIStagePluginTests`, 400+ lines).
+- **Plugin documentation split per plugin**:
+  - Plugin docs extracted into per-plugin files under `.doc/`.
+  - OpenAI LLM workflow guide added (`ecad211`).
+  - Plugin roadmap in README marked complete.
+- **Workflow validation aligned with CLI rules** (MCP `validate_workflow`):
+  - The MCP validation tool now delegates to the CLI's own `WorkflowLoader` + `WorkflowValidator`, returning the same structured errors and warnings produced by the runtime preflight.
+  - Errors are categorised (`Parse`, `Workflow`) and include warnings as a separate collection.
+  - Validation results continue to be cached by SHA-256 content hash with FIFO eviction.
+- **Execution report — resizable detail panel and popup modal**:
+  - The stage-detail panel now has a drag handle for vertical resizing (pointer capture, touch-safe, `min-height: 160 px`, `max-height: 100 vh − 140 px`).
+  - A new expand button opens the detail content in a fullscreen modal overlay (closes on backdrop click or ✕ button).
+  - Modal is responsive: single-column layout on viewports narrower than 760 px.
+  - HTML report generation refactored: inline JS/CSS previously embedded in `WorkflowExecutionReportWriter` moved into `ExecutionReportGenerator`.
+- **CI/CD**:
+  - `scripts/release.sh` now checks for an existing GitHub Release before attempting to create one, preventing duplicate-release errors on re-runs.
+  - Added `scripts/publish-local.sh` for publishing NuGet packages to a local feed without pushing to nuget.org.
+- **Samples**:
+  - `samples/llm-seed-products/` — end-to-end example combining the OpenAI plugin with a `forEach` loop: the LLM generates 5 fictional product records (schema-enforced JSON array) and the workflow seeds each one into a catalog REST API. Includes mock payload for dry-run.
+- **Documentation**:
+  - `SHI.pdf` reference document added to the repository.
+
 ## [1.7.19] – 2026-04-27
 
 - **OpenAPI-first catalog support completed**:

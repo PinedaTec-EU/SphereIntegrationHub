@@ -5,7 +5,7 @@ description: >-
   Demonstrates mutually-exclusive branches with safe output resolution using
   all five runtime improvements: automatic null for skipped stages (1), coalesce
   in templates (2), safe navigation with ? (3), vars: derived variables (4),
-  and onSkip.output (5). See docs/conditional-expressions.md.
+  and onSkip.output (5). See .doc/conditional-expressions.md.
 output: true
 references:
   apis:

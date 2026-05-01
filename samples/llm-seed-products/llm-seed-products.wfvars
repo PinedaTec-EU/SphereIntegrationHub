@@ -1,0 +1,4 @@
+local:
+  openaiApiKey: "replace-with-openai-api-key"
+  jwt: "replace-with-bearer-token"
+  category: "Tech accessories"

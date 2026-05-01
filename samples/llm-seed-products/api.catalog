@@ -1,0 +1,27 @@
+- version: 3.11
+  plugins:
+    - id: openai
+      contractVersion: "1.0"
+      runtimeVersion: "1.0"
+  definitions:
+    - name: catalog
+      contractType: openapi
+      openApiUrl: /swagger/v1/swagger.json
+      healthCheck: /health
+      readiness:
+        maxRetries: 6
+        delayMs: 5000
+        timeoutMs: 3000
+        httpStatus:
+          - 200
+      baseUrl:
+        local: http://localhost:6000
+        pre: https://pre.catalog.example.com
+        prod: https://catalog.example.com
+  connections:
+    - name: openai-main
+      type: llm
+      provider: openai
+      baseUrl:
+        local: https://api.openai.com/v1
+      apiKeySecret: "{{input.openaiApiKey}}"
