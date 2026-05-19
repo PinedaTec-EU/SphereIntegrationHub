@@ -65,7 +65,16 @@ public sealed class WorkflowExecutionReportWriterTests
             ForEachExecutionMode = "Parallel",
             StartedAtUtc = DateTimeOffset.UtcNow,
             FinishedAtUtc = DateTimeOffset.UtcNow,
-            DurationMs = 10
+            DurationMs = 10,
+            Latency = new WorkflowStageLatencyClassification
+            {
+                ProfileName = "semaphore-default",
+                BandName = "green",
+                Color = "green",
+                Label = "normal",
+                MinMs = 0,
+                MaxMs = 200
+            }
         });
 
         var writer = new WorkflowExecutionReportWriter();
@@ -86,12 +95,14 @@ public sealed class WorkflowExecutionReportWriterTests
         Assert.Equal("Ok", parsed.RootElement.GetProperty("Result").GetString());
         Assert.Equal(1, parsed.RootElement.GetProperty("Preflight").GetProperty("TotalRetries").GetInt32());
         Assert.Equal("Parallel", parsed.RootElement.GetProperty("Stages")[0].GetProperty("ForEachExecutionMode").GetString());
+        Assert.Equal("green", parsed.RootElement.GetProperty("Stages")[0].GetProperty("Latency").GetProperty("Color").GetString());
         var html = await File.ReadAllTextAsync(artifacts.HtmlReportPath!);
         Assert.Contains("Workflow Trace", html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("trace-container", html, StringComparison.Ordinal);
         Assert.Contains("report-picker", html, StringComparison.Ordinal);
         Assert.Contains("workflow-report", html, StringComparison.Ordinal);
         Assert.Contains("create", html, StringComparison.Ordinal);
+        Assert.Contains("bar-latency-green", html, StringComparison.Ordinal);
         Assert.Contains("Sphere Integration Hub (SIH)", html, StringComparison.Ordinal);
         Assert.Contains("aria-label=\"Sphere Integration Hub icon\"", html, StringComparison.Ordinal);
     }

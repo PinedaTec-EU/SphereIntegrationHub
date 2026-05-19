@@ -4,6 +4,7 @@ public sealed class WorkflowReference
 {
     public List<WorkflowReferenceItem>? Workflows { get; set; }
     public List<ApiReferenceItem>? Apis { get; set; }
+    public List<LatencyProfileDefinition>? LatencyProfiles { get; set; }
     public string? EnvironmentFile { get; set; }
 }
 

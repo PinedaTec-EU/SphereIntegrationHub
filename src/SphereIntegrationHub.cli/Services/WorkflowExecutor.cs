@@ -382,6 +382,7 @@ public sealed class WorkflowExecutor
                                 stage,
                                 resourceLookup.ApiBaseUrls,
                                 resourceLookup.ApiDefinitions,
+                                resourceLookup.ApiLatencyProfiles,
                                 resourceLookup.ConnectionBaseUrls,
                                 resourceLookup.Connections,
                                 context,
@@ -390,13 +391,20 @@ public sealed class WorkflowExecutor
                                 mocked,
                                 cancellationToken);
                             stageRecord.JumpTarget = jumpTarget;
-                            CompleteStageRecord(stageRecord, context, string.IsNullOrWhiteSpace(jumpTarget) ? "Ok" : "Jumped", jumpTarget, null);
+                            CompleteStageRecord(
+                                stageRecord,
+                                stage,
+                                context,
+                                string.IsNullOrWhiteSpace(jumpTarget) ? "Ok" : "Jumped",
+                                jumpTarget,
+                                null,
+                                resourceLookup.ApiLatencyProfiles);
                         }
                         catch (Exception ex)
                         {
                             stageActivity?.SetStatus(ActivityStatusCode.Error, ex.Message);
                             _logger.Error($"{GetStepIndent(context)}{FormatStepEntry(stage.Name)} failed after {stageTimer.Elapsed.TotalMilliseconds:F0} ms: {ex.Message}");
-                            CompleteStageRecord(stageRecord, context, "Error", null, ex.Message);
+                            CompleteStageRecord(stageRecord, stage, context, "Error", null, ex.Message, resourceLookup.ApiLatencyProfiles);
                             if (captureErrors)
                             {
                                 return BuildWorkflowErrorResult(definition, context, ex);
@@ -492,8 +500,15 @@ public sealed class WorkflowExecutor
     {
         var apiBaseUrls = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var apiDefinitions = new Dictionary<string, ApiDefinition>(StringComparer.OrdinalIgnoreCase);
+        var apiLatencyProfiles = new Dictionary<string, LatencyProfileDefinition>(StringComparer.OrdinalIgnoreCase);
         var connectionBaseUrls = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var connections = new Dictionary<string, ApiConnectionDefinition>(StringComparer.OrdinalIgnoreCase);
+        var workflowLatencyProfiles = LatencyProfileResolver.BuildLookupOrThrow(
+            definition.References?.LatencyProfiles,
+            ownerLabel: $"Workflow '{definition.Name}'");
+        var catalogLatencyProfiles = LatencyProfileResolver.BuildLookupOrThrow(
+            catalogVersion.LatencyProfiles,
+            ownerLabel: $"Catalog version '{catalogVersion.Version}'");
 
         foreach (var connection in catalogVersion.Connections ?? Enumerable.Empty<ApiConnectionDefinition>())
         {
@@ -509,7 +524,7 @@ public sealed class WorkflowExecutor
 
         if (definition.References?.Apis is null || definition.References.Apis.Count == 0)
         {
-            return new WorkflowResourceLookup(apiBaseUrls, apiDefinitions, connectionBaseUrls, connections);
+            return new WorkflowResourceLookup(apiBaseUrls, apiDefinitions, apiLatencyProfiles, connectionBaseUrls, connections);
         }
 
         foreach (var apiReference in definition.References.Apis)
@@ -530,9 +545,23 @@ public sealed class WorkflowExecutor
 
             apiBaseUrls[apiReference.Name] = CombineBaseUrl(baseUrl!, apiDefinition.BasePath);
             apiDefinitions[apiReference.Name] = apiDefinition;
+            if (!string.IsNullOrWhiteSpace(apiDefinition.LatencyProfile))
+            {
+                var resolvedProfile = LatencyProfileResolver.ResolveProfile(
+                    apiDefinition.LatencyProfile,
+                    workflowLatencyProfiles,
+                    catalogLatencyProfiles);
+                if (resolvedProfile is null)
+                {
+                    throw new InvalidOperationException(
+                        $"Latency profile '{apiDefinition.LatencyProfile}' referenced by API definition '{apiDefinition.Name}' was not found in workflow '{definition.Name}' or catalog version '{catalogVersion.Version}'.");
+                }
+
+                apiLatencyProfiles[apiReference.Name] = resolvedProfile;
+            }
         }
 
-        return new WorkflowResourceLookup(apiBaseUrls, apiDefinitions, connectionBaseUrls, connections);
+        return new WorkflowResourceLookup(apiBaseUrls, apiDefinitions, apiLatencyProfiles, connectionBaseUrls, connections);
     }
 
     private static bool TryResolveConnectionBaseUrl(
@@ -789,6 +818,7 @@ public sealed class WorkflowExecutor
         WorkflowStageDefinition stage,
         IReadOnlyDictionary<string, string> apiBaseUrls,
         IReadOnlyDictionary<string, ApiDefinition> apiDefinitions,
+        IReadOnlyDictionary<string, LatencyProfileDefinition> apiLatencyProfiles,
         IReadOnlyDictionary<string, string> connectionBaseUrls,
         IReadOnlyDictionary<string, ApiConnectionDefinition> connections,
         ExecutionContext context,
@@ -1146,6 +1176,7 @@ public sealed class WorkflowExecutor
         WorkflowStageDefinition stage,
         IReadOnlyDictionary<string, string> apiBaseUrls,
         IReadOnlyDictionary<string, ApiDefinition> apiDefinitions,
+        IReadOnlyDictionary<string, LatencyProfileDefinition> apiLatencyProfiles,
         IReadOnlyDictionary<string, string> connectionBaseUrls,
         IReadOnlyDictionary<string, ApiConnectionDefinition> connections,
         ExecutionContext context,
@@ -1156,7 +1187,7 @@ public sealed class WorkflowExecutor
     {
         if (!HasForEach(stage))
         {
-            return await ExecuteEndpointStageAsync(definition, stage, apiBaseUrls, apiDefinitions, connectionBaseUrls, connections, context, verbose, workflowPath, mocked, cancellationToken);
+            return await ExecuteEndpointStageAsync(definition, stage, apiBaseUrls, apiDefinitions, apiLatencyProfiles, connectionBaseUrls, connections, context, verbose, workflowPath, mocked, cancellationToken);
         }
 
         var iterations = ResolveForEachItems(stage, context, workflowPath);
@@ -1172,6 +1203,7 @@ public sealed class WorkflowExecutor
                     stage,
                     apiBaseUrls,
                     apiDefinitions,
+                    apiLatencyProfiles,
                     connectionBaseUrls,
                     connections,
                     context,
@@ -1201,7 +1233,7 @@ public sealed class WorkflowExecutor
         foreach (var iteration in iterations.Select((item, index) => new { item, index }))
         {
             using var scope = BeginIterationScope(stage, context, iteration.item, iteration.index);
-            var jumpTarget = await ExecuteEndpointStageAsync(definition, stage, apiBaseUrls, apiDefinitions, connectionBaseUrls, connections, context, verbose, workflowPath, mocked, cancellationToken);
+            var jumpTarget = await ExecuteEndpointStageAsync(definition, stage, apiBaseUrls, apiDefinitions, apiLatencyProfiles, connectionBaseUrls, connections, context, verbose, workflowPath, mocked, cancellationToken);
             if (context.EndpointOutputs.TryGetValue(stage.Name, out var output))
             {
                 results.Add(new Dictionary<string, string>(output, StringComparer.OrdinalIgnoreCase));
@@ -1275,6 +1307,7 @@ public sealed class WorkflowExecutor
         WorkflowStageDefinition stage,
         IReadOnlyDictionary<string, string> apiBaseUrls,
         IReadOnlyDictionary<string, ApiDefinition> apiDefinitions,
+        IReadOnlyDictionary<string, LatencyProfileDefinition> apiLatencyProfiles,
         IReadOnlyDictionary<string, string> connectionBaseUrls,
         IReadOnlyDictionary<string, ApiConnectionDefinition> connections,
         ExecutionContext context,
@@ -1286,7 +1319,7 @@ public sealed class WorkflowExecutor
         int index)
     {
         var iterationContext = CreateIterationContext(context, stage, item, index);
-        var jumpTarget = await ExecuteEndpointStageAsync(definition, stage, apiBaseUrls, apiDefinitions, connectionBaseUrls, connections, iterationContext, verbose, workflowPath, mocked, cancellationToken);
+        var jumpTarget = await ExecuteEndpointStageAsync(definition, stage, apiBaseUrls, apiDefinitions, apiLatencyProfiles, connectionBaseUrls, connections, iterationContext, verbose, workflowPath, mocked, cancellationToken);
         var output = iterationContext.EndpointOutputs.TryGetValue(stage.Name, out var endpointOutput)
             ? new Dictionary<string, string>(endpointOutput, StringComparer.OrdinalIgnoreCase)
             : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -1588,6 +1621,40 @@ public sealed class WorkflowExecutor
 
             context.Report.Metrics.TotalRetries += stageRecord.RetryCount;
         }
+    }
+
+    private void CompleteStageRecord(
+        WorkflowStageExecutionRecord stageRecord,
+        WorkflowStageDefinition stage,
+        ExecutionContext context,
+        string status,
+        string? jumpTarget,
+        string? errorMessage,
+        IReadOnlyDictionary<string, LatencyProfileDefinition> apiLatencyProfiles)
+    {
+        CompleteStageRecord(stageRecord, context, status, jumpTarget, errorMessage);
+
+        if (string.IsNullOrWhiteSpace(stage.ApiRef) ||
+            !apiLatencyProfiles.TryGetValue(stage.ApiRef, out var profile))
+        {
+            return;
+        }
+
+        var band = LatencyProfileResolver.ResolveBand(profile, stageRecord.DurationMs);
+        if (band is null)
+        {
+            return;
+        }
+
+        stageRecord.Latency = new WorkflowStageLatencyClassification
+        {
+            ProfileName = profile.Name,
+            BandName = band.Name,
+            Color = band.Color ?? band.Name,
+            Label = band.Label ?? band.Name,
+            MinMs = band.MinMs,
+            MaxMs = band.MaxMs
+        };
     }
 
     private void RecordSkippedStage(string workflowName, WorkflowStageDefinition stage, ExecutionContext context)
@@ -2824,6 +2891,7 @@ public sealed class WorkflowExecutor
 internal sealed record WorkflowResourceLookup(
     IReadOnlyDictionary<string, string> ApiBaseUrls,
     IReadOnlyDictionary<string, ApiDefinition> ApiDefinitions,
+    IReadOnlyDictionary<string, LatencyProfileDefinition> ApiLatencyProfiles,
     IReadOnlyDictionary<string, string> ConnectionBaseUrls,
     IReadOnlyDictionary<string, ApiConnectionDefinition> Connections);
 

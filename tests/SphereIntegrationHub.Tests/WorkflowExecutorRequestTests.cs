@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 using SphereIntegrationHub.Definitions;
 using SphereIntegrationHub.Services;
 
@@ -422,6 +424,133 @@ public sealed class WorkflowExecutorRequestTests
             Assert.Contains("request body field '$.count'", exception.Message, StringComparison.Ordinal);
             Assert.Contains("expected integer", exception.Message, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("got string", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, true);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ClassifiesLatencyUsingWorkflowProfileOverride()
+    {
+        using WireMockServer server = WireMockServer.Start();
+        server
+            .Given(Request.Create().WithPath("/api/accounts").UsingGet())
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithDelay(TimeSpan.FromMilliseconds(180))
+                .WithBody("{\"ok\":true}"));
+
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"sih-latency-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+        var workflowPath = Path.Combine(tempRoot, "test.workflow");
+        File.WriteAllText(workflowPath, "version: 1.0");
+
+        try
+        {
+            var definition = new WorkflowDefinition
+            {
+                Version = "3.11",
+                Id = "test-workflow",
+                Name = "test-workflow",
+                References = new WorkflowReference
+                {
+                    Apis = new List<ApiReferenceItem>
+                    {
+                        new()
+                        {
+                            Name = "accounts",
+                            Definition = "accounts"
+                        }
+                    },
+                    LatencyProfiles = new List<LatencyProfileDefinition>
+                    {
+                        new()
+                        {
+                            Name = "semaphore-default",
+                            Bands =
+                            [
+                                new LatencyBandDefinition { Name = "green", MinMs = 0, MaxMs = 100, Color = "green", Label = "normal" },
+                                new LatencyBandDefinition { Name = "amber", MinMs = 101, MaxMs = 250, Color = "amber", Label = "warning" },
+                                new LatencyBandDefinition { Name = "red", MinMs = 251, Color = "red", Label = "slow" }
+                            ]
+                        }
+                    }
+                },
+                Stages = new List<WorkflowStageDefinition>
+                {
+                    new()
+                    {
+                        Name = "get-account",
+                        Kind = WorkflowStageKind.Endpoint,
+                        ApiRef = "accounts",
+                        Endpoint = "/api/accounts",
+                        HttpVerb = "GET",
+                        ExpectedStatus = 200
+                    }
+                }
+            };
+
+            var document = new WorkflowDocument(
+                definition,
+                workflowPath,
+                new Dictionary<string, string>());
+
+            var catalogVersion = new ApiCatalogVersion
+            {
+                Version = "test",
+                LatencyProfiles = new List<LatencyProfileDefinition>
+                {
+                    new()
+                    {
+                        Name = "semaphore-default",
+                        Bands =
+                        [
+                            new LatencyBandDefinition { Name = "green", MinMs = 0, MaxMs = 200, Color = "green", Label = "normal" },
+                            new LatencyBandDefinition { Name = "amber", MinMs = 201, MaxMs = 500, Color = "amber", Label = "warning" },
+                            new LatencyBandDefinition { Name = "red", MinMs = 501, Color = "red", Label = "slow" }
+                        ]
+                    }
+                },
+                Definitions = new List<ApiDefinition>
+                {
+                    new ApiDefinition
+                    {
+                        Name = "accounts",
+                        SwaggerUrl = "http://unused",
+                        LatencyProfile = "semaphore-default",
+                        BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                        {
+                            ["test"] = server.Url!
+                        }
+                    }
+                }
+            };
+
+            using var httpClient = new HttpClient();
+            var executor = new WorkflowExecutor(
+                httpClient,
+                new DynamicValueService(),
+                reportOptions: new WorkflowExecutionReportOptions(true, ExecutionReportFormat.Json, ExecutionHttpCaptureMode.None, true, false));
+
+            var result = await executor.ExecuteAsync(
+                document,
+                catalogVersion,
+                "test",
+                new Dictionary<string, string>(),
+                varsOverrideActive: false,
+                mocked: false,
+                verbose: false,
+                debug: false,
+                cancellationToken: CancellationToken.None);
+
+            Assert.NotNull(result.JsonReportPath);
+            using var parsed = JsonDocument.Parse(await File.ReadAllTextAsync(result.JsonReportPath!));
+            var latency = parsed.RootElement.GetProperty("Stages")[0].GetProperty("Latency");
+            Assert.Equal("amber", latency.GetProperty("Color").GetString());
+            Assert.Equal("warning", latency.GetProperty("Label").GetString());
         }
         finally
         {

@@ -110,6 +110,7 @@ public static class ApiCatalogFile
             throw new InvalidOperationException("Catalog file is empty or invalid.");
         }
 
+        ValidateCatalog(catalog);
         return catalog;
     }
 
@@ -168,5 +169,21 @@ public static class ApiCatalogFile
             ".catalog" or ".yaml" or ".yml" => ApiCatalogFormat.Yaml,
             _ => ApiCatalogFormat.Json
         };
+    }
+
+    private static void ValidateCatalog(IEnumerable<ApiCatalogVersion> catalog)
+    {
+        var errors = new List<string>();
+        foreach (var version in catalog)
+        {
+            errors.AddRange(LatencyProfileResolver.ValidateProfiles(
+                version.LatencyProfiles,
+                ownerLabel: $"Catalog version '{version.Version}'"));
+        }
+
+        if (errors.Count > 0)
+        {
+            throw new InvalidOperationException(string.Join(Environment.NewLine, errors));
+        }
     }
 }

@@ -4,6 +4,7 @@ public sealed class ApiCatalogVersion
 {
     public required string Version { get; set; }
     public required List<ApiDefinition> Definitions { get; set; }
+    public List<LatencyProfileDefinition>? LatencyProfiles { get; set; }
     public List<ApiConnectionDefinition>? Connections { get; set; }
     public List<PluginCatalogDefinition>? Plugins { get; set; }
 }

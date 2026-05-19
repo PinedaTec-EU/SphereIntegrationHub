@@ -9,6 +9,7 @@ public sealed class ApiDefinition
     public string? ScalaUrl { get; set; }
     public string? HealthCheck { get; set; }
     public ApiReadinessPolicyDefinition? Readiness { get; set; }
+    public string? LatencyProfile { get; set; }
     public Dictionary<string, string>? BaseUrl { get; set; }
     public int? Port { get; set; }
     public string? BasePath { get; set; }

@@ -158,6 +158,9 @@ public sealed class WorkflowValidator
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var stageNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var references = definition.References;
+        errors.AddRange(LatencyProfileResolver.ValidateProfiles(
+            references?.LatencyProfiles,
+            ownerLabel: $"Workflow '{definition.Name}'"));
         var validationGlobals = BuildValidationGlobals(definition.InitStage, environmentVariables, runtimeInputs);
         var workflowLookup = BuildWorkflowLookupForValidation(
             references?.Workflows,

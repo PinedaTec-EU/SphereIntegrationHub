@@ -61,6 +61,54 @@ public sealed class WorkflowValidatorTests
     }
 
     [Fact]
+    public void Validate_FlagsInvalidWorkflowLatencyProfiles()
+    {
+        var definition = new WorkflowDefinition
+        {
+            Version = "1.0",
+            Id = "01",
+            Name = "test",
+            References = new WorkflowReference
+            {
+                Apis = new List<ApiReferenceItem>
+                {
+                    new() { Name = "accounts", Definition = "accounts" }
+                },
+                LatencyProfiles = new List<LatencyProfileDefinition>
+                {
+                    new()
+                    {
+                        Name = "semaphore-default",
+                        Bands =
+                        [
+                            new LatencyBandDefinition { Name = "green", MinMs = 0, MaxMs = 200 },
+                            new LatencyBandDefinition { Name = "amber", MinMs = 150, MaxMs = 500 }
+                        ]
+                    }
+                }
+            },
+            Stages = new List<WorkflowStageDefinition>
+            {
+                new()
+                {
+                    Name = "get-account",
+                    Kind = WorkflowStageKind.Endpoint,
+                    ApiRef = "accounts",
+                    Endpoint = "/api/accounts",
+                    HttpVerb = "GET",
+                    ExpectedStatus = 200
+                }
+            }
+        };
+
+        var document = new WorkflowDocument(definition, "/tmp/test.workflow", new Dictionary<string, string>());
+        var validator = new WorkflowValidator(new WorkflowLoader());
+        var errors = validator.Validate(document);
+
+        Assert.Contains(errors, e => e.Contains("overlapping bands", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Validate_AllowsStageJsonToken()
     {
         var definition = new WorkflowDefinition

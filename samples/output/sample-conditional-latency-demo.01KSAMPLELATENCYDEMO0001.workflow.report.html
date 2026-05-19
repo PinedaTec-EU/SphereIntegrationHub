@@ -1,166 +1,10 @@
-using System.Diagnostics;
-using System.Reflection;
-using System.Text;
-using System.Text.Json;
-
-using SphereIntegrationHub.cli;
-
-namespace SphereIntegrationHub.Services;
-
-internal sealed class ExecutionReportGenerator
-{
-    private const string ReportFilePattern = "*.workflow.report.json";
-    private readonly ICliOutputProvider _output;
-
-    public ExecutionReportGenerator(ICliOutputProvider output)
-    {
-        _output = output;
-    }
-
-    public async Task<int> GenerateAndOpenAsync(InlineArguments args, CancellationToken cancellationToken)
-    {
-        var path = args.ExecutionReportPath!;
-        var fullPath = Path.GetFullPath(path);
-
-        if (!File.Exists(fullPath) && !Directory.Exists(fullPath))
-        {
-            _output.Error.WriteLine($"Execution report path not found: {path}");
-            return 1;
-        }
-
-        ReportArtifact[] reports;
-        try
-        {
-            reports = await LoadReportsAsync(fullPath, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _output.Error.WriteLine($"Failed to read execution report: {ex.Message}");
-            return 1;
-        }
-
-        if (reports.Length == 0)
-        {
-            _output.Error.WriteLine($"No execution reports found in: {path}");
-            return 1;
-        }
-
-        var selectedReport = reports[^1];
-        var outputDir = args.ReportOutputPath ?? GetDefaultOutputDirectory(fullPath, selectedReport.Path);
-        Directory.CreateDirectory(outputDir);
-
-        var baseName = BuildOutputBaseName(fullPath, selectedReport.Path);
-        var htmlPath = Path.Combine(outputDir, $"{baseName}.workflow.report.html");
-
-        var appVersion = typeof(ExecutionReportGenerator).Assembly
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-            ?.InformationalVersion?.Split('+')[0]
-            ?? typeof(ExecutionReportGenerator).Assembly.GetName().Version?.ToString()
-            ?? string.Empty;
-        var html = BuildHtml(reports, reports.Length - 1, appVersion);
-        await File.WriteAllTextAsync(htmlPath, html, cancellationToken);
-
-        _output.Out.WriteLine($"Report: {htmlPath}");
-
-        if (args.OpenAfterGenerate)
-        {
-            try
-            {
-                Process.Start(new ProcessStartInfo { FileName = htmlPath, UseShellExecute = true });
-            }
-            catch (Exception ex)
-            {
-                _output.Error.WriteLine($"Could not open browser: {ex.Message}");
-            }
-        }
-
-        return 0;
-    }
-
-    private static async Task<ReportArtifact[]> LoadReportsAsync(string path, CancellationToken cancellationToken)
-    {
-        if (File.Exists(path))
-        {
-            return [await LoadReportAsync(path, cancellationToken)];
-        }
-
-        var reportFiles = Directory.GetFiles(path, ReportFilePattern, SearchOption.TopDirectoryOnly)
-            .OrderBy(file => Path.GetFileName(file), StringComparer.Ordinal)
-            .ToArray();
-
-        var reports = new List<ReportArtifact>(reportFiles.Length);
-        foreach (var reportFile in reportFiles)
-        {
-            reports.Add(await LoadReportAsync(reportFile, cancellationToken));
-        }
-
-        return reports.ToArray();
-    }
-
-    private static async Task<ReportArtifact> LoadReportAsync(string path, CancellationToken cancellationToken)
-    {
-        var rawJson = await File.ReadAllTextAsync(path, cancellationToken);
-        var report = JsonSerializer.Deserialize<WorkflowExecutionReport>(
-                         rawJson,
-                         new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
-                     ?? throw new InvalidOperationException($"Deserialization returned null for '{path}'.");
-
-        return new ReportArtifact(
-            Path.GetFullPath(path),
-            Path.GetFileName(path),
-            rawJson,
-            report);
-    }
-
-    private static string GetDefaultOutputDirectory(string requestedPath, string selectedReportPath)
-    {
-        if (Directory.Exists(requestedPath))
-        {
-            return requestedPath;
-        }
-
-        return Path.GetDirectoryName(selectedReportPath) ?? ".";
-    }
-
-    private static string BuildOutputBaseName(string requestedPath, string selectedReportPath)
-    {
-        if (Directory.Exists(requestedPath))
-        {
-            return $"{Path.GetFileName(requestedPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))}.reports";
-        }
-
-        var baseName = Path.GetFileNameWithoutExtension(selectedReportPath);
-        if (baseName.EndsWith(".workflow.report", StringComparison.OrdinalIgnoreCase))
-        {
-            baseName = baseName[..^".workflow.report".Length];
-        }
-
-        return baseName;
-    }
-
-    internal static string BuildHtml(IReadOnlyList<ExecutionReportHtmlArtifact> reports, int initialReportIndex, string appVersion)
-    {
-        var faviconDataUri = $"data:image/svg+xml,{Uri.EscapeDataString(ReportBranding.FaviconSvg)}";
-        var reportsJson = JsonSerializer.Serialize(reports.Select(report => new
-        {
-            path = report.Path,
-            fileName = report.FileName,
-            executionId = report.Report.ExecutionId,
-            workflowName = report.Report.WorkflowName,
-            result = report.Report.Result,
-            startedAtUtc = report.Report.StartedAtUtc,
-            toolVersion = report.Report.ToolVersion,
-            json = JsonSerializer.Deserialize<JsonElement>(report.RawJson)
-        }));
-
-        return $$"""
 <!doctype html>
 <html lang="en" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Workflow Trace</title>
-<link rel="icon" type="image/svg+xml" href="{{faviconDataUri}}">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20120%20120%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3CradialGradient%20id%3D%22sphereGrad%22%20cx%3D%2242%25%22%20cy%3D%2238%25%22%20r%3D%2258%25%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23a78bfa%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%2255%25%22%20stop-color%3D%22%236d28d9%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%231e1b4b%22%2F%3E%0A%20%20%20%20%3C%2FradialGradient%3E%0A%20%20%20%20%3CradialGradient%20id%3D%22nodeGrad%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%20r%3D%2265%25%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23e0e7ff%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%236d28d9%22%2F%3E%0A%20%20%20%20%3C%2FradialGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Cellipse%20cx%3D%2260%22%20cy%3D%2260%22%20rx%3D%2250%22%20ry%3D%2250%22%20fill%3D%22none%22%20stroke%3D%22%236d28d9%22%20stroke-width%3D%220.6%22%20stroke-dasharray%3D%223%203%22%20opacity%3D%220.35%22%2F%3E%0A%20%20%3Cline%20x1%3D%2260%22%20y1%3D%2260%22%20x2%3D%2260%22%20y2%3D%2214%22%20stroke%3D%22%23a78bfa%22%20stroke-width%3D%221.2%22%20opacity%3D%220.6%22%2F%3E%0A%20%20%3Cline%20x1%3D%2260%22%20y1%3D%2260%22%20x2%3D%22100%22%20y2%3D%2235%22%20stroke%3D%22%23a78bfa%22%20stroke-width%3D%221.2%22%20opacity%3D%220.6%22%2F%3E%0A%20%20%3Cline%20x1%3D%2260%22%20y1%3D%2260%22%20x2%3D%22100%22%20y2%3D%2285%22%20stroke%3D%22%23a78bfa%22%20stroke-width%3D%221.2%22%20opacity%3D%220.6%22%2F%3E%0A%20%20%3Cline%20x1%3D%2260%22%20y1%3D%2260%22%20x2%3D%2260%22%20y2%3D%22106%22%20stroke%3D%22%23a78bfa%22%20stroke-width%3D%221.2%22%20opacity%3D%220.6%22%2F%3E%0A%20%20%3Cline%20x1%3D%2260%22%20y1%3D%2260%22%20x2%3D%2220%22%20y2%3D%2285%22%20stroke%3D%22%23a78bfa%22%20stroke-width%3D%221.2%22%20opacity%3D%220.6%22%2F%3E%0A%20%20%3Cline%20x1%3D%2260%22%20y1%3D%2260%22%20x2%3D%2220%22%20y2%3D%2235%22%20stroke%3D%22%23a78bfa%22%20stroke-width%3D%221.2%22%20opacity%3D%220.6%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2260%22%20cy%3D%2214%22%20r%3D%225%22%20fill%3D%22url%28%23nodeGrad%29%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22100%22%20cy%3D%2235%22%20r%3D%225%22%20fill%3D%22url%28%23nodeGrad%29%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22100%22%20cy%3D%2285%22%20r%3D%225%22%20fill%3D%22url%28%23nodeGrad%29%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2260%22%20cy%3D%22106%22%20r%3D%225%22%20fill%3D%22url%28%23nodeGrad%29%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2220%22%20cy%3D%2285%22%20r%3D%225%22%20fill%3D%22url%28%23nodeGrad%29%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2220%22%20cy%3D%2235%22%20r%3D%225%22%20fill%3D%22url%28%23nodeGrad%29%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2260%22%20cy%3D%2260%22%20r%3D%2222%22%20fill%3D%22url%28%23sphereGrad%29%22%2F%3E%0A%20%20%3Cellipse%20cx%3D%2260%22%20cy%3D%2260%22%20rx%3D%2222%22%20ry%3D%229%22%20fill%3D%22none%22%20stroke%3D%22%23c4b5fd%22%20stroke-width%3D%220.7%22%20opacity%3D%220.45%22%2F%3E%0A%20%20%3Cline%20x1%3D%2260%22%20y1%3D%2238%22%20x2%3D%2260%22%20y2%3D%2282%22%20stroke%3D%22%23c4b5fd%22%20stroke-width%3D%220.7%22%20opacity%3D%220.45%22%2F%3E%0A%20%20%3Cellipse%20cx%3D%2253%22%20cy%3D%2252%22%20rx%3D%227%22%20ry%3D%224.5%22%20fill%3D%22white%22%20opacity%3D%220.18%22%20transform%3D%22rotate%28-20%2053%2052%29%22%2F%3E%0A%3C%2Fsvg%3E">
 <style>
 /* ── Variables ───────────────────────────────────────────────────── */
 :root {
@@ -345,10 +189,47 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 <body>
 
 <div class="banner">
-  {{ReportBranding.HeaderLogoSvg.Replace("class=\"header-logo\"", "class=\"banner-logo\"")}}
-  <span class="banner-brand">{{ReportBranding.HeaderTitle}}</span>
+  <svg class="banner-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Sphere Integration Hub icon">
+  <defs>
+    <radialGradient id="sphereGrad" cx="42%" cy="38%" r="58%">
+      <stop offset="0%" stop-color="#a78bfa"/>
+      <stop offset="55%" stop-color="#6d28d9"/>
+      <stop offset="100%" stop-color="#1e1b4b"/>
+    </radialGradient>
+    <radialGradient id="nodeGrad" cx="35%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#e0e7ff"/>
+      <stop offset="100%" stop-color="#6d28d9"/>
+    </radialGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="nodeGlow" x="-80%" y="-80%" width="360%" height="360%">
+      <feGaussianBlur stdDeviation="1.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <ellipse cx="60" cy="60" rx="50" ry="50" fill="none" stroke="#6d28d9" stroke-width="0.6" stroke-dasharray="3 3" opacity="0.35"/>
+  <line x1="60" y1="60" x2="60" y2="14" stroke="#a78bfa" stroke-width="1.2" opacity="0.6"/>
+  <line x1="60" y1="60" x2="100" y2="35" stroke="#a78bfa" stroke-width="1.2" opacity="0.6"/>
+  <line x1="60" y1="60" x2="100" y2="85" stroke="#a78bfa" stroke-width="1.2" opacity="0.6"/>
+  <line x1="60" y1="60" x2="60" y2="106" stroke="#a78bfa" stroke-width="1.2" opacity="0.6"/>
+  <line x1="60" y1="60" x2="20" y2="85" stroke="#a78bfa" stroke-width="1.2" opacity="0.6"/>
+  <line x1="60" y1="60" x2="20" y2="35" stroke="#a78bfa" stroke-width="1.2" opacity="0.6"/>
+  <circle cx="60" cy="14" r="5" fill="url(#nodeGrad)" filter="url(#nodeGlow)"/>
+  <circle cx="100" cy="35" r="5" fill="url(#nodeGrad)" filter="url(#nodeGlow)"/>
+  <circle cx="100" cy="85" r="5" fill="url(#nodeGrad)" filter="url(#nodeGlow)"/>
+  <circle cx="60" cy="106" r="5" fill="url(#nodeGrad)" filter="url(#nodeGlow)"/>
+  <circle cx="20" cy="85" r="5" fill="url(#nodeGrad)" filter="url(#nodeGlow)"/>
+  <circle cx="20" cy="35" r="5" fill="url(#nodeGrad)" filter="url(#nodeGlow)"/>
+  <circle cx="60" cy="60" r="22" fill="url(#sphereGrad)" filter="url(#glow)"/>
+  <ellipse cx="60" cy="60" rx="22" ry="9" fill="none" stroke="#c4b5fd" stroke-width="0.7" opacity="0.45"/>
+  <line x1="60" y1="38" x2="60" y2="82" stroke="#c4b5fd" stroke-width="0.7" opacity="0.45"/>
+  <ellipse cx="53" cy="52" rx="7" ry="4.5" fill="white" opacity="0.18" transform="rotate(-20 53 52)"/>
+</svg>
+  <span class="banner-brand">Sphere Integration Hub (SIH)</span>
   <span class="banner-sep">·</span>
-  <span class="banner-version" id="banner-version">v{{appVersion}}</span>
+  <span class="banner-version" id="banner-version">v1.7.21.280</span>
   <h1 class="banner-title" id="banner-title">Loading&hellip;</h1>
   <span class="version-badge hidden" id="version-badge" title="This output was generated with a different tool version"></span>
   <select class="report-picker" id="report-picker" title="Select execution"></select>
@@ -391,9 +272,9 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 </div>
 
 <script>
-const _reports = {{reportsJson}};
-const _initialReportIndex = {{initialReportIndex}};
-const _currentVersion = '{{appVersion}}';
+const _reports = [{"path":"/Users/jmr.pineda/Projects/GitHub/PinedaTec.eu/SphereIntegrationHub/samples/output/sample-conditional-latency-demo.01KSAMPLELATENCYDEMO0001.workflow.report.json","fileName":"sample-conditional-latency-demo.01KSAMPLELATENCYDEMO0001.workflow.report.json","executionId":"01KSAMPLELATENCYDEMO0001","workflowName":"sample-conditional-control","result":"Ok","startedAtUtc":"2026-05-19T10:00:00+00:00","toolVersion":"1.7.21.280","json":{"ExecutionId":"01KSAMPLELATENCYDEMO0001","WorkflowName":"sample-conditional-control","WorkflowId":"01J9SAMPLECONTROL000000001","WorkflowVersion":"3.11","ToolVersion":"1.7.21.280","WorkflowPath":"/Users/jmr.pineda/Projects/GitHub/PinedaTec.eu/SphereIntegrationHub/samples/sample-conditional.workflow","Environment":"local","StartedAtUtc":"2026-05-19T10:00:00Z","FinishedAtUtc":"2026-05-19T10:00:01.400Z","DurationMs":1400,"Result":"Ok","Mocked":false,"DryRun":false,"Inputs":{},"Output":{},"Preflight":{"Operations":[],"TotalRetries":0,"TotalDelayMs":0,"DurationMs":0},"Stages":[{"WorkflowName":"sample-conditional-control","StageName":"lookup-account","StageKind":"Endpoint","Depth":0,"Status":"Ok","Mocked":false,"StartedAtUtc":"2026-05-19T10:00:00Z","FinishedAtUtc":"2026-05-19T10:00:00.120Z","DurationMs":120,"RetryCount":0,"HttpStatusCode":200,"RequestUri":"https://api.example.com/api/accounts?login=demo","HttpMethod":"GET","Latency":{"ProfileName":"semaphore-default","BandName":"green","Color":"green","Label":"normal","MinMs":0,"MaxMs":150},"Output":{},"WorkflowInputs":{},"WorkflowOutput":{},"WorkflowResult":{}},{"WorkflowName":"sample-conditional-control","StageName":"create-account","StageKind":"Endpoint","Depth":0,"Status":"Ok","Mocked":false,"StartedAtUtc":"2026-05-19T10:00:00.180Z","FinishedAtUtc":"2026-05-19T10:00:00.430Z","DurationMs":250,"RetryCount":0,"HttpStatusCode":201,"RequestUri":"https://api.example.com/api/accounts","HttpMethod":"POST","Latency":{"ProfileName":"semaphore-default","BandName":"amber","Color":"amber","Label":"warning","MinMs":151,"MaxMs":350},"Output":{},"WorkflowInputs":{},"WorkflowOutput":{},"WorkflowResult":{}},{"WorkflowName":"sample-conditional-control","StageName":"preview-tag","StageKind":"Endpoint","Depth":0,"Status":"Ok","Mocked":false,"StartedAtUtc":"2026-05-19T10:00:00.550Z","FinishedAtUtc":"2026-05-19T10:00:01.350Z","DurationMs":800,"RetryCount":0,"HttpStatusCode":200,"RequestUri":"https://api.example.com/api/accounts/created-001/tag-preview","HttpMethod":"GET","Latency":{"ProfileName":"semaphore-default","BandName":"red","Color":"red","Label":"slow","MinMs":351,"MaxMs":null},"Output":{},"WorkflowInputs":{},"WorkflowOutput":{},"WorkflowResult":{}}],"Metrics":{"TotalStages":3,"ExecutedStages":3,"SkippedStages":0,"FailedStages":0,"MockedStages":0,"HttpStages":3,"WorkflowStages":0,"JumpedStages":0,"TotalRetries":0,"PreflightRetries":0},"OutputFilePath":null}}];
+const _initialReportIndex = 0;
+const _currentVersion = '1.7.21.280';
 let _report   = null;
 let _tree     = null;   // root nodes
 let _expanded = new Set();  // indices of expanded workflow rows
@@ -988,18 +869,3 @@ window.addEventListener('resize', syncTimelineLabels);
 </script>
 </body>
 </html>
-""";
-    }
-
-    private sealed record ReportArtifact(
-        string Path,
-        string FileName,
-        string RawJson,
-        WorkflowExecutionReport Report) : ExecutionReportHtmlArtifact(Path, FileName, RawJson, Report);
-}
-
-internal record ExecutionReportHtmlArtifact(
-    string Path,
-    string FileName,
-    string RawJson,
-    WorkflowExecutionReport Report);

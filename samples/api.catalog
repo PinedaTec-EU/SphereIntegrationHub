@@ -6,9 +6,27 @@
   - id: openai
     contractVersion: "1.0"
     runtimeVersion: "1.0"
+  latencyProfiles:
+  - name: semaphore-default
+    bands:
+    - name: green
+      minMs: 0
+      maxMs: 200
+      color: green
+      label: normal
+    - name: amber
+      minMs: 201
+      maxMs: 500
+      color: amber
+      label: degraded
+    - name: red
+      minMs: 501
+      color: red
+      label: slow
   definitions:
   - name: accounts
     contractType: openapi
+    latencyProfile: semaphore-default
     basePath: /api/accounts
     openApiUrl: /swagger/v1/swagger.json
     healthCheck: /health

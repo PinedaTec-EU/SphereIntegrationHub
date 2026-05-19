@@ -7,6 +7,23 @@ references:
   apis:
     - name: "accounts"
       definition: "accounts"
+  latencyProfiles:
+    - name: "semaphore-default"
+      bands:
+        - name: "green"
+          minMs: 0
+          maxMs: 150
+          color: "green"
+          label: "normal"
+        - name: "amber"
+          minMs: 151
+          maxMs: 350
+          color: "amber"
+          label: "warning"
+        - name: "red"
+          minMs: 351
+          color: "red"
+          label: "slow"
 input:
   - name: "jwt"
     type: "Text"

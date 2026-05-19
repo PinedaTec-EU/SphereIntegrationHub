@@ -173,6 +173,34 @@ public sealed class ExecutionReportGeneratorTests
     }
 
     [Fact]
+    public async Task GenerateAndOpenAsync_WithLatencyClassification_RendersLatencyBarAndDetail()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"sih-report-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+
+        var reportPath = Path.Combine(root, "sample.01KNGXHCZZZZ6KMC3DZDZAJRTJ.workflow.report.json");
+        await File.WriteAllTextAsync(reportPath, CreateLatencyProfileReportJson());
+
+        var output = new TestOutputProvider();
+        var generator = new ExecutionReportGenerator(output);
+
+        var result = await generator.GenerateAndOpenAsync(
+            new InlineArguments(
+                IsReportCommand: true,
+                ExecutionReportPath: root,
+                OpenAfterGenerate: false),
+            CancellationToken.None);
+
+        Assert.Equal(0, result);
+
+        var htmlPath = Path.Combine(root, $"{Path.GetFileName(root)}.reports.workflow.report.html");
+        var html = await File.ReadAllTextAsync(htmlPath);
+        Assert.Contains("bar-latency-green", html, StringComparison.Ordinal);
+        Assert.Contains("Latency", html, StringComparison.Ordinal);
+        Assert.Contains("latencyBarCls(stage)", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task GenerateAndOpenAsync_RendersResizableDetailPanelAndPopup()
     {
         var root = Path.Combine(Path.GetTempPath(), $"sih-report-{Guid.NewGuid():N}");
@@ -399,6 +427,51 @@ public sealed class ExecutionReportGeneratorTests
             DurationMs = 1000,
             Status = "Ok",
             ForEachExecutionMode = "Parallel"
+        });
+
+        return System.Text.Json.JsonSerializer.Serialize(report, new System.Text.Json.JsonSerializerOptions
+        {
+            WriteIndented = true
+        });
+    }
+
+    private static string CreateLatencyProfileReportJson()
+    {
+        var report = new WorkflowExecutionReport
+        {
+            ExecutionId = "01KNGXHCZZZZ6KMC3DZDZAJRTJ",
+            WorkflowName = "Latency Profile",
+            WorkflowId = "wf-latency",
+            WorkflowVersion = "1.0.0",
+            WorkflowPath = "/tmp/latency.workflow",
+            Environment = "local",
+            StartedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:00Z"),
+            FinishedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:03Z"),
+            DurationMs = 3000,
+            Result = "Ok",
+            Output = new Dictionary<string, object?>()
+        };
+
+        report.Metrics.TotalStages = 1;
+        report.Metrics.ExecutedStages = 1;
+        report.Stages.Add(new WorkflowStageExecutionRecord
+        {
+            WorkflowName = "Latency Profile",
+            StageName = "create-account",
+            StageKind = "Endpoint",
+            StartedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:00Z"),
+            FinishedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:00.120Z"),
+            DurationMs = 120,
+            Status = "Ok",
+            Latency = new WorkflowStageLatencyClassification
+            {
+                ProfileName = "semaphore-default",
+                BandName = "green",
+                Color = "green",
+                Label = "normal",
+                MinMs = 0,
+                MaxMs = 200
+            }
         });
 
         return System.Text.Json.JsonSerializer.Serialize(report, new System.Text.Json.JsonSerializerOptions
