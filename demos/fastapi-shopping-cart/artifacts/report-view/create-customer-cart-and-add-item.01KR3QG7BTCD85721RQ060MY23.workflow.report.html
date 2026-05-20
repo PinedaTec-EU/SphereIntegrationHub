@@ -1,0 +1,858 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Workflow Trace</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20120%20120%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3CradialGradient%20id%3D%22sphereGrad%22%20cx%3D%2242%25%22%20cy%3D%2238%25%22%20r%3D%2258%25%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23a78bfa%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%2255%25%22%20stop-color%3D%22%236d28d9%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%231e1b4b%22%2F%3E%0A%20%20%20%20%3C%2FradialGradient%3E%0A%20%20%20%20%3CradialGradient%20id%3D%22nodeGrad%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%20r%3D%2265%25%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23e0e7ff%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%236d28d9%22%2F%3E%0A%20%20%20%20%3C%2FradialGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Cellipse%20cx%3D%2260%22%20cy%3D%2260%22%20rx%3D%2250%22%20ry%3D%2250%22%20fill%3D%22none%22%20stroke%3D%22%236d28d9%22%20stroke-width%3D%220.6%22%20stroke-dasharray%3D%223%203%22%20opacity%3D%220.35%22%2F%3E%0A%20%20%3Cline%20x1%3D%2260%22%20y1%3D%2260%22%20x2%3D%2260%22%20y2%3D%2214%22%20stroke%3D%22%23a78bfa%22%20stroke-width%3D%221.2%22%20opacity%3D%220.6%22%2F%3E%0A%20%20%3Cline%20x1%3D%2260%22%20y1%3D%2260%22%20x2%3D%22100%22%20y2%3D%2235%22%20stroke%3D%22%23a78bfa%22%20stroke-width%3D%221.2%22%20opacity%3D%220.6%22%2F%3E%0A%20%20%3Cline%20x1%3D%2260%22%20y1%3D%2260%22%20x2%3D%22100%22%20y2%3D%2285%22%20stroke%3D%22%23a78bfa%22%20stroke-width%3D%221.2%22%20opacity%3D%220.6%22%2F%3E%0A%20%20%3Cline%20x1%3D%2260%22%20y1%3D%2260%22%20x2%3D%2260%22%20y2%3D%22106%22%20stroke%3D%22%23a78bfa%22%20stroke-width%3D%221.2%22%20opacity%3D%220.6%22%2F%3E%0A%20%20%3Cline%20x1%3D%2260%22%20y1%3D%2260%22%20x2%3D%2220%22%20y2%3D%2285%22%20stroke%3D%22%23a78bfa%22%20stroke-width%3D%221.2%22%20opacity%3D%220.6%22%2F%3E%0A%20%20%3Cline%20x1%3D%2260%22%20y1%3D%2260%22%20x2%3D%2220%22%20y2%3D%2235%22%20stroke%3D%22%23a78bfa%22%20stroke-width%3D%221.2%22%20opacity%3D%220.6%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2260%22%20cy%3D%2214%22%20r%3D%225%22%20fill%3D%22url%28%23nodeGrad%29%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22100%22%20cy%3D%2235%22%20r%3D%225%22%20fill%3D%22url%28%23nodeGrad%29%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22100%22%20cy%3D%2285%22%20r%3D%225%22%20fill%3D%22url%28%23nodeGrad%29%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2260%22%20cy%3D%22106%22%20r%3D%225%22%20fill%3D%22url%28%23nodeGrad%29%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2220%22%20cy%3D%2285%22%20r%3D%225%22%20fill%3D%22url%28%23nodeGrad%29%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2220%22%20cy%3D%2235%22%20r%3D%225%22%20fill%3D%22url%28%23nodeGrad%29%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2260%22%20cy%3D%2260%22%20r%3D%2222%22%20fill%3D%22url%28%23sphereGrad%29%22%2F%3E%0A%20%20%3Cellipse%20cx%3D%2260%22%20cy%3D%2260%22%20rx%3D%2222%22%20ry%3D%229%22%20fill%3D%22none%22%20stroke%3D%22%23c4b5fd%22%20stroke-width%3D%220.7%22%20opacity%3D%220.45%22%2F%3E%0A%20%20%3Cline%20x1%3D%2260%22%20y1%3D%2238%22%20x2%3D%2260%22%20y2%3D%2282%22%20stroke%3D%22%23c4b5fd%22%20stroke-width%3D%220.7%22%20opacity%3D%220.45%22%2F%3E%0A%20%20%3Cellipse%20cx%3D%2253%22%20cy%3D%2252%22%20rx%3D%227%22%20ry%3D%224.5%22%20fill%3D%22white%22%20opacity%3D%220.18%22%20transform%3D%22rotate%28-20%2053%2052%29%22%2F%3E%0A%3C%2Fsvg%3E">
+<style>
+/* ── Variables ───────────────────────────────────────────────────── */
+:root {
+  --bg:#f5f7fa;--surface:#ffffff;--border:#e2e8f0;--border-strong:#cbd5e1;
+  --text:#1e293b;--text-muted:#64748b;--text-subtle:#94a3b8;
+  --timeline-label-gutter:96px;
+  --banner-bg:#0f172a;--banner-text:#f1f5f9;--banner-muted:#475569;
+  --header-bg:#f8fafc;--row-hover:#f0f9ff;--row-selected:#dbeafe;--row-border:#f1f5f9;
+  --wf-row-bg:#f0f4ff;--wf-row-hover:#e0ebff;--wf-row-selected:#c7d9ff;
+  --detail-bg:#eff6ff;--detail-border:#bfdbfe;
+  --code-bg:#f8fafc;--code-border:#e2e8f0;--code-text:#475569;
+  --btn-bg:#1e293b;--btn-c:#94a3b8;--btn-border:#334155;--btn-hover-bg:#334155;--btn-hover-c:#f1f5f9;
+  --chip-total-bg:#eef2ff;--chip-total-c:#4338ca;--chip-total-b:#c7d2fe;
+  --chip-ok-bg:#f0fdf4;--chip-ok-c:#15803d;--chip-ok-b:#bbf7d0;
+  --chip-err-bg:#fff1f2;--chip-err-c:#be123c;--chip-err-b:#fecdd3;
+  --chip-skip-bg:#fefce8;--chip-skip-c:#a16207;--chip-skip-b:#fef08a;
+  --chip-mock-bg:#faf5ff;--chip-mock-c:#7c3aed;--chip-mock-b:#ddd6fe;
+  --chip-retry-bg:#fff7ed;--chip-retry-c:#c2410c;--chip-retry-b:#fed7aa;
+  --expand-c:#3b82f6;
+}
+[data-theme="dark"] {
+  --bg:#0f172a;--surface:#1e293b;--border:#334155;--border-strong:#475569;
+  --text:#f1f5f9;--text-muted:#94a3b8;--text-subtle:#64748b;
+  --banner-bg:#020617;--banner-text:#f1f5f9;--banner-muted:#64748b;
+  --header-bg:#1e293b;--row-hover:#172554;--row-selected:#1e3a5f;--row-border:#1e293b;
+  --wf-row-bg:#1a2540;--wf-row-hover:#1e3060;--wf-row-selected:#1e3a6e;
+  --detail-bg:#172554;--detail-border:#1e40af;
+  --code-bg:#0f172a;--code-border:#334155;--code-text:#94a3b8;
+  --btn-bg:#334155;--btn-c:#94a3b8;--btn-border:#475569;--btn-hover-bg:#475569;--btn-hover-c:#f1f5f9;
+  --chip-total-bg:#1e1b4b;--chip-total-c:#a5b4fc;--chip-total-b:#312e81;
+  --chip-ok-bg:#052e16;--chip-ok-c:#4ade80;--chip-ok-b:#14532d;
+  --chip-err-bg:#4c0519;--chip-err-c:#fda4af;--chip-err-b:#881337;
+  --chip-skip-bg:#422006;--chip-skip-c:#fcd34d;--chip-skip-b:#713f12;
+  --chip-mock-bg:#2e1065;--chip-mock-c:#c4b5fd;--chip-mock-b:#4c1d95;
+  --chip-retry-bg:#431407;--chip-retry-c:#fdba74;--chip-retry-b:#7c2d12;
+  --expand-c:#60a5fa;
+}
+/* ── Reset ───────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:13px;background:var(--bg);color:var(--text);display:flex;flex-direction:column;height:100vh;overflow:hidden;transition:background .2s,color .2s}
+/* ── Banner ──────────────────────────────────────────────────────── */
+.banner{background:var(--banner-bg);color:var(--banner-text);padding:10px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.banner-logo{width:28px;height:28px;flex-shrink:0}
+.banner-brand{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--banner-muted);white-space:nowrap;flex-shrink:0}
+.banner-sep{color:#334155;flex-shrink:0;font-size:16px;line-height:1}
+.banner-version{font-size:11px;font-weight:600;color:#4ade80;background:rgba(74,222,128,.12);border:1px solid rgba(74,222,128,.25);border-radius:4px;padding:1px 7px;white-space:nowrap;flex-shrink:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.02em}
+.version-badge{font-size:11px;font-weight:600;color:#a16207;background:#fefce8;border:1px solid #fef08a;border-radius:4px;padding:1px 7px;white-space:nowrap;flex-shrink:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.02em;cursor:default}
+[data-theme="dark"] .version-badge{color:#fcd34d;background:#422006;border-color:#713f12}
+.hidden{display:none!important}
+.banner-title{margin:0;font-size:14px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.result-ok{color:#4ade80}.result-error{color:#f87171}.result-running{color:#60a5fa}
+.btn{background:var(--btn-bg);color:var(--btn-c);border:1px solid var(--btn-border);padding:5px 11px;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap;transition:background .15s,color .15s;display:inline-flex;align-items:center;gap:5px}
+.btn:hover{background:var(--btn-hover-bg);color:var(--btn-hover-c)}
+.btn-icon{padding:5px 9px;font-size:14px}
+.report-picker{max-width:360px;min-width:180px;background:var(--btn-bg);color:var(--btn-c);border:1px solid var(--btn-border);padding:5px 11px;border-radius:6px;font-size:12px;font-family:inherit}
+.report-picker:hover{color:var(--btn-hover-c)}
+#file-input{display:none}
+/* ── Meta / chips ────────────────────────────────────────────────── */
+.meta-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:6px 16px;display:flex;gap:16px;align-items:center;flex-shrink:0;font-size:11.5px;color:var(--text-muted);flex-wrap:wrap;transition:background .2s}
+.meta-bar strong{color:var(--text);font-weight:600}
+.chips{display:flex;gap:5px;padding:7px 16px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;transition:background .2s}
+.chips-label{display:flex;align-items:center;font-size:10.5px;font-weight:700;letter-spacing:.5px;color:var(--text-subtle);text-transform:uppercase;margin-right:4px}
+.chip{padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid}
+.chip-total{background:var(--chip-total-bg);color:var(--chip-total-c);border-color:var(--chip-total-b)}
+.chip-ok{background:var(--chip-ok-bg);color:var(--chip-ok-c);border-color:var(--chip-ok-b)}
+.chip-error{background:var(--chip-err-bg);color:var(--chip-err-c);border-color:var(--chip-err-b)}
+.chip-skipped{background:var(--chip-skip-bg);color:var(--chip-skip-c);border-color:var(--chip-skip-b)}
+.chip-mocked{background:var(--chip-mock-bg);color:var(--chip-mock-c);border-color:var(--chip-mock-b)}
+.chip-retries{background:var(--chip-retry-bg);color:var(--chip-retry-c);border-color:var(--chip-retry-b)}
+/* ── Trace layout ────────────────────────────────────────────────── */
+.trace-container{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.trace-header{display:flex;background:var(--header-bg);border-bottom:1px solid var(--border-strong);flex-shrink:0;transition:background .2s}
+.trace-left-header{width:380px;min-width:380px;padding:6px 12px;font-weight:700;border-right:1px solid var(--border-strong);font-size:10.5px;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.5px}
+.trace-status-header{width:64px;min-width:64px;padding:6px 8px;font-weight:700;border-right:1px solid var(--border-strong);font-size:10.5px;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.5px;text-align:center;flex-shrink:0}
+.trace-right-header{flex:1;position:relative;padding:6px 0}
+.ruler{display:flex;justify-content:space-between;padding:0 calc(var(--timeline-label-gutter) + 8px) 0 8px;font-size:10.5px;color:var(--text-subtle)}
+.trace-rows{flex:1;overflow-y:auto;overflow-x:hidden}
+.trace-rows::-webkit-scrollbar{width:6px}
+.trace-rows::-webkit-scrollbar-track{background:transparent}
+.trace-rows::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:3px}
+/* ── Rows ────────────────────────────────────────────────────────── */
+.trace-row{display:flex;height:44px;border-bottom:1px solid var(--row-border);cursor:pointer;transition:background .1s}
+.trace-row:hover{background:var(--row-hover)}
+.trace-row.selected{background:var(--row-selected)}
+.trace-row.wf-row{background:var(--wf-row-bg)}
+.trace-row.wf-row:hover{background:var(--wf-row-hover)}
+.trace-row.wf-row.selected{background:var(--wf-row-selected)}
+.trace-row.is-skipped{opacity:.92}
+/* left cell */
+.trace-left{width:380px;min-width:380px;padding:4px 8px;display:flex;flex-direction:column;justify-content:center;gap:1px;overflow:hidden;border-right:1px solid var(--border);position:relative}
+.trace-left-top{display:flex;align-items:center;gap:5px;overflow:hidden;width:100%}
+.tree-indent{width:var(--tree-indent-width,0);height:18px;flex:0 0 var(--tree-indent-width,0);pointer-events:none}
+/* expand chevron */
+.expand-btn{width:18px;min-width:18px;height:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--expand-c);font-size:11px;font-weight:700;transition:transform .18s;line-height:1;border-radius:3px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.22)}
+.expand-btn:hover{background:rgba(99,102,241,.22)}
+.expand-btn.open{transform:rotate(90deg)}
+.expand-placeholder{width:18px;min-width:18px;flex-shrink:0}
+/* wf-tag, method badges */
+.wf-tag{font-size:10px;color:var(--text-subtle);background:var(--header-bg);border:1px solid var(--border);border-radius:4px;padding:1px 4px;white-space:nowrap;flex-shrink:0;max-width:80px;overflow:hidden;text-overflow:ellipsis;transition:background .2s}
+.http-badge{font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;flex-shrink:0;letter-spacing:.02em}
+.m-get{background:#dcfce7;color:#15803d}
+.m-post{background:#dbeafe;color:#1d4ed8}
+.m-put{background:#ffedd5;color:#c2410c}
+.m-patch{background:#ede9fe;color:#6d28d9}
+.m-delete{background:#ffe4e6;color:#be123c}
+[data-theme="dark"] .m-get{background:#14532d;color:#4ade80}
+[data-theme="dark"] .m-post{background:#1e3a8a;color:#93c5fd}
+[data-theme="dark"] .m-put{background:#7c2d12;color:#fdba74}
+[data-theme="dark"] .m-patch{background:#4c1d95;color:#c4b5fd}
+[data-theme="dark"] .m-delete{background:#881337;color:#fda4af}
+.wf-kind-badge{font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;flex-shrink:0;background:var(--chip-total-bg);color:var(--chip-total-c);letter-spacing:.02em}
+/* labels */
+.stage-lbl{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;color:var(--text);font-weight:500}
+.stage-lbl.s-error{color:#ef4444}
+.stage-lbl.s-skipped{color:var(--text-subtle)}
+.stage-state{font-size:10px;font-weight:700;letter-spacing:.02em;color:var(--chip-skip-c);background:var(--chip-skip-bg);border:1px solid var(--chip-skip-b);border-radius:4px;padding:1px 5px;flex-shrink:0}
+.stage-uri{font-size:10.5px;color:var(--text-subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;padding-left:var(--uri-indent,22px)}
+/* status column */
+.trace-status{width:64px;min-width:64px;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--border);flex-shrink:0}
+.http-status{font-size:11px;font-weight:700;padding:2px 6px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.s-2xx{background:var(--chip-ok-bg);color:var(--chip-ok-c)}
+.s-3xx{background:var(--chip-total-bg);color:var(--chip-total-c)}
+.s-4xx{background:var(--chip-err-bg);color:var(--chip-err-c)}
+.s-5xx{background:#fef2f2;color:#991b1b}
+[data-theme="dark"] .s-5xx{background:#4a0d0d;color:#fca5a5}
+/* timeline bar */
+.trace-right{flex:1;position:relative;overflow:hidden}
+.timeline-span{position:absolute;top:13px;height:18px;min-width:3px;overflow:visible}
+.span-bar{position:absolute;inset:0;border-radius:4px;display:flex;align-items:center;padding:0 5px;font-size:10px;color:rgba(255,255,255,.9);white-space:nowrap;overflow:hidden;cursor:pointer;transition:filter .1s}
+.span-bar:hover{filter:brightness(1.12)}
+.span-bar-duration{position:absolute;top:0;left:var(--timeline-label-offset,calc(100% + 6px));height:18px;display:flex;align-items:center;font-size:10px;font-weight:600;color:var(--text-muted);white-space:nowrap;pointer-events:none}
+.bar-ok{background:#22c55e}.bar-error{background:#ef4444}
+.bar-skipped{background:var(--chip-skip-bg);border:1px solid var(--chip-skip-b);padding:0}
+.bar-running{background:#3b82f6}.bar-mocked{background:#8b5cf6}
+.bar-workflow{background:linear-gradient(90deg,#6366f1,#8b5cf6)}
+/* children group */
+.children-group{display:none;margin-left:0}
+.children-group.open{display:block}
+/* ── Detail panel ────────────────────────────────────────────────── */
+.detail-panel{border-top:2px solid #3b82f6;background:var(--surface);overflow:hidden;flex-shrink:0;height:var(--detail-panel-height,340px);min-height:160px;max-height:calc(100vh - 140px);display:flex;flex-direction:column;transition:background .2s}
+.detail-panel.hidden{display:none}
+.detail-resizer{height:8px;min-height:8px;cursor:ns-resize;background:linear-gradient(to bottom,rgba(59,130,246,.22),transparent);border-bottom:1px solid var(--detail-border);flex-shrink:0;touch-action:none}
+.detail-resizer::after{content:"";display:block;width:42px;height:3px;margin:2px auto 0;border-radius:999px;background:var(--border-strong)}
+.detail-header{background:var(--detail-bg);padding:8px 16px;display:flex;gap:12px;align-items:center;border-bottom:1px solid var(--detail-border);flex-wrap:wrap;transition:background .2s}
+.detail-title{font-weight:700;font-size:14px;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.detail-meta{color:var(--text-muted);font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.detail-action{cursor:pointer;color:var(--text-subtle);background:transparent;border:1px solid transparent;border-radius:5px;font-size:16px;line-height:1;padding:3px 6px;flex-shrink:0;transition:color .1s,border-color .1s,background .1s}
+.detail-action:hover{color:var(--text);border-color:var(--detail-border);background:var(--surface)}
+.detail-body{padding:12px 16px;display:grid;grid-template-columns:1fr 1fr;gap:10px;overflow-y:auto;min-height:0}
+.detail-modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,.7);display:flex;align-items:center;justify-content:center;padding:32px;z-index:50}
+.detail-modal-backdrop.hidden{display:none}
+.detail-modal{width:min(1200px,calc(100vw - 64px));height:min(820px,calc(100vh - 64px));background:var(--surface);color:var(--text);border:1px solid var(--border-strong);border-radius:8px;box-shadow:0 24px 80px rgba(0,0,0,.35);display:flex;flex-direction:column;overflow:hidden}
+.detail-modal .detail-header{flex-shrink:0}
+.detail-modal .detail-body{flex:1;grid-template-columns:1fr 1fr}
+@media (max-width: 760px){.detail-body,.detail-modal .detail-body{grid-template-columns:1fr}.detail-modal-backdrop{padding:12px}.detail-modal{width:calc(100vw - 24px);height:calc(100vh - 24px)} }
+.detail-section h3{margin:0 0 6px;font-size:10px;text-transform:uppercase;color:var(--text-subtle);letter-spacing:.6px;border-bottom:1px solid var(--border);padding-bottom:4px;font-weight:700}
+.kv{display:flex;flex-direction:column;gap:3px}
+.kv-row{display:flex;gap:8px;align-items:baseline}
+.kv-k{color:var(--text-muted);min-width:100px;flex-shrink:0;font-size:11px}
+.kv-v{color:var(--text);word-break:break-all;font-size:12px}
+.code-block{background:var(--code-bg);border:1px solid var(--code-border);border-radius:6px;padding:7px 10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--code-text);white-space:pre-wrap;word-break:break-word;max-height:140px;overflow-y:auto;margin-top:2px;transition:background .2s,border-color .2s}
+.full-width{grid-column:1/-1}
+.http-req-bar{display:flex;align-items:center;gap:10px;background:var(--code-bg);border:1px solid var(--code-border);border-radius:8px;padding:9px 14px;flex-wrap:wrap;transition:background .2s,border-color .2s}
+.http-req-uri{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--text-muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:80px}
+.http-req-status-pill{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;font-weight:700;white-space:nowrap;padding:2px 8px;border-radius:5px}
+.http-req-dur{font-size:11px;color:var(--text-subtle);white-space:nowrap}
+.badge{padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.02em}
+.b-ok{background:var(--chip-ok-bg);color:var(--chip-ok-c)}
+.b-error{background:var(--chip-err-bg);color:var(--chip-err-c)}
+.b-skipped{background:var(--header-bg);color:var(--text-subtle);border:1px solid var(--border)}
+.b-running{background:var(--chip-total-bg);color:var(--chip-total-c)}
+.b-mocked{background:var(--chip-mock-bg);color:var(--chip-mock-c)}
+.output-kv{display:grid;grid-template-columns:auto 1fr;gap:4px 16px}
+.out-k{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--text-muted);white-space:nowrap}
+.out-v{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--text);word-break:break-all}
+.empty{color:var(--text-subtle);padding:40px;text-align:center;font-size:14px}
+</style>
+</head>
+<body>
+
+<div class="banner">
+  <svg class="banner-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Sphere Integration Hub icon">
+  <defs>
+    <radialGradient id="sphereGrad" cx="42%" cy="38%" r="58%">
+      <stop offset="0%" stop-color="#a78bfa"/>
+      <stop offset="55%" stop-color="#6d28d9"/>
+      <stop offset="100%" stop-color="#1e1b4b"/>
+    </radialGradient>
+    <radialGradient id="nodeGrad" cx="35%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#e0e7ff"/>
+      <stop offset="100%" stop-color="#6d28d9"/>
+    </radialGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="nodeGlow" x="-80%" y="-80%" width="360%" height="360%">
+      <feGaussianBlur stdDeviation="1.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <ellipse cx="60" cy="60" rx="50" ry="50" fill="none" stroke="#6d28d9" stroke-width="0.6" stroke-dasharray="3 3" opacity="0.35"/>
+  <line x1="60" y1="60" x2="60" y2="14" stroke="#a78bfa" stroke-width="1.2" opacity="0.6"/>
+  <line x1="60" y1="60" x2="100" y2="35" stroke="#a78bfa" stroke-width="1.2" opacity="0.6"/>
+  <line x1="60" y1="60" x2="100" y2="85" stroke="#a78bfa" stroke-width="1.2" opacity="0.6"/>
+  <line x1="60" y1="60" x2="60" y2="106" stroke="#a78bfa" stroke-width="1.2" opacity="0.6"/>
+  <line x1="60" y1="60" x2="20" y2="85" stroke="#a78bfa" stroke-width="1.2" opacity="0.6"/>
+  <line x1="60" y1="60" x2="20" y2="35" stroke="#a78bfa" stroke-width="1.2" opacity="0.6"/>
+  <circle cx="60" cy="14" r="5" fill="url(#nodeGrad)" filter="url(#nodeGlow)"/>
+  <circle cx="100" cy="35" r="5" fill="url(#nodeGrad)" filter="url(#nodeGlow)"/>
+  <circle cx="100" cy="85" r="5" fill="url(#nodeGrad)" filter="url(#nodeGlow)"/>
+  <circle cx="60" cy="106" r="5" fill="url(#nodeGrad)" filter="url(#nodeGlow)"/>
+  <circle cx="20" cy="85" r="5" fill="url(#nodeGrad)" filter="url(#nodeGlow)"/>
+  <circle cx="20" cy="35" r="5" fill="url(#nodeGrad)" filter="url(#nodeGlow)"/>
+  <circle cx="60" cy="60" r="22" fill="url(#sphereGrad)" filter="url(#glow)"/>
+  <ellipse cx="60" cy="60" rx="22" ry="9" fill="none" stroke="#c4b5fd" stroke-width="0.7" opacity="0.45"/>
+  <line x1="60" y1="38" x2="60" y2="82" stroke="#c4b5fd" stroke-width="0.7" opacity="0.45"/>
+  <ellipse cx="53" cy="52" rx="7" ry="4.5" fill="white" opacity="0.18" transform="rotate(-20 53 52)"/>
+</svg>
+  <span class="banner-brand">Sphere Integration Hub (SIH)</span>
+  <span class="banner-sep">·</span>
+  <span class="banner-version" id="banner-version">v1.7.20.278</span>
+  <h1 class="banner-title" id="banner-title">Loading&hellip;</h1>
+  <span class="version-badge hidden" id="version-badge" title="This output was generated with a different tool version"></span>
+  <select class="report-picker" id="report-picker" title="Select execution"></select>
+  <label for="file-input" class="btn">&#128193; Load</label>
+  <input type="file" id="file-input" accept=".json">
+  <button class="btn btn-icon" id="theme-toggle" title="Toggle dark/light mode" onclick="toggleTheme()">🌙</button>
+</div>
+<div class="meta-bar" id="meta-bar"></div>
+<div class="chips" id="chips"></div>
+
+<div class="trace-container">
+  <div class="trace-header">
+    <div class="trace-left-header">Workflow · Stage</div>
+    <div class="trace-status-header">HTTP</div>
+    <div class="trace-right-header"><div class="ruler" id="ruler"></div></div>
+  </div>
+  <div class="trace-rows" id="trace-rows"></div>
+</div>
+
+<div class="detail-panel hidden" id="detail-panel">
+  <div class="detail-resizer" id="detail-resizer" title="Resize detail panel"></div>
+  <div class="detail-header">
+    <span class="detail-title" id="detail-title"></span>
+    <span class="detail-meta" id="detail-meta"></span>
+    <button class="detail-action" onclick="openDetailModal()" title="Open detail popup" aria-label="Open detail popup">&#9974;</button>
+    <button class="detail-action" onclick="closeDetail()" title="Close" aria-label="Close detail">&#10005;</button>
+  </div>
+  <div class="detail-body" id="detail-body"></div>
+</div>
+
+<div class="detail-modal-backdrop hidden" id="detail-modal-backdrop" onclick="backdropCloseDetailModal(event)">
+  <div class="detail-modal" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title">
+    <div class="detail-header">
+      <span class="detail-title" id="detail-modal-title"></span>
+      <span class="detail-meta" id="detail-modal-meta"></span>
+      <button class="detail-action" onclick="closeDetailModal()" title="Close popup" aria-label="Close popup">&#10005;</button>
+    </div>
+    <div class="detail-body" id="detail-modal-body"></div>
+  </div>
+</div>
+
+<script>
+const _reports = [{"path":"/Users/jmr.pineda/Projects/GitHub/PinedaTec.eu/SphereIntegrationHub/demos/fastapi-shopping-cart/artifacts/output/create-customer-cart-and-add-item.01KR3QG7BTCD85721RQ060MY23.workflow.report.json","fileName":"create-customer-cart-and-add-item.01KR3QG7BTCD85721RQ060MY23.workflow.report.json","executionId":"01KR3QG7BTCD85721RQ060MY23","workflowName":"create-customer-cart-and-add-item","result":"Ok","startedAtUtc":"2026-05-08T12:02:52.924624+00:00","toolVersion":"1.7.20.278","json":{"ExecutionId":"01KR3QG7BTCD85721RQ060MY23","WorkflowName":"create-customer-cart-and-add-item","WorkflowId":"01HVSANDBOXCARTFLOW000001","WorkflowVersion":"3.11","ToolVersion":"1.7.20.278","WorkflowPath":"/Users/jmr.pineda/Projects/GitHub/PinedaTec.eu/SphereIntegrationHub/demos/fastapi-shopping-cart/artifacts/create-customer-cart-and-add-item.workflow","Environment":"local","StartedAtUtc":"2026-05-08T12:02:52.924624\u002B00:00","FinishedAtUtc":"2026-05-08T12:02:52.974931\u002B00:00","DurationMs":50,"Result":"Ok","ErrorMessage":null,"Mocked":false,"DryRun":false,"Inputs":{"customerName":"Fictitious Customer","customerEmail":"fictitious.customer@example.com","sampleItemId":"33333333-3333-4333-8333-333333333333","quantity":"2"},"Output":{"customerId":"7acd7352-ae4f-46fa-abb0-ac85dc262b72","customerName":"Fictitious Customer","customerEmail":"fictitious.customer@example.com","cartCustomerId":"7acd7352-ae4f-46fa-abb0-ac85dc262b72","itemId":"33333333-3333-4333-8333-333333333333","itemName":"Mechanical Keyboard","itemPrice":89.50,"quantity":2},"Preflight":{"Operations":[{"OperationType":"SwaggerCache","DefinitionName":"shopping-cart-sandbox","Target":"http://127.0.0.1:8000/openapi.json","Status":"Ok","Message":"Cache hit: /Users/jmr.pineda/Projects/GitHub/PinedaTec.eu/SphereIntegrationHub/demos/fastapi-shopping-cart/artifacts/cache/3.11/shopping-cart-sandbox.json","RetryCount":0,"DurationMs":0,"Attempts":[]}],"TotalRetries":0,"TotalDelayMs":0,"DurationMs":0},"Stages":[{"WorkflowName":"create-customer-cart-and-add-item","StageName":"create-customer","StageKind":"Endpoint","Depth":0,"Status":"Ok","RunIf":null,"JumpTarget":null,"Mocked":false,"ErrorMessage":null,"StartedAtUtc":"2026-05-08T12:02:52.928067\u002B00:00","FinishedAtUtc":"2026-05-08T12:02:52.964653\u002B00:00","DurationMs":36,"DelaySeconds":null,"ForEachExecutionMode":null,"RetryCount":0,"HttpStatusCode":201,"EnsureMode":null,"EnsureStatus":null,"RequestUri":"http://127.0.0.1:8000/users","HttpMethod":"POST","RequestHeaders":{"Content-Type":"application/json"},"RequestBody":"{\u0022name\u0022:\u0022Fictitious Customer\u0022,\u0022email\u0022:\u0022fictitious.customer@example.com\u0022}","ResponseHeaders":{"Date":"Fri, 08 May 2026 12:02:52 GMT","Server":"uvicorn","Content-Length":"116","Content-Type":"application/json"},"ResponseBody":"{\u0022id\u0022:\u00227acd7352-ae4f-46fa-abb0-ac85dc262b72\u0022,\u0022name\u0022:\u0022Fictitious Customer\u0022,\u0022email\u0022:\u0022fictitious.customer@example.com\u0022}","Output":{"customerId":"7acd7352-ae4f-46fa-abb0-ac85dc262b72","customerName":"Fictitious Customer","customerEmail":"fictitious.customer@example.com","http_status":201},"WorkflowInputs":{},"WorkflowOutput":{},"WorkflowResult":{}},{"WorkflowName":"create-customer-cart-and-add-item","StageName":"initialize-cart","StageKind":"Endpoint","Depth":0,"Status":"Ok","RunIf":null,"JumpTarget":null,"Mocked":false,"ErrorMessage":null,"StartedAtUtc":"2026-05-08T12:02:52.965319\u002B00:00","FinishedAtUtc":"2026-05-08T12:02:52.968425\u002B00:00","DurationMs":3,"DelaySeconds":null,"ForEachExecutionMode":null,"RetryCount":0,"HttpStatusCode":201,"EnsureMode":null,"EnsureStatus":null,"RequestUri":"http://127.0.0.1:8000/users/7acd7352-ae4f-46fa-abb0-ac85dc262b72/cart","HttpMethod":"POST","RequestHeaders":{"Content-Type":"application/json"},"RequestBody":"","ResponseHeaders":{"Date":"Fri, 08 May 2026 12:02:52 GMT","Server":"uvicorn","Content-Length":"61","Content-Type":"application/json"},"ResponseBody":"{\u0022user_id\u0022:\u00227acd7352-ae4f-46fa-abb0-ac85dc262b72\u0022,\u0022lines\u0022:[]}","Output":{"cartCustomerId":"7acd7352-ae4f-46fa-abb0-ac85dc262b72","http_status":201},"WorkflowInputs":{},"WorkflowOutput":{},"WorkflowResult":{}},{"WorkflowName":"create-customer-cart-and-add-item","StageName":"find-sample-item","StageKind":"Endpoint","Depth":0,"Status":"Ok","RunIf":null,"JumpTarget":null,"Mocked":false,"ErrorMessage":null,"StartedAtUtc":"2026-05-08T12:02:52.968453\u002B00:00","FinishedAtUtc":"2026-05-08T12:02:52.97011\u002B00:00","DurationMs":1,"DelaySeconds":null,"ForEachExecutionMode":null,"RetryCount":0,"HttpStatusCode":200,"EnsureMode":null,"EnsureStatus":null,"RequestUri":"http://127.0.0.1:8000/items?id=33333333-3333-4333-8333-333333333333","HttpMethod":"GET","RequestHeaders":null,"RequestBody":null,"ResponseHeaders":{"Date":"Fri, 08 May 2026 12:02:52 GMT","Server":"uvicorn","Content-Length":"102","Content-Type":"application/json"},"ResponseBody":"[{\u0022id\u0022:\u002233333333-3333-4333-8333-333333333333\u0022,\u0022name\u0022:\u0022Mechanical Keyboard\u0022,\u0022price\u0022:\u002289.50\u0022,\u0022stock\u0022:8}]","Output":{"itemId":"33333333-3333-4333-8333-333333333333","itemName":"Mechanical Keyboard","itemPrice":89.50,"http_status":200},"WorkflowInputs":{},"WorkflowOutput":{},"WorkflowResult":{}},{"WorkflowName":"create-customer-cart-and-add-item","StageName":"add-item-to-cart","StageKind":"Endpoint","Depth":0,"Status":"Ok","RunIf":null,"JumpTarget":null,"Mocked":false,"ErrorMessage":null,"StartedAtUtc":"2026-05-08T12:02:52.970123\u002B00:00","FinishedAtUtc":"2026-05-08T12:02:52.971335\u002B00:00","DurationMs":1,"DelaySeconds":null,"ForEachExecutionMode":null,"RetryCount":0,"HttpStatusCode":200,"EnsureMode":null,"EnsureStatus":null,"RequestUri":"http://127.0.0.1:8000/users/7acd7352-ae4f-46fa-abb0-ac85dc262b72/cart/items/33333333-3333-4333-8333-333333333333","HttpMethod":"POST","RequestHeaders":{"Content-Type":"application/json"},"RequestBody":"{\u0022quantity\u0022:2}","ResponseHeaders":{"Date":"Fri, 08 May 2026 12:02:52 GMT","Server":"uvicorn","Content-Length":"183","Content-Type":"application/json"},"ResponseBody":"{\u0022user_id\u0022:\u00227acd7352-ae4f-46fa-abb0-ac85dc262b72\u0022,\u0022lines\u0022:[{\u0022item\u0022:{\u0022id\u0022:\u002233333333-3333-4333-8333-333333333333\u0022,\u0022name\u0022:\u0022Mechanical Keyboard\u0022,\u0022price\u0022:\u002289.50\u0022,\u0022stock\u0022:8},\u0022quantity\u0022:2}]}","Output":{"cartCustomerId":"7acd7352-ae4f-46fa-abb0-ac85dc262b72","firstCartItemId":"33333333-3333-4333-8333-333333333333","firstCartItemName":"Mechanical Keyboard","firstCartItemQuantity":2,"http_status":200},"WorkflowInputs":{},"WorkflowOutput":{},"WorkflowResult":{}}],"Metrics":{"TotalStages":4,"ExecutedStages":4,"SkippedStages":0,"FailedStages":0,"MockedStages":0,"HttpStages":4,"WorkflowStages":0,"JumpedStages":0,"TotalRetries":0,"PreflightRetries":0},"OutputFilePath":"/Users/jmr.pineda/Projects/GitHub/PinedaTec.eu/SphereIntegrationHub/demos/fastapi-shopping-cart/artifacts/output/create-customer-cart-and-add-item.01KR3QG7BTCD85721RQ060MY23.workflow.output"}}];
+const _initialReportIndex = 0;
+const _currentVersion = '1.7.20.278';
+let _report   = null;
+let _tree     = null;   // root nodes
+let _expanded = new Set();  // indices of expanded workflow rows
+let _selected = -1;
+let _detailResizeState = null;
+
+/* ── Theme ───────────────────────────────────────────────────────── */
+function applyTheme(dark) {
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  document.getElementById('theme-toggle').textContent = dark ? '☀️' : '🌙';
+}
+function toggleTheme() {
+  const dark = document.documentElement.dataset.theme !== 'dark';
+  localStorage.setItem('sphere-theme', dark ? 'dark' : 'light');
+  applyTheme(dark);
+}
+(function() {
+  const saved = localStorage.getItem('sphere-theme');
+  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyTheme(saved ? saved === 'dark' : prefersDark);
+})();
+
+/* ── Utilities ───────────────────────────────────────────────────── */
+function fmtMs(ms) {
+  if (ms == null) return '';
+  if (ms >= 1000) return (ms / 1000).toFixed(2) + 's';
+  return Math.round(ms) + 'ms';
+}
+function fmtDate(iso) {
+  if (!iso) return '';
+  try { return new Date(iso).toLocaleString(); } catch { return iso; }
+}
+function fmtDateShort(iso) {
+  if (!iso) return '';
+  try { return new Date(iso).toLocaleString(); } catch { return iso; }
+}
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function statusCls(s) {
+  switch ((s||'').toLowerCase()) {
+    case 'ok': return 'ok'; case 'error': return 'error';
+    case 'skipped': return 'skipped'; default: return 'running';
+  }
+}
+function statusText(s) {
+  switch ((s||'').toLowerCase()) {
+    case 'skipped': return 'Not executed';
+    default: return s || 'Running';
+  }
+}
+function badgeCls(s) { return 'badge b-' + statusCls(s); }
+function methodCls(m) { return m ? 'm-' + m.toLowerCase() : ''; }
+function httpRangeCls(code) {
+  if (code == null) return '';
+  if (code >= 200 && code < 300) return 's-2xx';
+  if (code >= 300 && code < 400) return 's-3xx';
+  if (code >= 400 && code < 500) return 's-4xx';
+  if (code >= 500) return 's-5xx';
+  return '';
+}
+function barCls(stage) {
+  if (statusCls(stage.Status) === 'skipped') return 'bar-skipped';
+  if (stage.Mocked) return 'bar-mocked';
+  if (isWfKind(stage)) return 'bar-workflow';
+  return 'bar-' + statusCls(stage.Status);
+}
+function getDurationText(durationMs) {
+  return durationMs > 0 ? fmtMs(durationMs) : '';
+}
+function getTimelineLabel(stage, durationText) {
+  return statusCls(stage.Status) === 'skipped' ? statusText(stage.Status) : durationText;
+}
+function isWfKind(stage) {
+  return (stage.StageKind || '').toLowerCase().includes('workflow');
+}
+function uriPath(uri) {
+  if (!uri) return '';
+  try { const u = new URL(uri); return u.pathname + (u.search || ''); }
+  catch { return uri.length > 60 ? uri.slice(0,60)+'…' : uri; }
+}
+function tryPrettyJson(s) {
+  if (!s) return '';
+  try { return JSON.stringify(JSON.parse(s), null, 2); } catch { return s; }
+}
+function fmtVal(v) {
+  if (v == null) return '—';
+  if (typeof v === 'object') { const s = JSON.stringify(v); return s.length > 160 ? s.slice(0,160)+'…' : s; }
+  const s = String(v); return s.length > 160 ? s.slice(0,160)+'…' : s;
+}
+function kv(k, v) {
+  if (!v && v !== 0) return '';
+  return `<div class="kv-row"><span class="kv-k">${k}</span><span class="kv-v">${v}</span></div>`;
+}
+function reportOptionLabel(entry) {
+  const workflow = entry.workflowName || 'Workflow';
+  const execution = entry.executionId || entry.fileName || 'Execution';
+  const startedAt = fmtDateShort(entry.startedAtUtc);
+  return startedAt ? `${workflow} · ${execution} · ${startedAt}` : `${workflow} · ${execution}`;
+}
+
+/* ── Tree builder ────────────────────────────────────────────────── */
+// A stage's parent is the nearest preceding stage with lower Depth.
+function buildTree(stages) {
+  const nodes = stages.map((stage, idx) => ({ stage, idx, children: [] }));
+  const roots = [];
+  for (let i = 0; i < nodes.length; i++) {
+    const d = nodes[i].stage.Depth || 0;
+    if (d === 0) { roots.push(nodes[i]); continue; }
+    for (let j = i - 1; j >= 0; j--) {
+      if ((nodes[j].stage.Depth || 0) < d) { nodes[j].children.push(nodes[i]); break; }
+    }
+  }
+  return roots;
+}
+
+/* ── Render ──────────────────────────────────────────────────────── */
+function render(report) {
+  _report   = report;
+  _tree     = null;
+  _expanded = new Set();
+  _selected = -1;
+  closeDetail();
+
+  const stages  = report.Stages || [];
+  const m       = report.Metrics || {};
+  const totalMs = Math.max(report.DurationMs || 1, 1);
+
+  // Banner
+  const rCls = 'result-' + statusCls(report.Result);
+  document.getElementById('banner-title').innerHTML =
+    `<span style="color:var(--banner-muted)">${esc(report.WorkflowName)}</span>`+
+    ` <span class="${rCls}">${esc(report.ExecutionId)}</span>`;
+  document.title = `${report.WorkflowName} — ${report.ExecutionId}`;
+
+  // Meta bar
+  const maxDepth = stages.reduce((d,s) => Math.max(d, s.Depth||0), 0);
+  const workflowStages = stages.filter(s => String(s.StageKind || '').toLowerCase() === 'workflow');
+  const workflowTotal = workflowStages.length;
+  const workflowExecuted = workflowStages.filter(s => String(s.Status || '').toLowerCase() !== 'skipped').length;
+  document.getElementById('meta-bar').innerHTML =
+    `<span>Start: <strong>${fmtDate(report.StartedAtUtc)}</strong></span>`+
+    `<span>Duration: <strong>${fmtMs(totalMs)}</strong></span>`+
+    `<span>Environment: <strong>${esc(report.Environment)}</strong></span>`+
+    `<span>Version: <strong>${esc(report.WorkflowVersion)}</strong></span>`+
+    `<span>Stages: <strong>${m.TotalStages ?? stages.length}</strong></span>`+
+    `<span>Workflows: <strong>${workflowExecuted}/${workflowTotal}</strong></span>`+
+    `<span>Depth: <strong>${maxDepth}</strong></span>`+
+    `<span>Status: <strong><span class="${badgeCls(report.Result)}">${esc(report.Result)}</span></strong></span>`;
+
+  // Chips
+  let chips =
+    `<span class="chips-label">Stages:</span>`+
+    `<span class="chip chip-total">Total: ${m.TotalStages ?? stages.length}</span>`+
+    `<span class="chip chip-ok">Executed: ${m.ExecutedStages ?? 0}</span>`;
+  if (m.FailedStages)  chips += `<span class="chip chip-error">Failed: ${m.FailedStages}</span>`;
+  if (m.SkippedStages) chips += `<span class="chip chip-skipped">Not executed: ${m.SkippedStages}</span>`;
+  if (m.MockedStages)  chips += `<span class="chip chip-mocked">Mocked: ${m.MockedStages}</span>`;
+  if (m.TotalRetries)  chips += `<span class="chip chip-retries">Retries: ${m.TotalRetries}</span>`;
+  if (m.HttpStages)    chips += `<span class="chip chip-total">HTTP: ${m.HttpStages}</span>`;
+  document.getElementById('chips').innerHTML = chips;
+
+  // Ruler
+  const ticks = 6;
+  let ruler = '';
+  for (let i = 0; i <= ticks; i++) ruler += `<span>${fmtMs(totalMs * i / ticks)}</span>`;
+  document.getElementById('ruler').innerHTML = ruler;
+
+  // Build tree and render
+  const startTs = new Date(report.StartedAtUtc).getTime();
+  _tree = buildTree(stages);
+  renderTree(_tree, totalMs, startTs);
+}
+
+function loadReportByIndex(index) {
+  const safeIndex = Math.max(0, Math.min(index, _reports.length - 1));
+  const entry = _reports[safeIndex];
+  if (!entry) return;
+  const picker = document.getElementById('report-picker');
+  if (picker) picker.value = String(safeIndex);
+  render(entry.json);
+  updateVersionBadge(entry.toolVersion);
+}
+
+function updateVersionBadge(reportToolVersion) {
+  const badge = document.getElementById('version-badge');
+  if (!badge) return;
+  const rv = reportToolVersion || '';
+  if (rv && rv === _currentVersion) {
+    badge.classList.add('hidden');
+    return;
+  }
+  // version mismatch or unknown (reports generated before ToolVersion was introduced)
+  const label = rv ? `v${rv}` : '????';
+  badge.textContent = `\uD83D\uDC41\uFE0F ${label}`;
+  badge.title = rv
+    ? `This output was generated with tool v${rv} (current: v${_currentVersion})`
+    : 'This output was generated with an unknown tool version (predates version tracking)';
+  badge.classList.remove('hidden');
+}
+
+function initReportPicker() {
+  const picker = document.getElementById('report-picker');
+  if (!picker) return;
+  if (_reports.length <= 1) {
+    picker.style.display = 'none';
+    return;
+  }
+
+  picker.innerHTML = _reports.map((entry, index) =>
+    `<option value="${index}">${esc(reportOptionLabel(entry))}</option>`).join('');
+  picker.addEventListener('change', e => loadReportByIndex(Number(e.target.value)));
+}
+
+/* ── Tree renderer ───────────────────────────────────────────────── */
+function renderTree(roots, totalMs, startTs) {
+  if (!roots || roots.length === 0) {
+    document.getElementById('trace-rows').innerHTML = '<div class="empty">No stages recorded.</div>';
+    return;
+  }
+  document.getElementById('trace-rows').innerHTML = buildRows(roots, totalMs, startTs);
+  syncTimelineLabels();
+}
+
+function syncTimelineLabels() {
+  document.querySelectorAll('.timeline-span[data-duration-label]').forEach(span => {
+    const durationLabel = span.querySelector('.span-bar-duration');
+    const lane = span.closest('.trace-right');
+    if (!durationLabel || !lane) return;
+
+    const labelWidth = durationLabel.scrollWidth;
+    const barWidth = span.clientWidth;
+    const offsetLeft = span.offsetLeft;
+    const laneWidth = lane.clientWidth;
+    const preferredLeft = offsetLeft + barWidth + 6;
+    const fallbackLeft = offsetLeft - labelWidth - 6;
+    const maxLeft = Math.max(laneWidth - labelWidth, 0);
+    const labelLeft = preferredLeft + labelWidth <= laneWidth
+      ? preferredLeft
+      : Math.max(Math.min(fallbackLeft, maxLeft), 0);
+
+    span.style.setProperty('--timeline-label-offset', `${labelLeft - offsetLeft}px`);
+  });
+}
+
+function buildRows(nodes, totalMs, startTs) {
+  let html = '';
+  nodes.forEach(node => {
+    html += buildRow(node, totalMs, startTs);
+    if (node.children.length > 0) {
+      const open = _expanded.has(node.idx);
+      html += `<div class="children-group${open?' open':''}" id="cg-${node.idx}">`;
+      html += buildRows(node.children, totalMs, startTs);
+      html += `</div>`;
+    }
+  });
+  return html;
+}
+
+function buildRow(node, totalMs, startTs) {
+  const { stage, idx } = node;
+  const hasChildren = node.children.length > 0;
+  const isWf        = isWfKind(stage);
+  const isOpen      = _expanded.has(idx);
+  const depth       = Math.max(0, stage.Depth || 0);
+  const indentPx    = depth * 18;
+  const uriIndentPx = 22 + indentPx;
+
+  const stageTs   = new Date(stage.StartedAtUtc).getTime();
+  const offsetMs  = Math.max(0, stageTs - startTs);
+  const durMs     = stage.DurationMs || 0;
+  const offsetPct = Math.min((offsetMs / totalMs) * 100, 99.5).toFixed(2);
+  const widthPct  = Math.max((durMs   / totalMs) * 100, 0.25).toFixed(2);
+  const method    = stage.HttpMethod || '';
+  const path      = uriPath(stage.RequestUri);
+  const sCls      = httpRangeCls(stage.HttpStatusCode);
+  const lbl       = stage.Status === 'Error' ? 's-error' : stage.Status === 'Skipped' ? 's-skipped' : '';
+  const bCls      = barCls(stage);
+  const durationText = getDurationText(durMs);
+  const timelineLabel = getTimelineLabel(stage, durationText);
+  const wfCls     = isWf ? ' wf-row' : '';
+  const skippedCls = statusCls(stage.Status) === 'skipped' ? ' is-skipped' : '';
+  const selCls    = _selected === idx ? ' selected' : '';
+
+  let html = `<div class="trace-row${wfCls}${skippedCls}${selCls}" data-idx="${idx}" onclick="rowClick(${idx})">`;
+
+  // Left cell
+  html += `<div class="trace-left" style="--uri-indent:${uriIndentPx}px">`;
+  html += `<div class="trace-left-top">`;
+  if (depth > 0) {
+    html += `<span class="tree-indent" style="--tree-indent-width:${indentPx}px"></span>`;
+  }
+  // expand/collapse button or placeholder
+  if (hasChildren) {
+    html += `<span class="expand-btn${isOpen?' open':''}">&#9654;</span>`;
+  } else if (isWf) {
+    html += `<span class="expand-btn" style="opacity:.4;cursor:default">&#9654;</span>`;
+  } else {
+    html += `<span class="expand-placeholder"></span>`;
+  }
+  html += `<span class="wf-tag" title="${esc(stage.WorkflowName)}">${esc(stage.WorkflowName)}</span>`;
+  if (isWf) {
+    html += `<span class="wf-kind-badge">WF</span>`;
+  } else if (method) {
+    html += `<span class="http-badge ${methodCls(method)}">${esc(method)}</span>`;
+  }
+  html += `<span class="stage-lbl ${lbl}" title="${esc(stage.StageName)}">${esc(stage.StageName)}</span>`;
+  if (statusCls(stage.Status) === 'skipped') {
+    html += `<span class="stage-state">Not executed</span>`;
+  }
+  html += `</div>`;
+  if (path) html += `<span class="stage-uri" title="${esc(stage.RequestUri)}">${esc(path)}</span>`;
+  else if (statusCls(stage.Status) === 'skipped') html += `<span class="stage-uri">Condition not met or skipped before execution.</span>`;
+  html += `</div>`;
+
+  // Status cell
+  html += `<div class="trace-status">`;
+  if (stage.HttpStatusCode != null) {
+    html += `<span class="http-status ${sCls}">${stage.HttpStatusCode}</span>`;
+  } else if (isWf || statusCls(stage.Status) === 'skipped') {
+    html += `<span class="${badgeCls(stage.Status)}" style="font-size:9px">${esc(statusText(stage.Status))}</span>`;
+  }
+  html += `</div>`;
+
+  // Timeline bar
+  html += `<div class="trace-right">`;
+  const barTitle = timelineLabel;
+  html += `<div class="timeline-span" style="left:calc(${offsetPct} * (100% - var(--timeline-label-gutter)) / 100);width:calc(${widthPct} * (100% - var(--timeline-label-gutter)) / 100)" title="${esc(barTitle)}"${timelineLabel ? ` data-duration-label="${esc(timelineLabel)}"` : ''}>`;
+  html += `<div class="span-bar ${bCls}"></div>`;
+  if (timelineLabel) {
+    html += `<div class="span-bar-duration">${esc(timelineLabel)}</div>`;
+  }
+  html += `</div>`;
+  html += `</div>`;
+
+  html += `</div>`;
+  return html;
+}
+
+/* ── Row click: expand workflow or show/hide detail ─────────────── */
+function rowClick(idx) {
+  if (!_report) return;
+  const node = findNode(_tree, idx);
+  if (!node) return;
+  const hasChildren = node.children.length > 0;
+
+  // Workflow rows keep their detail open; repeated clicks only toggle children.
+  if (_selected === idx && !hasChildren) {
+    closeDetail();
+    return;
+  }
+
+  if (hasChildren) {
+    // Toggle expand children
+    const wasOpen = _expanded.has(idx);
+    if (wasOpen) _expanded.delete(idx); else _expanded.add(idx);
+    const cg = document.getElementById('cg-' + idx);
+    if (cg) cg.classList.toggle('open', !wasOpen);
+    const domRow = document.querySelector(`.trace-row[data-idx="${idx}"]`);
+    if (domRow) {
+      const btn = domRow.querySelector('.expand-btn');
+      if (btn) btn.classList.toggle('open', !wasOpen);
+    }
+    syncTimelineLabels();
+
+    if (_selected === idx) {
+      return;
+    }
+  }
+
+  showDetail(idx);
+}
+
+function findNode(nodes, idx) {
+  for (const n of nodes) {
+    if (n.idx === idx) return n;
+    const found = findNode(n.children, idx);
+    if (found) return found;
+  }
+  return null;
+}
+
+/* ── Detail panel ────────────────────────────────────────────────── */
+function showDetail(idx) {
+  const stage = (_report.Stages || [])[idx];
+  if (!stage) return;
+
+  // Highlight selected row
+  document.querySelectorAll('.trace-row').forEach(r => r.classList.remove('selected'));
+  const row = document.querySelector(`.trace-row[data-idx="${idx}"]`);
+  if (row) { row.classList.add('selected'); row.scrollIntoView({block:'nearest'}); }
+  _selected = idx;
+
+  const startTs  = new Date(_report.StartedAtUtc).getTime();
+  const stageTs  = new Date(stage.StartedAtUtc).getTime();
+  const offsetMs = Math.max(0, stageTs - startTs);
+  const sCls     = httpRangeCls(stage.HttpStatusCode);
+  const method   = stage.HttpMethod || '';
+
+  document.getElementById('detail-title').textContent = stage.StageName;
+  // Meta line
+  let meta = `<span class="${badgeCls(stage.Status)}">${esc(statusText(stage.Status))}</span>`;
+  meta += ` <span style="color:var(--text-subtle)">·</span> <strong>${esc(stage.WorkflowName)}</strong>`;
+  meta += ` <span style="color:var(--text-subtle)">·</span> ${fmtMs(stage.DurationMs)}`;
+  if (stage.RetryCount) meta += ` <span style="color:var(--chip-retry-c)">↺ ${stage.RetryCount}</span>`;
+  if (stage.Mocked) meta += ` <span class="badge b-mocked">mock</span>`;
+  document.getElementById('detail-meta').innerHTML = meta;
+
+  const hasHttp   = !!(stage.RequestUri || stage.HttpMethod || stage.HttpStatusCode != null);
+  const hasReq    = !!(stage.RequestHeaders || stage.RequestBody);
+  const hasRes    = !!(stage.ResponseHeaders || stage.ResponseBody);
+  const hasOutput = !!(stage.Output && Object.keys(stage.Output).length > 0);
+  const hasWorkflowInputs = !!(stage.WorkflowInputs && Object.keys(stage.WorkflowInputs).length > 0);
+  const hasWorkflowOutput = !!(stage.WorkflowOutput && Object.keys(stage.WorkflowOutput).length > 0);
+  const hasWorkflowResult = !!(stage.WorkflowResult && Object.keys(stage.WorkflowResult).length > 0);
+
+  let body = '';
+
+  // HTTP request bar (full width)
+  if (hasHttp) {
+    body += `<div class="detail-section full-width"><h3>HTTP Request</h3>`;
+    body += `<div class="http-req-bar">`;
+    if (method) body += `<span class="http-badge ${methodCls(method)}">${esc(method)}</span>`;
+    body += `<span class="http-req-uri" title="${esc(stage.RequestUri)}">${esc(stage.RequestUri||'—')}</span>`;
+    if (stage.HttpStatusCode != null) body += `<span class="http-req-status-pill ${sCls}">${stage.HttpStatusCode}</span>`;
+    if (stage.DurationMs) body += `<span class="http-req-dur">${fmtMs(stage.DurationMs)}</span>`;
+    if (stage.EnsureMode) body += `<span class="http-req-dur">ensure: ${esc(stage.EnsureMode)}${stage.EnsureStatus?' → '+esc(stage.EnsureStatus):''}</span>`;
+    body += `</div></div>`;
+  }
+
+  // Stage info + Execution side by side
+  body += `<div class="detail-section"><h3>Stage</h3><div class="kv">`;
+  body += kv('Kind', esc(stage.StageKind));
+  if (stage.RunIf)       body += kv('Run if',  esc(stage.RunIf));
+  if (stage.ForEachExecutionMode) body += kv('ForEach mode', esc(stage.ForEachExecutionMode));
+  if (stage.JumpTarget)  body += kv('Jump to', esc(stage.JumpTarget));
+  if (stage.DelaySeconds)body += kv('Delay',   stage.DelaySeconds+'s');
+  if (stage.ErrorMessage)body += kv('Error', `<span style="color:#ef4444">${esc(stage.ErrorMessage)}</span>`);
+  body += `</div></div>`;
+
+  body += `<div class="detail-section"><h3>Execution</h3><div class="kv">`;
+  body += kv('Executed', statusCls(stage.Status) === 'skipped' ? 'No' : 'Yes');
+  body += kv('Start offset', fmtMs(offsetMs));
+  body += kv('Duration', fmtMs(stage.DurationMs));
+  if (stage.RetryCount) body += kv('Retries', stage.RetryCount);
+  body += `</div></div>`;
+
+  if (hasWorkflowResult) {
+    body += `<div class="detail-section"><h3>Workflow Result</h3><div class="output-kv">`;
+    Object.entries(stage.WorkflowResult).forEach(([k,v]) => {
+      body += `<span class="out-k">${esc(k)}</span><span class="out-v">${esc(fmtVal(v))}</span>`;
+    });
+    body += `</div></div>`;
+  }
+
+  // Request / Response
+  if (hasReq) {
+    body += `<div class="detail-section"><h3>Request Headers</h3><div class="code-block">${esc(stage.RequestHeaders ? JSON.stringify(stage.RequestHeaders,null,2):'')}</div></div>`;
+    body += `<div class="detail-section"><h3>Request Body</h3><div class="code-block">${esc(tryPrettyJson(stage.RequestBody))}</div></div>`;
+  }
+  if (hasRes) {
+    body += `<div class="detail-section"><h3>Response Headers</h3><div class="code-block">${esc(stage.ResponseHeaders ? JSON.stringify(stage.ResponseHeaders,null,2):'')}</div></div>`;
+    body += `<div class="detail-section"><h3>Response Body</h3><div class="code-block">${esc(tryPrettyJson(stage.ResponseBody))}</div></div>`;
+  }
+
+  // Output (key-value, full width)
+  if (hasOutput) {
+    body += `<div class="detail-section full-width"><h3>Stage Output</h3><div class="output-kv">`;
+    Object.entries(stage.Output).forEach(([k,v]) => {
+      body += `<span class="out-k">${esc(k)}</span><span class="out-v">${esc(fmtVal(v))}</span>`;
+    });
+    body += `</div></div>`;
+  }
+
+  if (hasWorkflowInputs) {
+    body += `<div class="detail-section full-width"><h3>Workflow Inputs</h3><div class="output-kv">`;
+    Object.entries(stage.WorkflowInputs).forEach(([k,v]) => {
+      body += `<span class="out-k">${esc(k)}</span><span class="out-v">${esc(fmtVal(v))}</span>`;
+    });
+    body += `</div></div>`;
+  }
+
+  if (hasWorkflowOutput) {
+    body += `<div class="detail-section full-width"><h3>Workflow Output</h3><div class="output-kv">`;
+    Object.entries(stage.WorkflowOutput).forEach(([k,v]) => {
+      body += `<span class="out-k">${esc(k)}</span><span class="out-v">${esc(fmtVal(v))}</span>`;
+    });
+    body += `</div></div>`;
+  }
+
+  document.getElementById('detail-body').innerHTML = body;
+  document.getElementById('detail-panel').classList.remove('hidden');
+  syncDetailModal();
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.add('hidden');
+  closeDetailModal();
+  document.querySelectorAll('.trace-row').forEach(r => r.classList.remove('selected'));
+  _selected = -1;
+}
+
+function openDetailModal() {
+  if (_selected < 0) return;
+  syncDetailModal();
+  document.getElementById('detail-modal-backdrop').classList.remove('hidden');
+}
+
+function closeDetailModal() {
+  document.getElementById('detail-modal-backdrop').classList.add('hidden');
+}
+
+function backdropCloseDetailModal(event) {
+  if (event.target && event.target.id === 'detail-modal-backdrop') closeDetailModal();
+}
+
+function syncDetailModal() {
+  const modal = document.getElementById('detail-modal-backdrop');
+  document.getElementById('detail-modal-title').textContent = document.getElementById('detail-title').textContent;
+  document.getElementById('detail-modal-meta').innerHTML = document.getElementById('detail-meta').innerHTML;
+  document.getElementById('detail-modal-body').innerHTML = document.getElementById('detail-body').innerHTML;
+  if (!modal.classList.contains('hidden')) {
+    const firstBlock = document.getElementById('detail-modal-body');
+    if (firstBlock) firstBlock.scrollTop = 0;
+  }
+}
+
+function initDetailResize() {
+  const handle = document.getElementById('detail-resizer');
+  const panel = document.getElementById('detail-panel');
+  if (!handle || !panel) return;
+
+  handle.addEventListener('pointerdown', event => {
+    event.preventDefault();
+    handle.setPointerCapture(event.pointerId);
+    _detailResizeState = {
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      startHeight: panel.getBoundingClientRect().height
+    };
+  });
+
+  handle.addEventListener('pointermove', event => {
+    if (!_detailResizeState || _detailResizeState.pointerId !== event.pointerId) return;
+    const delta = _detailResizeState.startY - event.clientY;
+    const maxHeight = Math.max(window.innerHeight - 140, 180);
+    const nextHeight = Math.max(160, Math.min(_detailResizeState.startHeight + delta, maxHeight));
+    panel.style.setProperty('--detail-panel-height', `${Math.round(nextHeight)}px`);
+  });
+
+  handle.addEventListener('pointerup', event => {
+    if (_detailResizeState && _detailResizeState.pointerId === event.pointerId) _detailResizeState = null;
+  });
+
+  handle.addEventListener('pointercancel', () => {
+    _detailResizeState = null;
+  });
+}
+
+/* ── Load file ───────────────────────────────────────────────────── */
+document.getElementById('file-input').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      _report = null;
+      render(JSON.parse(ev.target.result));
+    }
+    catch(err) { alert('Invalid JSON: ' + err.message); }
+  };
+  reader.readAsText(file);
+  this.value = '';
+});
+
+/* ── Boot ────────────────────────────────────────────────────────── */
+initReportPicker();
+initDetailResize();
+loadReportByIndex(_initialReportIndex);
+window.addEventListener('resize', syncTimelineLabels);
+</script>
+</body>
+</html>

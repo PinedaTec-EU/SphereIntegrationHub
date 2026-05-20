@@ -1,0 +1,19 @@
+- version: 3.11
+  plugins:
+    - id: http
+      contractVersion: "1.0"
+      runtimeVersion: "1.0"
+  definitions:
+    - name: commerce-demo
+      contractType: openapi
+      basePath: /api
+      openApiUrl: /swagger/v1/swagger.json
+      healthCheck: /health
+      readiness:
+        maxRetries: 6
+        delayMs: 500
+        timeoutMs: 1000
+        httpStatus:
+          - 200
+      baseUrl:
+        local: http://localhost:8787

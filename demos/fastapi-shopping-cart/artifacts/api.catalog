@@ -1,0 +1,13 @@
+- version: 3.11
+  plugins:
+    - id: http
+      contractVersion: "1.0"
+      runtimeVersion: "1.0"
+  definitions:
+    - name: shopping-cart-sandbox
+      contractType: openapi
+      basePath: /
+      openApiUrl: /openapi.json
+      baseUrl:
+        local: http://127.0.0.1:8000
+

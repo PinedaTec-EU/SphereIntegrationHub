@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Codex + Sphere Integration Hub Demo</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="mark">C</div>
+          <div>
+            <strong>Codex</strong>
+            <span>Sphere Integration Hub</span>
+          </div>
+        </div>
+        <nav class="file-tree" aria-label="Demo files">
+          <button class="file active" data-file="workflow">create-account-and-cart.workflow</button>
+          <button class="file" data-file="wfvars">create-account-and-cart.wfvars</button>
+          <button class="file" data-file="catalog">api.catalog</button>
+          <button class="file" data-file="report">execution report</button>
+        </nav>
+        <div class="status-card">
+          <span class="dot"></span>
+          <div>
+            <strong>Local demo</strong>
+            <small>API and workflow runner ready</small>
+          </div>
+        </div>
+      </aside>
+
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <h1>Codex video simulation</h1>
+            <p>Generate API endpoints, draft a Sphere workflow, run it, inspect the report.</p>
+          </div>
+          <div class="controls">
+            <button id="reset-button" type="button">Reset</button>
+            <button id="play-button" type="button">Play rehearsal</button>
+          </div>
+        </header>
+
+        <section class="main-grid">
+          <div class="panel chat-panel">
+            <div class="panel-title">Conversation</div>
+            <div id="chat-log" class="chat-log"></div>
+          </div>
+
+          <div class="panel code-panel">
+            <div class="panel-title">
+              <span id="code-title">create-account-and-cart.workflow</span>
+              <span id="code-badge">draft</span>
+            </div>
+            <pre id="code-view"><code></code></pre>
+          </div>
+
+          <div class="panel terminal-panel">
+            <div class="panel-title">Terminal</div>
+            <pre id="terminal"></pre>
+          </div>
+
+          <div class="panel report-panel">
+            <div class="panel-title">Sphere Integration Hub report</div>
+            <div id="report-view" class="report-empty">
+              <strong>No run yet</strong>
+              <span>The workflow report appears here after execution.</span>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

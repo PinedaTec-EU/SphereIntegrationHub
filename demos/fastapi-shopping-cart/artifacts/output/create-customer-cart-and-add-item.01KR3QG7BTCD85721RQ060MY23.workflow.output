@@ -1,0 +1,10 @@
+{
+  "customerId": "7acd7352-ae4f-46fa-abb0-ac85dc262b72",
+  "customerName": "Fictitious Customer",
+  "customerEmail": "fictitious.customer@example.com",
+  "cartCustomerId": "7acd7352-ae4f-46fa-abb0-ac85dc262b72",
+  "itemId": "33333333-3333-4333-8333-333333333333",
+  "itemName": "Mechanical Keyboard",
+  "itemPrice": "89.50",
+  "quantity": "2"
+}

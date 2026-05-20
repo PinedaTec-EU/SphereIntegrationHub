@@ -1,0 +1,5 @@
+local:
+  accountName: "Contoso Retail"
+  email: "ops@contoso.example"
+  sku: "SKU-EDGE-42"
+  quantity: 2

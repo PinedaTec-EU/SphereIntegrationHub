@@ -1,0 +1,229 @@
+{
+  "ExecutionId": "01KR3QG7BTCD85721RQ060MY23",
+  "WorkflowName": "create-customer-cart-and-add-item",
+  "WorkflowId": "01HVSANDBOXCARTFLOW000001",
+  "WorkflowVersion": "3.11",
+  "ToolVersion": "1.7.20.278",
+  "WorkflowPath": "/Users/jmr.pineda/Projects/GitHub/PinedaTec.eu/SphereIntegrationHub/demos/fastapi-shopping-cart/artifacts/create-customer-cart-and-add-item.workflow",
+  "Environment": "local",
+  "StartedAtUtc": "2026-05-08T12:02:52.924624+00:00",
+  "FinishedAtUtc": "2026-05-08T12:02:52.974931+00:00",
+  "DurationMs": 50,
+  "Result": "Ok",
+  "ErrorMessage": null,
+  "Mocked": false,
+  "DryRun": false,
+  "Inputs": {
+    "customerName": "Fictitious Customer",
+    "customerEmail": "fictitious.customer@example.com",
+    "sampleItemId": "33333333-3333-4333-8333-333333333333",
+    "quantity": "2"
+  },
+  "Output": {
+    "customerId": "7acd7352-ae4f-46fa-abb0-ac85dc262b72",
+    "customerName": "Fictitious Customer",
+    "customerEmail": "fictitious.customer@example.com",
+    "cartCustomerId": "7acd7352-ae4f-46fa-abb0-ac85dc262b72",
+    "itemId": "33333333-3333-4333-8333-333333333333",
+    "itemName": "Mechanical Keyboard",
+    "itemPrice": 89.50,
+    "quantity": 2
+  },
+  "Preflight": {
+    "Operations": [
+      {
+        "OperationType": "SwaggerCache",
+        "DefinitionName": "shopping-cart-sandbox",
+        "Target": "http://127.0.0.1:8000/openapi.json",
+        "Status": "Ok",
+        "Message": "Cache hit: /Users/jmr.pineda/Projects/GitHub/PinedaTec.eu/SphereIntegrationHub/demos/fastapi-shopping-cart/artifacts/cache/3.11/shopping-cart-sandbox.json",
+        "RetryCount": 0,
+        "DurationMs": 0,
+        "Attempts": []
+      }
+    ],
+    "TotalRetries": 0,
+    "TotalDelayMs": 0,
+    "DurationMs": 0
+  },
+  "Stages": [
+    {
+      "WorkflowName": "create-customer-cart-and-add-item",
+      "StageName": "create-customer",
+      "StageKind": "Endpoint",
+      "Depth": 0,
+      "Status": "Ok",
+      "RunIf": null,
+      "JumpTarget": null,
+      "Mocked": false,
+      "ErrorMessage": null,
+      "StartedAtUtc": "2026-05-08T12:02:52.928067+00:00",
+      "FinishedAtUtc": "2026-05-08T12:02:52.964653+00:00",
+      "DurationMs": 36,
+      "DelaySeconds": null,
+      "ForEachExecutionMode": null,
+      "RetryCount": 0,
+      "HttpStatusCode": 201,
+      "EnsureMode": null,
+      "EnsureStatus": null,
+      "RequestUri": "http://127.0.0.1:8000/users",
+      "HttpMethod": "POST",
+      "RequestHeaders": {
+        "Content-Type": "application/json"
+      },
+      "RequestBody": "{\u0022name\u0022:\u0022Fictitious Customer\u0022,\u0022email\u0022:\u0022fictitious.customer@example.com\u0022}",
+      "ResponseHeaders": {
+        "Date": "Fri, 08 May 2026 12:02:52 GMT",
+        "Server": "uvicorn",
+        "Content-Length": "116",
+        "Content-Type": "application/json"
+      },
+      "ResponseBody": "{\u0022id\u0022:\u00227acd7352-ae4f-46fa-abb0-ac85dc262b72\u0022,\u0022name\u0022:\u0022Fictitious Customer\u0022,\u0022email\u0022:\u0022fictitious.customer@example.com\u0022}",
+      "Output": {
+        "customerId": "7acd7352-ae4f-46fa-abb0-ac85dc262b72",
+        "customerName": "Fictitious Customer",
+        "customerEmail": "fictitious.customer@example.com",
+        "http_status": 201
+      },
+      "WorkflowInputs": {},
+      "WorkflowOutput": {},
+      "WorkflowResult": {}
+    },
+    {
+      "WorkflowName": "create-customer-cart-and-add-item",
+      "StageName": "initialize-cart",
+      "StageKind": "Endpoint",
+      "Depth": 0,
+      "Status": "Ok",
+      "RunIf": null,
+      "JumpTarget": null,
+      "Mocked": false,
+      "ErrorMessage": null,
+      "StartedAtUtc": "2026-05-08T12:02:52.965319+00:00",
+      "FinishedAtUtc": "2026-05-08T12:02:52.968425+00:00",
+      "DurationMs": 3,
+      "DelaySeconds": null,
+      "ForEachExecutionMode": null,
+      "RetryCount": 0,
+      "HttpStatusCode": 201,
+      "EnsureMode": null,
+      "EnsureStatus": null,
+      "RequestUri": "http://127.0.0.1:8000/users/7acd7352-ae4f-46fa-abb0-ac85dc262b72/cart",
+      "HttpMethod": "POST",
+      "RequestHeaders": {
+        "Content-Type": "application/json"
+      },
+      "RequestBody": "",
+      "ResponseHeaders": {
+        "Date": "Fri, 08 May 2026 12:02:52 GMT",
+        "Server": "uvicorn",
+        "Content-Length": "61",
+        "Content-Type": "application/json"
+      },
+      "ResponseBody": "{\u0022user_id\u0022:\u00227acd7352-ae4f-46fa-abb0-ac85dc262b72\u0022,\u0022lines\u0022:[]}",
+      "Output": {
+        "cartCustomerId": "7acd7352-ae4f-46fa-abb0-ac85dc262b72",
+        "http_status": 201
+      },
+      "WorkflowInputs": {},
+      "WorkflowOutput": {},
+      "WorkflowResult": {}
+    },
+    {
+      "WorkflowName": "create-customer-cart-and-add-item",
+      "StageName": "find-sample-item",
+      "StageKind": "Endpoint",
+      "Depth": 0,
+      "Status": "Ok",
+      "RunIf": null,
+      "JumpTarget": null,
+      "Mocked": false,
+      "ErrorMessage": null,
+      "StartedAtUtc": "2026-05-08T12:02:52.968453+00:00",
+      "FinishedAtUtc": "2026-05-08T12:02:52.97011+00:00",
+      "DurationMs": 1,
+      "DelaySeconds": null,
+      "ForEachExecutionMode": null,
+      "RetryCount": 0,
+      "HttpStatusCode": 200,
+      "EnsureMode": null,
+      "EnsureStatus": null,
+      "RequestUri": "http://127.0.0.1:8000/items?id=33333333-3333-4333-8333-333333333333",
+      "HttpMethod": "GET",
+      "RequestHeaders": null,
+      "RequestBody": null,
+      "ResponseHeaders": {
+        "Date": "Fri, 08 May 2026 12:02:52 GMT",
+        "Server": "uvicorn",
+        "Content-Length": "102",
+        "Content-Type": "application/json"
+      },
+      "ResponseBody": "[{\u0022id\u0022:\u002233333333-3333-4333-8333-333333333333\u0022,\u0022name\u0022:\u0022Mechanical Keyboard\u0022,\u0022price\u0022:\u002289.50\u0022,\u0022stock\u0022:8}]",
+      "Output": {
+        "itemId": "33333333-3333-4333-8333-333333333333",
+        "itemName": "Mechanical Keyboard",
+        "itemPrice": 89.50,
+        "http_status": 200
+      },
+      "WorkflowInputs": {},
+      "WorkflowOutput": {},
+      "WorkflowResult": {}
+    },
+    {
+      "WorkflowName": "create-customer-cart-and-add-item",
+      "StageName": "add-item-to-cart",
+      "StageKind": "Endpoint",
+      "Depth": 0,
+      "Status": "Ok",
+      "RunIf": null,
+      "JumpTarget": null,
+      "Mocked": false,
+      "ErrorMessage": null,
+      "StartedAtUtc": "2026-05-08T12:02:52.970123+00:00",
+      "FinishedAtUtc": "2026-05-08T12:02:52.971335+00:00",
+      "DurationMs": 1,
+      "DelaySeconds": null,
+      "ForEachExecutionMode": null,
+      "RetryCount": 0,
+      "HttpStatusCode": 200,
+      "EnsureMode": null,
+      "EnsureStatus": null,
+      "RequestUri": "http://127.0.0.1:8000/users/7acd7352-ae4f-46fa-abb0-ac85dc262b72/cart/items/33333333-3333-4333-8333-333333333333",
+      "HttpMethod": "POST",
+      "RequestHeaders": {
+        "Content-Type": "application/json"
+      },
+      "RequestBody": "{\u0022quantity\u0022:2}",
+      "ResponseHeaders": {
+        "Date": "Fri, 08 May 2026 12:02:52 GMT",
+        "Server": "uvicorn",
+        "Content-Length": "183",
+        "Content-Type": "application/json"
+      },
+      "ResponseBody": "{\u0022user_id\u0022:\u00227acd7352-ae4f-46fa-abb0-ac85dc262b72\u0022,\u0022lines\u0022:[{\u0022item\u0022:{\u0022id\u0022:\u002233333333-3333-4333-8333-333333333333\u0022,\u0022name\u0022:\u0022Mechanical Keyboard\u0022,\u0022price\u0022:\u002289.50\u0022,\u0022stock\u0022:8},\u0022quantity\u0022:2}]}",
+      "Output": {
+        "cartCustomerId": "7acd7352-ae4f-46fa-abb0-ac85dc262b72",
+        "firstCartItemId": "33333333-3333-4333-8333-333333333333",
+        "firstCartItemName": "Mechanical Keyboard",
+        "firstCartItemQuantity": 2,
+        "http_status": 200
+      },
+      "WorkflowInputs": {},
+      "WorkflowOutput": {},
+      "WorkflowResult": {}
+    }
+  ],
+  "Metrics": {
+    "TotalStages": 4,
+    "ExecutedStages": 4,
+    "SkippedStages": 0,
+    "FailedStages": 0,
+    "MockedStages": 0,
+    "HttpStages": 4,
+    "WorkflowStages": 0,
+    "JumpedStages": 0,
+    "TotalRetries": 0,
+    "PreflightRetries": 0
+  },
+  "OutputFilePath": "/Users/jmr.pineda/Projects/GitHub/PinedaTec.eu/SphereIntegrationHub/demos/fastapi-shopping-cart/artifacts/output/create-customer-cart-and-add-item.01KR3QG7BTCD85721RQ060MY23.workflow.output"
+}
