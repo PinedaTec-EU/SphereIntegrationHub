@@ -1,0 +1,11 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <LangVersion>12</LangVersion>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../SphereIntegrationHub.cli/SphereIntegrationHub.cli.csproj" />
+    <ProjectReference Include="../SphereIntegrationHub.Shared/SphereIntegrationHub.Shared.csproj" />
+  </ItemGroup>
+</Project>

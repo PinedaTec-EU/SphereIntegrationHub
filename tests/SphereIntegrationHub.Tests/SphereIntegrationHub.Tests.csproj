@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SphereIntegrationHub.cli\SphereIntegrationHub.cli.csproj" />
+    <ProjectReference Include="..\..\src\SphereIntegrationHub.SDK.DotNet\SphereIntegrationHub.SDK.DotNet.csproj" />
   </ItemGroup>
 
 </Project>
