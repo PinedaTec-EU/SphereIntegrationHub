@@ -13,6 +13,7 @@ Use this page as the documentation entry point. The root `README.md` stays inten
 - [`overview.md`](overview.md)
 - [`why-sih.md`](why-sih.md)
 - [`positioning-and-roadmap.md`](positioning-and-roadmap.md)
+- [`github-issues.md`](github-issues.md): canonical issue and backlog entry point for repository work.
 
 ## Workflow authoring
 
