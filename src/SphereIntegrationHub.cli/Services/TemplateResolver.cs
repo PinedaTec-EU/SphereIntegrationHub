@@ -25,11 +25,23 @@ public sealed class TemplateResolver
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private readonly ISystemTimeProvider _systemProvider;
     private readonly IRandomValueService _randomValueService;
+    private readonly TemplateTokenResolverRegistry _tokenResolvers;
 
     public TemplateResolver(ISystemTimeProvider? systemProvider = null, IRandomValueService? randomValueService = null)
     {
         _systemProvider = systemProvider ?? new SystemTimeProvider();
         _randomValueService = randomValueService ?? new DynamicValueService(_systemProvider);
+        _tokenResolvers = new TemplateTokenResolverRegistry()
+            .Register("input", (segments, context, _, token) => ResolveScopedValue(segments, context.Inputs, context.InputJson, "Input", token))
+            .Register("global", (segments, context, _, token) => ResolveScopedValue(segments, context.Globals, context.GlobalJson, "Global", token))
+            .Register("context", (segments, context, _, token) => ResolveScopedValue(segments, context.Context, context.ContextJson, "Context", token))
+            .Register("endpoint", (segments, context, _, token) => ResolveStageOutputValue(segments, context.EndpointOutputs, context.EndpointOutputJson, "endpoint", token))
+            .Register("workflow", (segments, context, _, token) => ResolveStageOutputValue(segments, context.WorkflowOutputs, context.WorkflowOutputJson, "workflow", token))
+            .Register("stage", (segments, context, _, token) => ResolveStageOutputAnyValue(segments, context, token))
+            .Register("var", (segments, context, _, token) => ResolveWorkflowVarValue(segments, context, token))
+            .Register("env", ResolveEnvironmentTokenValue)
+            .Register("system", (segments, _, _, token) => ResolvedTokenValue.FromString(ResolveSystem(segments, token)))
+            .Register("response", (segments, _, responseContext, token) => ResolveResponseValue(segments, responseContext, token));
     }
 
     public string ResolveTemplate(string template, TemplateContext context, ResponseContext? responseContext = null)
@@ -104,22 +116,21 @@ public sealed class TemplateResolver
 
         var root = segments[0].ToLowerInvariant();
         activity?.SetTag(TelemetryConstants.TagTemplateTokenRoot, root);
-        return root switch
+        return _tokenResolvers.Resolve(root, segments, context, responseContext, token);
+    }
+
+    private static ResolvedTokenValue ResolveEnvironmentTokenValue(
+        string[] segments,
+        TemplateContext context,
+        ResponseContext? _,
+        string token)
+    {
+        if (token.StartsWith("env.", StringComparison.OrdinalIgnoreCase))
         {
-            "input" => ResolveScopedValue(segments, context.Inputs, context.InputJson, "Input", token),
-            "global" => ResolveScopedValue(segments, context.Globals, context.GlobalJson, "Global", token),
-            "context" => ResolveScopedValue(segments, context.Context, context.ContextJson, "Context", token),
-            "endpoint" => ResolveStageOutputValue(segments, context.EndpointOutputs, context.EndpointOutputJson, "endpoint", token),
-            "workflow" => ResolveStageOutputValue(segments, context.WorkflowOutputs, context.WorkflowOutputJson, "workflow", token),
-            "stage" => ResolveStageOutputAnyValue(segments, context, token),
-            "var" => ResolveWorkflowVarValue(segments, context, token),
-            "env" when token.StartsWith("env.", StringComparison.OrdinalIgnoreCase)
-                => throw new InvalidOperationException($"Invalid env token '{token}'. Use '{{{{env:NAME}}}}' syntax."),
-            "env" => ResolveEnvironmentValue(segments, context),
-            "system" => ResolvedTokenValue.FromString(ResolveSystem(segments, token)),
-            "response" => ResolveResponseValue(segments, responseContext, token),
-            _ => throw new InvalidOperationException($"Unknown token root '{segments[0]}'.")
-        };
+            throw new InvalidOperationException($"Invalid env token '{token}'. Use '{{{{env:NAME}}}}' syntax.");
+        }
+
+        return ResolveEnvironmentValue(segments, context);
     }
 
     private static ResolvedTokenValue ResolveScopedValue(
