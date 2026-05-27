@@ -7,6 +7,7 @@ using System.Text;
 
 using SphereIntegrationHub.Definitions;
 using SphereIntegrationHub.Plugins;
+using SphereIntegrationHub.Services.Execution;
 using SphereIntegrationHub.Services.Interfaces;
 
 namespace SphereIntegrationHub.Services;
@@ -948,7 +949,7 @@ public sealed class WorkflowExecutor
         }
 
         Activity.Current?.SetTag(TelemetryConstants.TagHttpStatusCode, responseContext.StatusCode);
-        Activity.Current?.SetTag(TelemetryConstants.TagHttpExpectedStatuses, string.Join(",", BuildAllowedStatuses(stage).Order()));
+        Activity.Current?.SetTag(TelemetryConstants.TagHttpExpectedStatuses, string.Join(",", WorkflowStageStatusResolver.BuildAllowedStatuses(stage).Order()));
 
         var stageOutput = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var stageOutputJson = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
@@ -986,7 +987,7 @@ public sealed class WorkflowExecutor
             stageOutput["http_status"] = responseContext.StatusCode.ToString();
         }
 
-        ApplyEnsureOutputs(stage, responseContext.StatusCode, stageOutput, stageOutputJson);
+        WorkflowStageStatusResolver.ApplyEnsureOutputs(stage, responseContext.StatusCode, stageOutput, stageOutputJson);
 
         if (responseContext.Json is not null && !stageOutputJson.ContainsKey("body"))
         {
@@ -1001,7 +1002,7 @@ public sealed class WorkflowExecutor
         UpdateActiveStageRecordOutput(context, stageOutput, responseContext.StatusCode, secretOutputKeys);
         PrintStageMessage(definition, stage, context, responseContext);
 
-        if (TryResolveStatusAction(stage, responseContext.StatusCode, out var statusAction))
+        if (WorkflowStageStatusResolver.TryResolveStatusAction(stage, responseContext.StatusCode, out var statusAction))
         {
             ApplyStatusActionOutput(statusAction, stage, context, responseContext, stageOutput, stageOutputJson);
             context.EndpointOutputs[stage.Name] = stageOutput;
@@ -1009,7 +1010,7 @@ public sealed class WorkflowExecutor
 
             if (statusAction.Fail)
             {
-                throw BuildUnexpectedStatusException(stage, responseContext.StatusCode);
+                throw WorkflowStageStatusResolver.BuildUnexpectedStatusException(stage, responseContext.StatusCode);
             }
 
             if (!string.IsNullOrWhiteSpace(statusAction.JumpTo))
@@ -1018,9 +1019,9 @@ public sealed class WorkflowExecutor
             }
         }
 
-        if (!IsExpectedStatus(stage, responseContext.StatusCode))
+        if (!WorkflowStageStatusResolver.IsExpectedStatus(stage, responseContext.StatusCode))
         {
-            throw BuildUnexpectedStatusException(stage, responseContext.StatusCode);
+            throw WorkflowStageStatusResolver.BuildUnexpectedStatusException(stage, responseContext.StatusCode);
         }
 
         if (stage.JumpOnStatus is not null &&
@@ -1988,30 +1989,6 @@ public sealed class WorkflowExecutor
         return WorkflowExecutionRedactor.RedactHeaders(headers, _reportOptions.RedactSensitiveData);
     }
 
-    private static bool TryResolveStatusAction(WorkflowStageDefinition stage, int statusCode, out WorkflowStageStatusAction statusAction)
-    {
-        statusAction = new WorkflowStageStatusAction();
-        if (stage.OnStatus is not null && stage.OnStatus.TryGetValue(statusCode, out var configured))
-        {
-            statusAction = configured;
-            return true;
-        }
-
-        if (TryResolveEnsureStatusAction(stage, statusCode, out var ensureAction))
-        {
-            statusAction = ensureAction;
-            return true;
-        }
-
-        if (stage.JumpOnStatus is not null && stage.JumpOnStatus.TryGetValue(statusCode, out var jumpTarget))
-        {
-            statusAction = new WorkflowStageStatusAction { JumpTo = jumpTarget };
-            return true;
-        }
-
-        return false;
-    }
-
     private void ApplyStatusActionOutput(
         WorkflowStageStatusAction statusAction,
         WorkflowStageDefinition stage,
@@ -2034,116 +2011,6 @@ public sealed class WorkflowExecutor
         {
             stage.Message = statusAction.Message;
         }
-    }
-
-    private static bool IsExpectedStatus(WorkflowStageDefinition stage, int statusCode)
-    {
-        var expectedStatuses = BuildAllowedStatuses(stage);
-        if (expectedStatuses.Count > 0)
-        {
-            return expectedStatuses.Contains(statusCode);
-        }
-
-        return true;
-    }
-
-    private static InvalidOperationException BuildUnexpectedStatusException(WorkflowStageDefinition stage, int statusCode)
-    {
-        var expectedStatuses = BuildAllowedStatuses(stage);
-        if (expectedStatuses.Count > 0)
-        {
-            return new InvalidOperationException(
-                $"Stage '{stage.Name}' returned {statusCode} but expected one of [{string.Join(", ", expectedStatuses.Order())}].");
-        }
-
-        return new InvalidOperationException(
-            $"Stage '{stage.Name}' returned {statusCode} but expected {stage.ExpectedStatus}.");
-    }
-
-    private static HashSet<int> BuildAllowedStatuses(WorkflowStageDefinition stage)
-    {
-        var statuses = new HashSet<int>();
-        if (stage.ExpectedStatuses is { Length: > 0 })
-        {
-            foreach (var status in stage.ExpectedStatuses)
-            {
-                statuses.Add(status);
-            }
-        }
-        else if (stage.ExpectedStatus.HasValue)
-        {
-            statuses.Add(stage.ExpectedStatus.Value);
-        }
-
-        if (stage.Ensure?.ExistsOn is { Length: > 0 })
-        {
-            foreach (var status in stage.Ensure.ExistsOn)
-            {
-                statuses.Add(status);
-            }
-        }
-        else if (stage.Ensure is not null)
-        {
-            statuses.Add(409);
-        }
-
-        return statuses;
-    }
-
-    private static bool TryResolveEnsureStatusAction(WorkflowStageDefinition stage, int statusCode, out WorkflowStageStatusAction statusAction)
-    {
-        statusAction = new WorkflowStageStatusAction();
-        if (stage.Ensure is null)
-        {
-            return false;
-        }
-
-        var existsStatuses = stage.Ensure.ExistsOn is { Length: > 0 }
-            ? stage.Ensure.ExistsOn
-            : new[] { 409 };
-        if (!existsStatuses.Contains(statusCode))
-        {
-            return false;
-        }
-
-        var output = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["ensure_status"] = "existing",
-            ["ensured"] = "true",
-            ["existed"] = "true"
-        };
-        if (stage.Ensure.Output is not null)
-        {
-            foreach (var pair in stage.Ensure.Output)
-            {
-                output[pair.Key] = pair.Value;
-            }
-        }
-
-        statusAction = new WorkflowStageStatusAction
-        {
-            JumpTo = stage.Ensure.JumpTo,
-            Message = stage.Ensure.Message,
-            Output = output
-        };
-        return true;
-    }
-
-    private static void ApplyEnsureOutputs(WorkflowStageDefinition stage, int statusCode, IDictionary<string, string> stageOutput, IDictionary<string, JsonElement> stageOutputJson)
-    {
-        if (stage.Ensure is null)
-        {
-            return;
-        }
-
-        var existsStatuses = stage.Ensure.ExistsOn is { Length: > 0 }
-            ? stage.Ensure.ExistsOn
-            : new[] { 409 };
-        var existed = existsStatuses.Contains(statusCode);
-        stageOutput["ensure_status"] = existed ? "existing" : "created";
-        stageOutput["ensured"] = "true";
-        stageOutput["existed"] = existed ? "true" : "false";
-        AssignJsonValue(stageOutputJson, "ensure_status", stageOutput["ensure_status"]);
     }
 
     private static string ExtractSingleToken(string template)
