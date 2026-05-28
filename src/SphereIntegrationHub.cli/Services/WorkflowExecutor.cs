@@ -28,9 +28,11 @@ public sealed class WorkflowExecutor
     private readonly IWorkflowExecutionReportWriter _reportWriter;
     private readonly IExecutionLogger _logger;
     private readonly WorkflowExpressionEvaluator _expressionEvaluator;
+    private readonly WorkflowAssertionEvaluator _assertionEvaluator;
     private readonly WorkflowExecutionReportOptions _reportOptions;
     private readonly StagePluginRegistry _stagePluginRegistry;
     private readonly IReadOnlyCollection<string> _preloadedSecretValues;
+    private readonly bool _assertionFailuresBlock;
 
     public WorkflowExecutor(
         HttpClient httpClient,
@@ -48,7 +50,8 @@ public sealed class WorkflowExecutor
         IWorkflowExecutionReportWriter? reportWriter = null,
         WorkflowExecutionReportOptions? reportOptions = null,
         StagePluginRegistry? stagePluginRegistry = null,
-        IReadOnlyCollection<string>? preloadedSecretValues = null)
+        IReadOnlyCollection<string>? preloadedSecretValues = null,
+        bool assertionFailuresBlock = true)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _dynamicValueService = dynamicValueService ?? throw new ArgumentNullException(nameof(dynamicValueService));
@@ -64,9 +67,11 @@ public sealed class WorkflowExecutor
         _reportWriter = reportWriter ?? new WorkflowExecutionReportWriter();
         _logger = logger ?? new ConsoleExecutionLogger();
         _expressionEvaluator = new WorkflowExpressionEvaluator(_templateResolver);
+        _assertionEvaluator = new WorkflowAssertionEvaluator(_templateResolver, _expressionEvaluator);
         _reportOptions = reportOptions ?? WorkflowExecutionReportOptions.Default;
         _stagePluginRegistry = stagePluginRegistry ?? new StagePluginRegistryBuilder().CreateBuiltInRegistry();
         _preloadedSecretValues = preloadedSecretValues ?? Array.Empty<string>();
+        _assertionFailuresBlock = assertionFailuresBlock;
     }
 
     private static string FormatWorkflowTag(string name) => $"[{name}]";
@@ -338,6 +343,7 @@ public sealed class WorkflowExecutor
                                 verbose,
                                 debug,
                                 cancellationToken);
+                            EvaluateStageAssertions(definition, stage, context);
                             PrintStageMessage(definition, stage, context, null);
                             CompleteStageRecord(stageRecord, context, "Ok", null, null);
                         }
@@ -463,6 +469,7 @@ public sealed class WorkflowExecutor
             context.WorkflowOutputsJson[definition.Name] = BuildJsonMap(workflowOutput);
 
             ApplyEndStageContext(definition, context);
+            EvaluateEndStageAssertions(definition, context);
             var endStageSecretKeys = definition.EndStage?.SecretOutputs is { Count: > 0 }
                 ? new HashSet<string>(definition.EndStage.SecretOutputs, StringComparer.OrdinalIgnoreCase)
                 : null;
@@ -1023,6 +1030,8 @@ public sealed class WorkflowExecutor
         {
             throw WorkflowStageStatusResolver.BuildUnexpectedStatusException(stage, responseContext.StatusCode);
         }
+
+        EvaluateStageAssertions(definition, stage, context);
 
         if (stage.JumpOnStatus is not null &&
             stage.JumpOnStatus.TryGetValue(responseContext.StatusCode, out var jumpTarget))
@@ -1622,6 +1631,113 @@ public sealed class WorkflowExecutor
 
             context.Report.Metrics.TotalRetries += stageRecord.RetryCount;
         }
+    }
+
+    private void EvaluateStageAssertions(
+        WorkflowDefinition definition,
+        WorkflowStageDefinition stage,
+        ExecutionContext context)
+    {
+        var records = _assertionEvaluator.Evaluate(
+            stage.Assertions,
+            context.BuildTemplateContext(),
+            _assertionFailuresBlock,
+            "Stage",
+            definition.Name,
+            stage.Name);
+
+        AddAssertionRecords(context, records, context.ActiveStageRecord);
+        LogNonBlockingAssertionFailures(records, $"Stage '{stage.Name}'");
+        ThrowIfAnyBlockingAssertionFailed(records, $"Stage '{stage.Name}'");
+    }
+
+    private void EvaluateEndStageAssertions(WorkflowDefinition definition, ExecutionContext context)
+    {
+        var records = _assertionEvaluator.Evaluate(
+            definition.EndStage?.Assertions,
+            context.BuildTemplateContext(),
+            _assertionFailuresBlock,
+            "EndStage",
+            definition.Name);
+
+        AddAssertionRecords(context, records, null);
+        LogNonBlockingAssertionFailures(records, $"Workflow '{definition.Name}' endStage");
+        ThrowIfAnyBlockingAssertionFailed(records, $"Workflow '{definition.Name}' endStage");
+    }
+
+    private static void AddAssertionRecords(
+        ExecutionContext context,
+        IReadOnlyList<WorkflowAssertionExecutionRecord> records,
+        WorkflowStageExecutionRecord? stageRecord)
+    {
+        if (records.Count == 0)
+        {
+            return;
+        }
+
+        if (stageRecord is not null)
+        {
+            foreach (var record in records)
+            {
+                stageRecord.Assertions.Add(record);
+            }
+        }
+
+        if (context.Report is null)
+        {
+            return;
+        }
+
+        lock (context.ReportSync)
+        {
+            foreach (var record in records)
+            {
+                context.Report.Assertions.Add(record);
+                context.Report.Metrics.TotalAssertions++;
+                if (string.Equals(record.Status, "Passed", StringComparison.OrdinalIgnoreCase))
+                {
+                    context.Report.Metrics.PassedAssertions++;
+                }
+                else if (string.Equals(record.Status, "Failed", StringComparison.OrdinalIgnoreCase))
+                {
+                    context.Report.Metrics.FailedAssertions++;
+                    if (!record.Blocking)
+                    {
+                        context.Report.Metrics.WarningAssertions++;
+                    }
+                }
+            }
+        }
+    }
+
+    private void LogNonBlockingAssertionFailures(
+        IReadOnlyList<WorkflowAssertionExecutionRecord> records,
+        string owner)
+    {
+        foreach (var record in records.Where(record =>
+            string.Equals(record.Status, "Failed", StringComparison.OrdinalIgnoreCase) &&
+            !record.Blocking))
+        {
+            _logger.Info($"Warning: {owner} assertion '{record.Name}' failed but assertion failure blocking is disabled.");
+        }
+    }
+
+    private static void ThrowIfAnyBlockingAssertionFailed(
+        IReadOnlyList<WorkflowAssertionExecutionRecord> records,
+        string owner)
+    {
+        var failed = records
+            .Where(record =>
+                string.Equals(record.Status, "Failed", StringComparison.OrdinalIgnoreCase) &&
+                record.Blocking)
+            .ToArray();
+        if (failed.Length == 0)
+        {
+            return;
+        }
+
+        var names = string.Join(", ", failed.Select(record => record.Name));
+        throw new InvalidOperationException($"{owner} assertion failed: {names}.");
     }
 
     private void CompleteStageRecord(

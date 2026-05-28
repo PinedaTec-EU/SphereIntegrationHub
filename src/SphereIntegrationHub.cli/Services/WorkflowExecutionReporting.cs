@@ -51,6 +51,7 @@ public sealed class WorkflowExecutionReport
     public Dictionary<string, object?> Output { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public WorkflowPreflightReport Preflight { get; init; } = new();
     public List<WorkflowStageExecutionRecord> Stages { get; } = [];
+    public List<WorkflowAssertionExecutionRecord> Assertions { get; } = [];
     public WorkflowExecutionMetrics Metrics { get; } = new();
     public string? OutputFilePath { get; set; }
 }
@@ -67,6 +68,26 @@ public sealed class WorkflowExecutionMetrics
     public int JumpedStages { get; set; }
     public int TotalRetries { get; set; }
     public int PreflightRetries { get; set; }
+    public int TotalAssertions { get; set; }
+    public int PassedAssertions { get; set; }
+    public int FailedAssertions { get; set; }
+    public int WarningAssertions { get; set; }
+}
+
+public sealed class WorkflowAssertionExecutionRecord
+{
+    public string Scope { get; set; } = string.Empty;
+    public string? WorkflowName { get; set; }
+    public string? StageName { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Status { get; set; } = "Pending";
+    public string? Operator { get; set; }
+    public string? Expression { get; set; }
+    public object? Expected { get; set; }
+    public object? Actual { get; set; }
+    public bool Blocking { get; set; } = true;
+    public string? Message { get; set; }
+    public string? WarningMessage { get; set; }
 }
 
 public sealed class WorkflowPreflightReport
@@ -129,6 +150,7 @@ public sealed class WorkflowStageExecutionRecord
     public string? ResponseBody { get; set; }
     public WorkflowStageLatencyClassification? Latency { get; set; }
     public Dictionary<string, object?> Output { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public List<WorkflowAssertionExecutionRecord> Assertions { get; } = [];
     public Dictionary<string, object?> WorkflowInputs { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, object?> WorkflowOutput { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, object?> WorkflowResult { get; set; } = new(StringComparer.OrdinalIgnoreCase);

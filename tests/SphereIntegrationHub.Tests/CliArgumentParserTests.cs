@@ -44,7 +44,8 @@ public sealed class CliArgumentParserTests
             "--debug",
             "--mocked",
             "--no-redact",
-            "--no-summary"
+            "--no-summary",
+            "--assertion-failures-block", "false"
         });
 
         Assert.Equal("a.workflow", result.WorkflowPath);
@@ -61,6 +62,7 @@ public sealed class CliArgumentParserTests
         Assert.False(result.Mocked);
         Assert.False(result.RedactSensitiveData);
         Assert.False(result.SummaryConsole);
+        Assert.False(result.AssertionFailuresBlock);
     }
 
     [Fact]
@@ -106,5 +108,15 @@ public sealed class CliArgumentParserTests
 
         Assert.True(result.ShowVersion);
         Assert.Null(result.Error);
+    }
+
+    [Fact]
+    public void ParseArgs_InvalidAssertionFailuresBlock_ReturnsError()
+    {
+        ICliArgumentParser parser = new CliArgumentParser();
+
+        var result = parser.ParseArgs(new[] { "--assertion-failures-block", "maybe" });
+
+        Assert.Equal("Invalid value for --assertion-failures-block. Use true or false.", result.Error);
     }
 }

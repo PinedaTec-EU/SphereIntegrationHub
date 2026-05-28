@@ -29,6 +29,19 @@ public sealed class ApiCatalogFileTests
     }
 
     [Fact]
+    public void Deserialize_ReadsAssertionFailuresBlock()
+    {
+        var catalog = ApiCatalogFile.Deserialize("""
+        - version: "1.0"
+          assertionFailuresBlock: false
+          definitions: []
+        """, ApiCatalogFormat.Yaml);
+
+        var version = Assert.Single(catalog);
+        Assert.False(version.AssertionFailuresBlock);
+    }
+
+    [Fact]
     public void Deserialize_ReadsLatencyProfiles()
     {
         var catalog = ApiCatalogFile.Deserialize("""

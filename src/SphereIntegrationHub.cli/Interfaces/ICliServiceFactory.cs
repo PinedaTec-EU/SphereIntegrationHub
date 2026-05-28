@@ -17,6 +17,6 @@ internal interface ICliServiceFactory
     ApiSwaggerCacheService CreateApiSwaggerCacheService(HttpClient httpClient);
     ApiEndpointValidator CreateApiEndpointValidator(StagePluginRegistry? stagePluginRegistry = null);
     WorkflowPlanner CreateWorkflowPlanner(WorkflowLoader workflowLoader);
-    WorkflowExecutor CreateWorkflowExecutor(HttpClient httpClient, DynamicValueService dynamicValueService, ISystemTimeProvider systemTimeProvider, WorkflowExecutionReportOptions reportOptions, IRequestBodyContractProcessor? requestBodyContractProcessor = null, StagePluginRegistry? stagePluginRegistry = null, IReadOnlyCollection<string>? preloadedSecretValues = null);
+    WorkflowExecutor CreateWorkflowExecutor(HttpClient httpClient, DynamicValueService dynamicValueService, ISystemTimeProvider systemTimeProvider, WorkflowExecutionReportOptions reportOptions, IRequestBodyContractProcessor? requestBodyContractProcessor = null, StagePluginRegistry? stagePluginRegistry = null, IReadOnlyCollection<string>? preloadedSecretValues = null, bool assertionFailuresBlock = true);
     SecretProviderRegistry CreateSecretProviderRegistry();
 }

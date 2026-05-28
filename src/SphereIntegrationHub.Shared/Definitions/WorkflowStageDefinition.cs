@@ -23,6 +23,7 @@ public sealed class WorkflowStageDefinition
     public Dictionary<string, string>? Debug { get; set; }
     public string? Message { get; set; }
     public Dictionary<string, string>? Output { get; set; }
+    public List<WorkflowAssertionDefinition>? Assertions { get; set; }
     public List<string>? SecretOutputs { get; set; }
     public Dictionary<int, string>? JumpOnStatus { get; set; }
     public Dictionary<int, WorkflowStageStatusAction>? OnStatus { get; set; }
@@ -122,4 +123,14 @@ public sealed class WorkflowStageEnsureDefinition
     public string? JumpTo { get; set; }
     public Dictionary<string, string>? Output { get; set; }
     public string? Message { get; set; }
+}
+
+public sealed class WorkflowAssertionDefinition
+{
+    public string? Name { get; set; }
+    public string? Expression { get; set; }
+    public string? Actual { get; set; }
+    public string? Operator { get; set; }
+    public object? Expected { get; set; }
+    public bool? Blocking { get; set; }
 }

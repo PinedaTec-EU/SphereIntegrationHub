@@ -15,6 +15,7 @@ internal sealed record InlineArguments(
     bool Mocked = false,
     bool? RedactSensitiveData = null,
     bool? SummaryConsole = null,
+    bool? AssertionFailuresBlock = null,
     Dictionary<string, string>? Inputs = null,
     bool ShowHelp = false,
     bool ShowVersion = false,

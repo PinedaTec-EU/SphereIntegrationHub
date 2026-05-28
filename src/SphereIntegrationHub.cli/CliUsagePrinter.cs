@@ -5,7 +5,7 @@ internal sealed class CliUsagePrinter : ICliUsagePrinter
     public void PrintUsage(TextWriter writer)
     {
         writer.WriteLine("Usage:");
-        writer.WriteLine("  sih --workflow <path> --env <environment> [--catalog <path>] [--envfile <path>] [--varsfile <path>] [--report-format <json|html|both|none>] [--capture-http <none|headers|bodies>] [--refresh-cache] [--dry-run] [--verbose] [--debug] [--mocked]");
+        writer.WriteLine("  sih --workflow <path> --env <environment> [--catalog <path>] [--envfile <path>] [--varsfile <path>] [--report-format <json|html|both|none>] [--capture-http <none|headers|bodies>] [--assertion-failures-block <true|false>] [--refresh-cache] [--dry-run] [--verbose] [--debug] [--mocked]");
         writer.WriteLine("  sih report <path-to-json-or-dir> [--output <dir>] [--no-open]");
         writer.WriteLine("  sih --version");
         writer.WriteLine();
@@ -17,6 +17,7 @@ internal sealed class CliUsagePrinter : ICliUsagePrinter
         writer.WriteLine("      --varsfile  Optional vars file override (must be .wfvars).");
         writer.WriteLine("      --report-format  Execution report artifact format: json, html, both, or none. Default: json.");
         writer.WriteLine("      --capture-http   Capture level for HTTP details in reports: none, headers, or bodies.");
+        writer.WriteLine("      --assertion-failures-block  Treat assertion failures as blocking. Overrides api.catalog. Default: true.");
         writer.WriteLine("      --refresh-cache  Redownload swagger definitions even if cached.");
         writer.WriteLine("      --dry-run   Print the execution plan without calling endpoints.");
         writer.WriteLine("      --verbose   Print detailed plan information.");

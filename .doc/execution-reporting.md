@@ -30,7 +30,7 @@ It includes:
 
 - Timeline overview of nested workflows and stage durations.
 - Status and metrics summary for executed, skipped, failed, mocked, and retried stages.
-- Stage detail panel with workflow result, resolved inputs, execution timing, and HTTP metadata.
+- Stage detail panel with workflow result, resolved inputs, execution timing, assertions, and HTTP metadata.
 - Execution switcher when multiple report artifacts exist in the same output folder.
 
 ### Timeline overview
@@ -96,6 +96,36 @@ Rules:
 - `format: "none"` or `--report-format none` disables report files.
 - `captureHttp: "headers"` stores redacted headers and metadata without persisting bodies.
 - `captureHttp: "bodies"` additionally stores request/response bodies, still redacted unless `--no-redact` is used.
+
+## Assertion diagnostics
+
+Execution reports include assertion diagnostics when a workflow uses `assertions`.
+
+JSON report fields:
+
+- `Assertions`: flat list of every evaluated assertion.
+- `Stages[].Assertions`: assertions attached to that stage.
+- `Metrics.TotalAssertions`
+- `Metrics.PassedAssertions`
+- `Metrics.FailedAssertions`
+- `Metrics.WarningAssertions`
+
+Each assertion record includes:
+
+- `Scope`: `Stage` or `EndStage`.
+- `WorkflowName` and optional `StageName`.
+- `Name`, `Status`, `Operator`, `Expression`, `Expected`, and `Actual`.
+- `Blocking`: whether a failure should fail the workflow.
+- `WarningMessage`: populated when a failed assertion is non-blocking.
+
+The HTML report shows assertion counts in the metrics chips and lists stage assertions in the stage detail panel. Non-blocking failures are shown as failed assertions with `non-blocking` and a warning message.
+
+Assertion failure blocking precedence:
+
+1. `assertions[].blocking`
+2. CLI `--assertion-failures-block <true|false>`
+3. selected `api.catalog` version `assertionFailuresBlock`
+4. default `true`
 
 ## Secret masking
 

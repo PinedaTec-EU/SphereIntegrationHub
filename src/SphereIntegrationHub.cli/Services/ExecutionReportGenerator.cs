@@ -563,6 +563,9 @@ function render(report) {
   if (m.MockedStages)  chips += `<span class="chip chip-mocked">Mocked: ${m.MockedStages}</span>`;
   if (m.TotalRetries)  chips += `<span class="chip chip-retries">Retries: ${m.TotalRetries}</span>`;
   if (m.HttpStages)    chips += `<span class="chip chip-total">HTTP: ${m.HttpStages}</span>`;
+  if (m.TotalAssertions) chips += `<span class="chip chip-ok">Assertions: ${m.PassedAssertions || 0}/${m.TotalAssertions}</span>`;
+  if (m.FailedAssertions) chips += `<span class="chip chip-error">Assertion failures: ${m.FailedAssertions}</span>`;
+  if (m.WarningAssertions) chips += `<span class="chip chip-retries">Assertion warnings: ${m.WarningAssertions}</span>`;
   document.getElementById('chips').innerHTML = chips;
 
   // Ruler
@@ -816,6 +819,7 @@ function showDetail(idx) {
   const hasReq    = !!(stage.RequestHeaders || stage.RequestBody);
   const hasRes    = !!(stage.ResponseHeaders || stage.ResponseBody);
   const hasOutput = !!(stage.Output && Object.keys(stage.Output).length > 0);
+  const hasAssertions = !!(stage.Assertions && stage.Assertions.length > 0);
   const hasWorkflowInputs = !!(stage.WorkflowInputs && Object.keys(stage.WorkflowInputs).length > 0);
   const hasWorkflowOutput = !!(stage.WorkflowOutput && Object.keys(stage.WorkflowOutput).length > 0);
   const hasWorkflowResult = !!(stage.WorkflowResult && Object.keys(stage.WorkflowResult).length > 0);
@@ -856,6 +860,18 @@ function showDetail(idx) {
     body += `<div class="detail-section"><h3>Workflow Result</h3><div class="output-kv">`;
     Object.entries(stage.WorkflowResult).forEach(([k,v]) => {
       body += `<span class="out-k">${esc(k)}</span><span class="out-v">${esc(fmtVal(v))}</span>`;
+    });
+    body += `</div></div>`;
+  }
+
+  if (hasAssertions) {
+    body += `<div class="detail-section full-width"><h3>Assertions</h3><div class="output-kv">`;
+    stage.Assertions.forEach(a => {
+      const status = `<span class="${badgeCls(a.Status)}">${esc(a.Status || '')}</span>`;
+      const blocking = a.Blocking === false ? 'non-blocking' : 'blocking';
+      const warning = a.WarningMessage ? ` Warning: ${a.WarningMessage}` : '';
+      const detail = a.Message || `${a.Operator || a.Expression || ''}`;
+      body += `<span class="out-k">${esc(a.Name || '')}</span><span class="out-v">${status} <strong>${esc(blocking)}</strong> ${esc(detail)}${esc(warning)}</span>`;
     });
     body += `</div></div>`;
   }

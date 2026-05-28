@@ -24,6 +24,7 @@ internal sealed class CliArgumentParser : ICliArgumentParser
         var mocked = false;
         bool? redactSensitiveData = null;
         bool? summaryConsole = null;
+        bool? assertionFailuresBlock = null;
         var showHelp = false;
         var showVersion = false;
 
@@ -98,6 +99,17 @@ internal sealed class CliArgumentParser : ICliArgumentParser
                 case "--no-summary":
                     summaryConsole = false;
                     break;
+                case "--assertion-failures-block":
+                    if (!TryReadValue(args, ref i, out var assertionFailuresBlockValue))
+                    {
+                        return new InlineArguments(Error: "Missing value for --assertion-failures-block.");
+                    }
+
+                    if (!TryParseBool(assertionFailuresBlockValue, out assertionFailuresBlock))
+                    {
+                        return new InlineArguments(Error: "Invalid value for --assertion-failures-block. Use true or false.");
+                    }
+                    break;
                 case "--help":
                 case "-h":
                     showHelp = true;
@@ -130,6 +142,7 @@ internal sealed class CliArgumentParser : ICliArgumentParser
             mocked,
             redactSensitiveData,
             summaryConsole,
+            assertionFailuresBlock,
             null,
             showHelp,
             showVersion);
@@ -191,5 +204,17 @@ internal sealed class CliArgumentParser : ICliArgumentParser
         index++;
         value = args[index];
         return true;
+    }
+
+    private static bool TryParseBool(string? value, out bool? result)
+    {
+        if (bool.TryParse(value, out var parsed))
+        {
+            result = parsed;
+            return true;
+        }
+
+        result = null;
+        return false;
     }
 }

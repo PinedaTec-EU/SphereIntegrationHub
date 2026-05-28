@@ -10,6 +10,7 @@ Example:
 
 ```yaml
 - version: "3.10"
+  assertionFailuresBlock: true
   definitions:
     - name: example-service
       contractType: openapi
@@ -37,6 +38,7 @@ Example:
 Notes:
 
 - `version` matches the workflow `version`.
+- `assertionFailuresBlock` is optional. When omitted, assertion failures are blocking by default. Set it to `false` to make assertion failures non-blocking for that catalog version unless overridden by CLI or by an individual assertion.
 - `contractType` is optional. Allowed values are `openapi`, `swagger`, `scala`, and `llm`.
 - URL fields supported by the catalog are `openApiUrl`, `swaggerUrl`, and `scalaUrl`.
 - Use one contract URL field per definition. Relative contract URLs are resolved against `definitions[].baseUrl[env]` for the active environment.
@@ -59,3 +61,26 @@ Caching behavior:
 - If the cache file exists and `--refresh-cache` is not specified, it is used.
 - If the cache file does not exist, the CLI downloads the contract and stores it in the cache.
 - If `healthCheck` is configured and the readiness policy is exhausted, the run fails before execution.
+
+## Assertion failure blocking
+
+`assertionFailuresBlock` is a version-level execution default:
+
+```yaml
+- version: "3.11"
+  assertionFailuresBlock: false
+  definitions:
+    - name: accounts
+      openApiUrl: /swagger/v1/swagger.json
+      baseUrl:
+        local: http://localhost:8080
+```
+
+Precedence:
+
+1. `assertions[].blocking`
+2. CLI `--assertion-failures-block <true|false>`
+3. selected catalog version `assertionFailuresBlock`
+4. default `true`
+
+Use the catalog value when an environment or version normally treats assertions as diagnostics. Use the CLI flag for one-off executions. Use `assertions[].blocking` when a specific assertion must be stricter or softer than the execution default.

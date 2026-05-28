@@ -136,6 +136,19 @@ stages:
       accessToken: "{{stage:json(create-account.output.dto).token}}"
     secretOutputs:
       - accessToken   # value masked as ***** in the execution report; name is still visible
+    assertions:
+      - name: "account id is returned"
+        actual: "{{stage:create-account.output.accountId}}"
+        operator: "notEmpty"
+      - name: "status is active"
+        actual: "{{stage:create-account.output.status}}"
+        operator: "equals"
+        expected: "active"
+      - name: "optional smoke check"
+        actual: "{{stage:create-account.output.warningCount}}"
+        operator: "equals"
+        expected: 0
+        blocking: false
     # optional collection iteration
     # forEach: "{{input.items}}"
     # dataFile: "./seed/accounts.json"
@@ -179,6 +192,63 @@ mock:
 ```
 
 Use either `payload` or `payloadFile` (not both).
+
+#### Assertions
+
+Stages and `endStage` can define `assertions` to validate resolved runtime values after outputs are available.
+
+Stage-level assertions run after the stage response is processed, stage `output` values are registered, and HTTP status handling has accepted the result. `endStage.assertions` run after `endStage.output` and `endStage.context` are resolved.
+
+```yaml
+stages:
+  - name: "create-account"
+    kind: "Endpoint"
+    apiRef: "accounts"
+    endpoint: "/api/accounts"
+    httpVerb: "POST"
+    expectedStatuses: [201, 409]
+    output:
+      accountId: "{{response.body.appId?}}"
+      status: "{{response.body.status?}}"
+    assertions:
+      - name: "account id is returned"
+        actual: "{{stage:create-account.output.accountId}}"
+        operator: "notEmpty"
+      - name: "account is active"
+        actual: "{{stage:create-account.output.status}}"
+        operator: "equals"
+        expected: "active"
+      - name: "diagnostic-only active check"
+        actual: "{{stage:create-account.output.status}}"
+        operator: "equals"
+        expected: "active"
+        blocking: false
+
+endStage:
+  output:
+    accountId: "{{stage:create-account.output.accountId}}"
+  assertions:
+    - name: "workflow produced account id"
+      expression: "{{stage:create-account.output.accountId}} != null"
+```
+
+Assertion fields:
+
+- `name` (string, optional): report label. If omitted or blank, SIH uses `assertion-1`, `assertion-2`, etc. within that assertion list.
+- `expression` (string, optional): workflow expression that must evaluate to `true`. When present, `actual`, `operator`, and `expected` are ignored.
+- `actual` (string, required when `expression` is omitted): template value to resolve before applying `operator`.
+- `operator` (string, required when `expression` is omitted): comparison operator. Supported values are `equals`, `notEquals`, `contains`, `notEmpty`, `empty`, `in`, and `matches`.
+- `expected` (scalar or array, required by `equals`, `notEquals`, `contains`, `in`, and `matches`): expected value. Strings can contain template tokens.
+- `blocking` (bool, optional): whether this assertion failure should fail the workflow. If omitted, the execution-level default is used.
+
+Assertion failure blocking precedence:
+
+1. `assertions[].blocking`
+2. CLI `--assertion-failures-block <true|false>`
+3. Selected `api.catalog` version `assertionFailuresBlock`
+4. Default `true`
+
+When a failure is non-blocking, the workflow continues, the console prints a warning, and the execution report marks the assertion as failed/non-blocking.
 
 #### Retry (endpoint only)
 

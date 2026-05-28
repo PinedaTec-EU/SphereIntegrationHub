@@ -14,6 +14,7 @@ Basic options:
 - `--refresh-cache`: force re-download of swagger definitions.
 - `--report-format <json|html|both|none>`: controls post-execution report generation.
 - `--capture-http <none|headers|bodies>`: controls how much HTTP data is captured in reports.
+- `--assertion-failures-block <true|false>`: controls whether assertion failures fail the workflow for this execution. Overrides `api.catalog`.
 - `--no-redact`: disables header/body redaction in reports.
 - `--no-summary`: disables the final console execution summary.
 
@@ -65,6 +66,24 @@ sih \
   --report-format both \
   --capture-http bodies
 ```
+
+Run with non-blocking assertion failures:
+
+```bash
+sih \
+  --workflow ./src/resources/workflows/create-account.workflow \
+  --env pre \
+  --assertion-failures-block false
+```
+
+Assertion failure blocking defaults to `true`. Runtime precedence is:
+
+1. `assertions[].blocking`
+2. `--assertion-failures-block <true|false>`
+3. selected `api.catalog` version `assertionFailuresBlock`
+4. default `true`
+
+When disabled, failed assertions are warnings: execution continues, the console prints a warning, and the report marks the assertion as failed/non-blocking.
 
 Vars file auto-detection:
 

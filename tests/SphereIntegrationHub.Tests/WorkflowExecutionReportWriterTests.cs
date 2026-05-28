@@ -47,6 +47,18 @@ public sealed class WorkflowExecutionReportWriterTests
                 DurationMs = 120
             }
         };
+        report.Assertions.Add(new WorkflowAssertionExecutionRecord
+        {
+            Scope = "Stage",
+            WorkflowName = "workflow-report",
+            StageName = "create",
+            Name = "payload is returned",
+            Status = "Passed",
+            Operator = "notEmpty",
+            Actual = "payload"
+        });
+        report.Metrics.TotalAssertions = 1;
+        report.Metrics.PassedAssertions = 1;
         report.Preflight.Operations.Add(new WorkflowPreflightOperationRecord
         {
             OperationType = "HealthCheck",
@@ -76,6 +88,7 @@ public sealed class WorkflowExecutionReportWriterTests
                 MaxMs = 200
             }
         });
+        report.Stages[0].Assertions.Add(report.Assertions[0]);
 
         var writer = new WorkflowExecutionReportWriter();
         var artifacts = await writer.WriteAsync(
@@ -96,6 +109,8 @@ public sealed class WorkflowExecutionReportWriterTests
         Assert.Equal(1, parsed.RootElement.GetProperty("Preflight").GetProperty("TotalRetries").GetInt32());
         Assert.Equal("Parallel", parsed.RootElement.GetProperty("Stages")[0].GetProperty("ForEachExecutionMode").GetString());
         Assert.Equal("green", parsed.RootElement.GetProperty("Stages")[0].GetProperty("Latency").GetProperty("Color").GetString());
+        Assert.Equal(1, parsed.RootElement.GetProperty("Metrics").GetProperty("TotalAssertions").GetInt32());
+        Assert.Equal("payload is returned", parsed.RootElement.GetProperty("Assertions")[0].GetProperty("Name").GetString());
         var html = await File.ReadAllTextAsync(artifacts.HtmlReportPath!);
         Assert.Contains("Workflow Trace", html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("trace-container", html, StringComparison.Ordinal);
@@ -103,6 +118,8 @@ public sealed class WorkflowExecutionReportWriterTests
         Assert.Contains("workflow-report", html, StringComparison.Ordinal);
         Assert.Contains("create", html, StringComparison.Ordinal);
         Assert.Contains("bar-latency-green", html, StringComparison.Ordinal);
+        Assert.Contains("TotalAssertions", html, StringComparison.Ordinal);
+        Assert.Contains("payload is returned", html, StringComparison.Ordinal);
         Assert.Contains("Sphere Integration Hub (SIH)", html, StringComparison.Ordinal);
         Assert.Contains("aria-label=\"Sphere Integration Hub icon\"", html, StringComparison.Ordinal);
     }

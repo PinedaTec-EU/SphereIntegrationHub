@@ -131,7 +131,8 @@ public sealed class CliAppTests
             WorkflowExecutionReportOptions reportOptions,
             IRequestBodyContractProcessor? requestBodyContractProcessor = null,
             StagePluginRegistry? stagePluginRegistry = null,
-            IReadOnlyCollection<string>? preloadedSecretValues = null)
+            IReadOnlyCollection<string>? preloadedSecretValues = null,
+            bool assertionFailuresBlock = true)
             => throw new InvalidOperationException("Unexpected factory call");
     }
 }

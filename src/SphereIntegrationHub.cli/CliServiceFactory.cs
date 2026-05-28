@@ -61,7 +61,8 @@ internal sealed class CliServiceFactory : ICliServiceFactory
         WorkflowExecutionReportOptions reportOptions,
         IRequestBodyContractProcessor? requestBodyContractProcessor = null,
         StagePluginRegistry? stagePluginRegistry = null,
-        IReadOnlyCollection<string>? preloadedSecretValues = null)
+        IReadOnlyCollection<string>? preloadedSecretValues = null,
+        bool assertionFailuresBlock = true)
         => new(
             httpClient,
             dynamicValueService,
@@ -71,7 +72,8 @@ internal sealed class CliServiceFactory : ICliServiceFactory
             reportWriter: new WorkflowExecutionReportWriter(),
             reportOptions: reportOptions,
             stagePluginRegistry: stagePluginRegistry,
-            preloadedSecretValues: preloadedSecretValues);
+            preloadedSecretValues: preloadedSecretValues,
+            assertionFailuresBlock: assertionFailuresBlock);
 
     public SecretProviderRegistry CreateSecretProviderRegistry()
         => new SecretProviderRegistryBuilder().Build();

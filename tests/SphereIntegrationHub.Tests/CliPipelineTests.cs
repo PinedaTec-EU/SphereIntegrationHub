@@ -113,6 +113,53 @@ public sealed class CliPipelineTests
     }
 
     [Fact]
+    public async Task RunAsync_CatalogDisablesAssertionFailureBlocking_CompletesWithWarning()
+    {
+        var fixture = CreateFixture(
+            swaggerHasEndpoint: true,
+            includeMock: true,
+            catalogVersion: "1.0",
+            baseUrls: new Dictionary<string, string> { ["dev"] = "http://example.test" },
+            assertionFailuresBlock: false,
+            includeFailingAssertion: true);
+        var pipeline = CreatePipeline();
+
+        var result = await pipeline.RunAsync(new InlineArguments(
+            WorkflowPath: fixture.WorkflowPath,
+            Environment: "dev",
+            CatalogPath: fixture.CatalogPath,
+            Mocked: true,
+            ReportFormat: "none"), CancellationToken.None);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains(result.Messages, message => message.Text.Contains("assertion failure blocking is disabled", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task RunAsync_ConsoleAssertionFailureBlockingOverridesCatalog()
+    {
+        var fixture = CreateFixture(
+            swaggerHasEndpoint: true,
+            includeMock: true,
+            catalogVersion: "1.0",
+            baseUrls: new Dictionary<string, string> { ["dev"] = "http://example.test" },
+            assertionFailuresBlock: false,
+            includeFailingAssertion: true);
+        var pipeline = CreatePipeline();
+
+        var result = await pipeline.RunAsync(new InlineArguments(
+            WorkflowPath: fixture.WorkflowPath,
+            Environment: "dev",
+            CatalogPath: fixture.CatalogPath,
+            Mocked: true,
+            ReportFormat: "none",
+            AssertionFailuresBlock: true), CancellationToken.None);
+
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains(result.Messages, message => message.Text.Contains("assertion failed", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task RunAsync_DryRun_WorkflowStageResilience_ReturnsError()
     {
         var fixture = CreateFixture(
@@ -777,6 +824,8 @@ stages:
         bool includeWorkflowStageResilience = false,
         bool includeWorkflowStage = false,
         bool includeNestedApiOnly = false,
+        bool? assertionFailuresBlock = null,
+        bool includeFailingAssertion = false,
         IReadOnlyList<CatalogDefinitionFixture>? additionalDefinitions = null)
     {
         var root = Path.Combine(Path.GetTempPath(), $"aos-cli-{Guid.NewGuid():N}");
@@ -804,9 +853,12 @@ stages:
             }
         }
 
+        var assertionFailuresBlockYaml = assertionFailuresBlock.HasValue
+            ? $"  assertionFailuresBlock: {assertionFailuresBlock.Value.ToString().ToLowerInvariant()}{Environment.NewLine}"
+            : string.Empty;
         var catalogYaml = $"""
 - version: "{catalogVersion}"
-  definitions:
+{assertionFailuresBlockYaml}  definitions:
 {string.Join(Environment.NewLine, definitionYamlEntries)}
 """;
         File.WriteAllText(catalogPath, catalogYaml);
@@ -859,11 +911,24 @@ stages:
             {
                 workflowLines.Add("    mock:");
                 workflowLines.Add("      payload: |");
-                workflowLines.Add("        { \"ok\": true }");
+                workflowLines.Add(includeFailingAssertion
+                    ? "        { \"status\": \"inactive\" }"
+                    : "        { \"ok\": true }");
                 if (includeSelfJumpOnMock)
                 {
                     workflowLines.Add("      status: 200");
                 }
+            }
+
+            if (includeFailingAssertion)
+            {
+                workflowLines.Add("    output:");
+                workflowLines.Add("      status: \"{{response.body.status?}}\"");
+                workflowLines.Add("    assertions:");
+                workflowLines.Add("      - name: \"status is active\"");
+                workflowLines.Add("        actual: \"{{stage:list.output.status}}\"");
+                workflowLines.Add("        operator: \"equals\"");
+                workflowLines.Add("        expected: \"active\"");
             }
 
             if (includeSelfJumpOnMock)

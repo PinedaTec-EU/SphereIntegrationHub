@@ -138,9 +138,23 @@ internal sealed class CliPipeline : ICliPipeline
             return BuildDryRunResult(workflowDocument, workflowLoader, parseResult, stopwatch, secretProviderEnvironment.SecretValues, messages, emittedMessageCount);
         }
 
+        var assertionFailuresBlock = ResolveAssertionFailuresBlock(parseResult, selectedVersion);
+        if (!assertionFailuresBlock)
+        {
+            AddInfo(messages, "Warning: assertion failure blocking is disabled for this execution.");
+            emittedMessageCount = EmitPendingMessages(messages, emittedMessageCount);
+        }
+
         var cacheRoot = Path.Combine(_pathResolver.ResolveDefaultCacheRoot(parseResult.WorkflowPath), selectedVersion.Version);
-        return await ExecuteWorkflowAsync(parseResult, workflowDocument, selectedVersion, cacheRoot, varsOverrideActive, reportOptions, preflightReport, stagePluginRegistry, secretProviderEnvironment.SecretValues, stopwatch, messages, emittedMessageCount, cancellationToken);
+        return await ExecuteWorkflowAsync(parseResult, workflowDocument, selectedVersion, cacheRoot, varsOverrideActive, assertionFailuresBlock, reportOptions, preflightReport, stagePluginRegistry, secretProviderEnvironment.SecretValues, stopwatch, messages, emittedMessageCount, cancellationToken);
     }
+
+    private static bool ResolveAssertionFailuresBlock(
+        InlineArguments parseResult,
+        ApiCatalogVersion selectedVersion)
+        => parseResult.AssertionFailuresBlock
+           ?? selectedVersion.AssertionFailuresBlock
+           ?? true;
 
     private void EmitPreamble(InlineArguments parseResult, List<CliRunMessage> messages)
     {
@@ -676,6 +690,7 @@ internal sealed class CliPipeline : ICliPipeline
         ApiCatalogVersion selectedVersion,
         string cacheRoot,
         bool varsOverrideActive,
+        bool assertionFailuresBlock,
         WorkflowExecutionReportOptions reportOptions,
         WorkflowPreflightReport preflightReport,
         StagePluginRegistry stagePluginRegistry,
@@ -699,7 +714,8 @@ internal sealed class CliPipeline : ICliPipeline
                 reportOptions,
                 requestBodyContractProcessor,
                 stagePluginRegistry,
-                secretProviderValues);
+                secretProviderValues,
+                assertionFailuresBlock);
             var result = await executor.ExecuteAsync(
                 workflowDocument,
                 selectedVersion,

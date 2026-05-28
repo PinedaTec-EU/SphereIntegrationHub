@@ -34,6 +34,49 @@ Agents generating workflows should assume these runtime rules:
 - `forEach` on workflow stages aggregates both outputs and result state. In addition to `foreach_count` and `foreach_items`, workflow stages expose `foreach_results`, `foreach_success_count`, and `foreach_failed_count`.
 - `forEach` runs in parallel by default. Set `forEachSequential: true` on the stage when iterations must execute one by one.
 - `response.*` tokens are endpoint-stage only. Workflow stages should use `stage:<name>.workflow.output.*` and `stage:<name>.workflow.result.{status,message}` instead.
+- `assertions` run after stage outputs or `endStage.output` values are registered. Blocking assertion failures fail the workflow. Non-blocking failures continue execution, emit a console warning, and are recorded as assertion warnings in the execution report.
+
+## Assertion failure blocking
+
+By default, assertion failures are blocking. You can relax that behavior globally for a catalog version, per execution, or per assertion.
+
+Precedence is strict:
+
+1. `assertions[].blocking`
+2. CLI `--assertion-failures-block <true|false>`
+3. Selected `api.catalog` version `assertionFailuresBlock`
+4. Default `true`
+
+Example:
+
+```yaml
+# api.catalog
+- version: "3.11"
+  assertionFailuresBlock: false
+  definitions:
+    - name: accounts
+      openApiUrl: /swagger/v1/swagger.json
+      baseUrl:
+        local: http://localhost:8080
+```
+
+```bash
+sih \
+  --workflow ./workflows/create-account.workflow \
+  --env local \
+  --assertion-failures-block true
+```
+
+In this example the CLI flag overrides the catalog and makes assertion failures blocking for that run. A specific assertion can still override both:
+
+```yaml
+assertions:
+  - name: "diagnostic-only"
+    actual: "{{stage:create-account.output.status}}"
+    operator: "equals"
+    expected: "active"
+    blocking: false
+```
 
 ## Examples
 
