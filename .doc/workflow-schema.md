@@ -250,6 +250,16 @@ Assertion failure blocking precedence:
 
 When a failure is non-blocking, the workflow continues, the console prints a warning, and the execution report marks the assertion as failed/non-blocking.
 
+`api.catalog` can also define the report viewer baseline snapshot for the repository:
+
+```yaml
+- version: "1.0"
+  baselineSnapshot: ./snapshots/create-account.happy-path.workflow.snapshot.json
+  definitions: []
+```
+
+`baselineSnapshot` is resolved relative to the `api.catalog` file unless it is absolute. Because `api.catalog` is currently a list of catalog versions, SIH first looks for `baselineSnapshot` on the report workflow version; if none exists, it uses the first `baselineSnapshot` defined in the catalog as the repository default. It is used by `sih report` to preload the default visual baseline for snapshot comparison.
+
 #### Retry (endpoint only)
 
 ```yaml

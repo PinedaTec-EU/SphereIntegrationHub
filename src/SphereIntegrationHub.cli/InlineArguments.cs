@@ -23,7 +23,11 @@ internal sealed record InlineArguments(
     bool IsReportCommand = false,
     string? ExecutionReportPath = null,
     string? ReportOutputPath = null,
-    bool OpenAfterGenerate = true)
+    bool OpenAfterGenerate = true,
+    bool IsSnapshotCommand = false,
+    string? SnapshotAction = null,
+    string? SnapshotPath = null,
+    string? SnapshotName = null)
 {
     public Dictionary<string, string> Inputs { get; init; } =
         Inputs ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

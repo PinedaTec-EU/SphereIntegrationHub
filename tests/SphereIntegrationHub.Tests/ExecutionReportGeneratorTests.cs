@@ -231,6 +231,128 @@ public sealed class ExecutionReportGeneratorTests
         Assert.Contains("syncDetailModal();", html, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task GenerateAndOpenAsync_WithSiblingSnapshots_EmbedsBaselinePickerAndComparisonUi()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"sih-report-{Guid.NewGuid():N}");
+        var outputDirectory = Path.Combine(root, "output");
+        var snapshotsDirectory = Path.Combine(root, "snapshots");
+        Directory.CreateDirectory(outputDirectory);
+        Directory.CreateDirectory(snapshotsDirectory);
+
+        var reportPath = Path.Combine(outputDirectory, "sample.01KNGXHCZZZZ6KMC3DZDZAJRTJ.workflow.report.json");
+        await File.WriteAllTextAsync(reportPath, CreateReportJson("01KNGXHCZZZZ6KMC3DZDZAJRTJ", "Snapshot Workflow"));
+        var snapshotService = new WorkflowExecutionSnapshotService();
+        await snapshotService.CreateAsync(
+            reportPath,
+            Path.Combine(snapshotsDirectory, "snapshot.workflow.snapshot.json"),
+            "happy-path",
+            CancellationToken.None);
+
+        var output = new TestOutputProvider();
+        var generator = new ExecutionReportGenerator(output);
+
+        var result = await generator.GenerateAndOpenAsync(
+            new InlineArguments(
+                IsReportCommand: true,
+                ExecutionReportPath: outputDirectory,
+                OpenAfterGenerate: false),
+            CancellationToken.None);
+
+        Assert.Equal(0, result);
+
+        var htmlPath = Path.Combine(outputDirectory, $"{Path.GetFileName(outputDirectory)}.reports.workflow.report.html");
+        var html = await File.ReadAllTextAsync(htmlPath);
+        Assert.Contains("const _snapshots =", html, StringComparison.Ordinal);
+        Assert.Contains("happy-path", html, StringComparison.Ordinal);
+        Assert.Contains("snapshot-picker", html, StringComparison.Ordinal);
+        Assert.Contains("compare-toggle", html, StringComparison.Ordinal);
+        Assert.Contains("timeline-ghost", html, StringComparison.Ordinal);
+        Assert.Contains("Baseline comparison", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GenerateAndOpenAsync_WithCatalogBaselineSnapshot_EmbedsConfiguredSnapshot()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"sih-report-{Guid.NewGuid():N}");
+        var outputDirectory = Path.Combine(root, "output");
+        var snapshotsDirectory = Path.Combine(root, "baselines");
+        Directory.CreateDirectory(outputDirectory);
+        Directory.CreateDirectory(snapshotsDirectory);
+
+        var reportPath = Path.Combine(outputDirectory, "sample.01KNGXHCZZZZ6KMC3DZDZAJRTJ.workflow.report.json");
+        await File.WriteAllTextAsync(reportPath, CreateReportJson("01KNGXHCZZZZ6KMC3DZDZAJRTJ", "Catalog Baseline Workflow"));
+        var snapshotPath = Path.Combine(snapshotsDirectory, "catalog.workflow.snapshot.json");
+        var snapshotService = new WorkflowExecutionSnapshotService();
+        await snapshotService.CreateAsync(reportPath, snapshotPath, "catalog-default", CancellationToken.None);
+        var catalogPath = Path.Combine(root, "api.catalog");
+        await File.WriteAllTextAsync(catalogPath, """
+        - version: "1.0.0"
+          baselineSnapshot: ./baselines/catalog.workflow.snapshot.json
+          definitions: []
+        """);
+
+        var output = new TestOutputProvider();
+        var generator = new ExecutionReportGenerator(output);
+
+        var result = await generator.GenerateAndOpenAsync(
+            new InlineArguments(
+                IsReportCommand: true,
+                ExecutionReportPath: outputDirectory,
+                CatalogPath: catalogPath,
+                OpenAfterGenerate: false),
+            CancellationToken.None);
+
+        Assert.Equal(0, result);
+
+        var htmlPath = Path.Combine(outputDirectory, $"{Path.GetFileName(outputDirectory)}.reports.workflow.report.html");
+        var html = await File.ReadAllTextAsync(htmlPath);
+        Assert.Contains("catalog-default", html, StringComparison.Ordinal);
+        Assert.Contains("baselineSnapshot", await File.ReadAllTextAsync(catalogPath), StringComparison.Ordinal);
+        Assert.Contains("snapshot-picker", html, StringComparison.Ordinal);
+        Assert.Contains("snapshot-file-input", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GenerateAndOpenAsync_WithCatalogBaselineSnapshotOnDifferentVersion_UsesCatalogDefault()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"sih-report-{Guid.NewGuid():N}");
+        var outputDirectory = Path.Combine(root, "output");
+        var snapshotsDirectory = Path.Combine(root, "baselines");
+        Directory.CreateDirectory(outputDirectory);
+        Directory.CreateDirectory(snapshotsDirectory);
+
+        var reportPath = Path.Combine(outputDirectory, "sample.01KNGXHCZZZZ6KMC3DZDZAJRTJ.workflow.report.json");
+        await File.WriteAllTextAsync(reportPath, CreateReportJson("01KNGXHCZZZZ6KMC3DZDZAJRTJ", "Catalog Default Workflow"));
+        var snapshotPath = Path.Combine(snapshotsDirectory, "repo-default.workflow.snapshot.json");
+        var snapshotService = new WorkflowExecutionSnapshotService();
+        await snapshotService.CreateAsync(reportPath, snapshotPath, "repo-default", CancellationToken.None);
+        var catalogPath = Path.Combine(root, "api.catalog");
+        await File.WriteAllTextAsync(catalogPath, """
+        - version: "repo"
+          baselineSnapshot: ./baselines/repo-default.workflow.snapshot.json
+          definitions: []
+        """);
+
+        var output = new TestOutputProvider();
+        var generator = new ExecutionReportGenerator(output);
+
+        var result = await generator.GenerateAndOpenAsync(
+            new InlineArguments(
+                IsReportCommand: true,
+                ExecutionReportPath: outputDirectory,
+                CatalogPath: catalogPath,
+                OpenAfterGenerate: false),
+            CancellationToken.None);
+
+        Assert.Equal(0, result);
+
+        var htmlPath = Path.Combine(outputDirectory, $"{Path.GetFileName(outputDirectory)}.reports.workflow.report.html");
+        var html = await File.ReadAllTextAsync(htmlPath);
+        Assert.Contains("repo-default", html, StringComparison.Ordinal);
+        Assert.Contains("snapshot-picker", html, StringComparison.Ordinal);
+    }
+
     private static string CreateReportJson(string executionId, string workflowName)
     {
         var report = new WorkflowExecutionReport

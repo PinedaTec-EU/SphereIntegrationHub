@@ -138,19 +138,21 @@ SphereIntegrationHub is currently strongest as a local-first API orchestration r
 
 ## Near-term priorities
 
-1. Assertions and regression diagnostics on top of execution reports.
-2. Snapshot authoring and regression-testing workflows.
-3. External plugin packaging and diagnostics for third-party stage plugins.
-4. Transport-level retry controls beyond current readiness policies.
+Canonical backlog tracking now lives in GitHub. This document keeps local references only.
+
+1. [`SIF-001`](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues/5): add assertions and regression diagnostics on execution reports.
+2. [`SIF-002`](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues/6): support snapshot authoring and regression-testing workflows.
+3. [`SIF-003`](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues/7): package and diagnose third-party stage plugins.
+4. [`SIF-004`](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues/8): add transport-level retry controls beyond readiness policies.
 
 ## Mid-term roadmap
 
-1. Optional web dashboard for execution history and diagnostics across runs.
-2. Visual workflow editor on top of the YAML runtime.
-3. Higher-level runtime primitives beyond the current orchestration surface.
-4. Broader secret provider coverage beyond Vaultwarden.
+1. [`SIF-005`](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues/9): add an optional web dashboard for execution history and diagnostics.
+2. [`SIF-006`](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues/10): build a visual workflow editor on top of the YAML runtime.
+3. [`SII-001`](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues/11): define higher-level runtime primitives beyond the current orchestration surface.
+4. [`SIF-007`](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues/12): expand secret provider support beyond Vaultwarden.
 
 ## Ongoing investment
 
-1. Keep the MCP aligned with runtime capabilities so agents generate valid workflows.
-2. Improve authoring ergonomics, generated examples, repair tools, and diagnostics.
+1. [`SIT-001`](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues/13): keep MCP capabilities aligned with runtime capabilities.
+2. [`SIT-002`](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues/14): improve authoring ergonomics, examples, repair tools, and diagnostics.

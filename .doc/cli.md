@@ -18,6 +18,12 @@ Basic options:
 - `--no-redact`: disables header/body redaction in reports.
 - `--no-summary`: disables the final console execution summary.
 
+Subcommands:
+
+- `report <path-to-json-or-dir>`: generates an interactive HTML report from one report JSON file or a directory of reports. It also loads `*.workflow.snapshot.json` files from the same directory, a sibling `snapshots/` directory, or the repo baseline declared as `api.catalog` `baselineSnapshot`.
+- `snapshot create <path-to-report-json>`: creates a stable regression snapshot from a known-good execution report.
+- `snapshot compare <path-to-report-json> --snapshot <snapshot-json>`: compares a later execution report against a stored snapshot.
+
 Examples:
 
 Dry-run:
@@ -84,6 +90,47 @@ Assertion failure blocking defaults to `true`. Runtime precedence is:
 4. default `true`
 
 When disabled, failed assertions are warnings: execution continues, the console prints a warning, and the report marks the assertion as failed/non-blocking.
+
+Create a regression snapshot:
+
+```bash
+sih snapshot create \
+  ./output/create-account.01J....workflow.report.json \
+  --name happy-path
+```
+
+By default, snapshots are written to `./snapshots/{workflow-name}.{snapshot-name}.workflow.snapshot.json`, next to the report output folder.
+
+Compare a later execution against the snapshot:
+
+```bash
+sih snapshot compare \
+  ./output/create-account.01K....workflow.report.json \
+  --snapshot ./snapshots/create-account.happy-path.workflow.snapshot.json
+```
+
+`snapshot compare` exits with `0` when the canonical execution baseline matches and `1` when meaningful differences are found.
+
+Open reports with baseline snapshots available in the viewer:
+
+```bash
+sih report ./output \
+  --catalog ./api.catalog \
+  --snapshot ./snapshots \
+  --no-open
+```
+
+`api.catalog` can define the repository default baseline snapshot:
+
+```yaml
+- version: "1.0"
+  baselineSnapshot: ./snapshots/create-account.happy-path.workflow.snapshot.json
+  definitions: []
+```
+
+Because `api.catalog` is currently a list of catalog versions, SIH first looks for `baselineSnapshot` on the report workflow version; if none exists, it uses the first `baselineSnapshot` in the catalog as the repo default.
+
+When snapshots are present, the report viewer shows a baseline selector and a `Compare` switch enabled by default. The timeline overlays the selected snapshot as a ghost baseline while the detail panel shows per-stage differences. The UI also has a `Baseline` file button to load a snapshot from another local path.
 
 Vars file auto-detection:
 

@@ -4,12 +4,14 @@ using System.Text;
 using System.Text.Json;
 
 using SphereIntegrationHub.cli;
+using SphereIntegrationHub.Definitions;
 
 namespace SphereIntegrationHub.Services;
 
 internal sealed class ExecutionReportGenerator
 {
     private const string ReportFilePattern = "*.workflow.report.json";
+    private const string SnapshotFilePattern = "*.workflow.snapshot.json";
     private readonly ICliOutputProvider _output;
 
     public ExecutionReportGenerator(ICliOutputProvider output)
@@ -29,13 +31,15 @@ internal sealed class ExecutionReportGenerator
         }
 
         ReportArtifact[] reports;
+        SnapshotArtifact[] snapshots;
         try
         {
             reports = await LoadReportsAsync(fullPath, cancellationToken);
+            snapshots = await LoadSnapshotsAsync(fullPath, args.SnapshotPath, args.CatalogPath, reports, cancellationToken);
         }
         catch (Exception ex)
         {
-            _output.Error.WriteLine($"Failed to read execution report: {ex.Message}");
+            _output.Error.WriteLine($"Failed to read execution artifacts: {ex.Message}");
             return 1;
         }
 
@@ -57,7 +61,7 @@ internal sealed class ExecutionReportGenerator
             ?.InformationalVersion?.Split('+')[0]
             ?? typeof(ExecutionReportGenerator).Assembly.GetName().Version?.ToString()
             ?? string.Empty;
-        var html = BuildHtml(reports, reports.Length - 1, appVersion);
+        var html = BuildHtml(reports, reports.Length - 1, appVersion, snapshots);
         await File.WriteAllTextAsync(htmlPath, html, cancellationToken);
 
         _output.Out.WriteLine($"Report: {htmlPath}");
@@ -97,6 +101,146 @@ internal sealed class ExecutionReportGenerator
         return reports.ToArray();
     }
 
+    private static async Task<SnapshotArtifact[]> LoadSnapshotsAsync(
+        string reportPath,
+        string? requestedSnapshotPath,
+        string? catalogPath,
+        IReadOnlyList<ReportArtifact> reports,
+        CancellationToken cancellationToken)
+    {
+        var snapshotFiles = new SortedSet<string>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(requestedSnapshotPath))
+        {
+            AddSnapshotFiles(Path.GetFullPath(requestedSnapshotPath), required: true, snapshotFiles);
+        }
+
+        foreach (var catalogSnapshotPath in ResolveCatalogSnapshotPaths(catalogPath, reports))
+        {
+            AddSnapshotFiles(catalogSnapshotPath, required: true, snapshotFiles);
+        }
+
+        foreach (var candidateDirectory in GetImplicitSnapshotDirectories(reportPath))
+        {
+            AddSnapshotFiles(candidateDirectory, required: false, snapshotFiles);
+        }
+
+        var snapshots = new List<SnapshotArtifact>(snapshotFiles.Count);
+        foreach (var snapshotFile in snapshotFiles)
+        {
+            snapshots.Add(await LoadSnapshotAsync(snapshotFile, cancellationToken));
+        }
+
+        return snapshots.ToArray();
+    }
+
+    private static IEnumerable<string> ResolveCatalogSnapshotPaths(
+        string? catalogPath,
+        IReadOnlyList<ReportArtifact> reports)
+    {
+        var catalogPaths = ResolveCandidateCatalogPaths(catalogPath, reports)
+            .Where(File.Exists)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (catalogPaths.Length == 0)
+        {
+            yield break;
+        }
+
+        var reportVersions = reports
+            .Select(report => report.Report.WorkflowVersion)
+            .Where(version => !string.IsNullOrWhiteSpace(version))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var resolvedCatalogPath in catalogPaths)
+        {
+            var catalog = ApiCatalogFile.Load(resolvedCatalogPath);
+            var catalogDirectory = Path.GetDirectoryName(resolvedCatalogPath) ?? Directory.GetCurrentDirectory();
+            var matchingVersions = catalog
+                .Where(version => reportVersions.Count == 0 || reportVersions.Contains(version.Version))
+                .ToArray();
+            var configuredVersions = matchingVersions.Any(version => !string.IsNullOrWhiteSpace(version.BaselineSnapshot))
+                ? matchingVersions
+                : catalog;
+
+            foreach (var version in configuredVersions)
+            {
+                if (string.IsNullOrWhiteSpace(version.BaselineSnapshot))
+                {
+                    continue;
+                }
+
+                yield return Path.IsPathRooted(version.BaselineSnapshot)
+                    ? version.BaselineSnapshot
+                    : Path.GetFullPath(Path.Combine(catalogDirectory, version.BaselineSnapshot));
+            }
+        }
+    }
+
+    private static IEnumerable<string> ResolveCandidateCatalogPaths(
+        string? catalogPath,
+        IReadOnlyList<ReportArtifact> reports)
+    {
+        if (!string.IsNullOrWhiteSpace(catalogPath))
+        {
+            yield return Path.GetFullPath(catalogPath);
+            yield break;
+        }
+
+        var pathResolver = new CliPathResolver();
+        foreach (var report in reports)
+        {
+            if (string.IsNullOrWhiteSpace(report.Report.WorkflowPath))
+            {
+                continue;
+            }
+
+            yield return pathResolver.ResolveDefaultCatalogPath(report.Report.WorkflowPath);
+        }
+    }
+
+    private static IEnumerable<string> GetImplicitSnapshotDirectories(string reportPath)
+    {
+        var reportDirectory = Directory.Exists(reportPath)
+            ? reportPath
+            : Path.GetDirectoryName(reportPath);
+        if (string.IsNullOrWhiteSpace(reportDirectory))
+        {
+            yield break;
+        }
+
+        yield return reportDirectory;
+
+        var parentDirectory = Path.GetDirectoryName(reportDirectory);
+        if (!string.IsNullOrWhiteSpace(parentDirectory))
+        {
+            yield return Path.Combine(parentDirectory, "snapshots");
+        }
+    }
+
+    private static void AddSnapshotFiles(string path, bool required, ISet<string> snapshotFiles)
+    {
+        if (File.Exists(path))
+        {
+            snapshotFiles.Add(path);
+            return;
+        }
+
+        if (Directory.Exists(path))
+        {
+            foreach (var snapshotFile in Directory.GetFiles(path, SnapshotFilePattern, SearchOption.TopDirectoryOnly)
+                         .OrderBy(file => Path.GetFileName(file), StringComparer.Ordinal))
+            {
+                snapshotFiles.Add(snapshotFile);
+            }
+            return;
+        }
+
+        if (required)
+        {
+            throw new FileNotFoundException("Snapshot path was not found.", path);
+        }
+    }
+
     private static async Task<ReportArtifact> LoadReportAsync(string path, CancellationToken cancellationToken)
     {
         var rawJson = await File.ReadAllTextAsync(path, cancellationToken);
@@ -110,6 +254,21 @@ internal sealed class ExecutionReportGenerator
             Path.GetFileName(path),
             rawJson,
             report);
+    }
+
+    private static async Task<SnapshotArtifact> LoadSnapshotAsync(string path, CancellationToken cancellationToken)
+    {
+        var rawJson = await File.ReadAllTextAsync(path, cancellationToken);
+        var snapshot = JsonSerializer.Deserialize<WorkflowExecutionSnapshot>(
+                           rawJson,
+                           new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                       ?? throw new InvalidOperationException($"Deserialization returned null for '{path}'.");
+
+        return new SnapshotArtifact(
+            Path.GetFullPath(path),
+            Path.GetFileName(path),
+            rawJson,
+            snapshot);
     }
 
     private static string GetDefaultOutputDirectory(string requestedPath, string selectedReportPath)
@@ -138,7 +297,11 @@ internal sealed class ExecutionReportGenerator
         return baseName;
     }
 
-    internal static string BuildHtml(IReadOnlyList<ExecutionReportHtmlArtifact> reports, int initialReportIndex, string appVersion)
+    internal static string BuildHtml(
+        IReadOnlyList<ExecutionReportHtmlArtifact> reports,
+        int initialReportIndex,
+        string appVersion,
+        IReadOnlyList<ExecutionSnapshotHtmlArtifact>? snapshots = null)
     {
         var faviconDataUri = $"data:image/svg+xml,{Uri.EscapeDataString(ReportBranding.FaviconSvg)}";
         var reportsJson = JsonSerializer.Serialize(reports.Select(report => new
@@ -151,6 +314,17 @@ internal sealed class ExecutionReportGenerator
             startedAtUtc = report.Report.StartedAtUtc,
             toolVersion = report.Report.ToolVersion,
             json = JsonSerializer.Deserialize<JsonElement>(report.RawJson)
+        }));
+        var snapshotsJson = JsonSerializer.Serialize((snapshots ?? Array.Empty<ExecutionSnapshotHtmlArtifact>()).Select(snapshot => new
+        {
+            path = snapshot.Path,
+            fileName = snapshot.FileName,
+            name = snapshot.Snapshot.Name,
+            sourceExecutionId = snapshot.Snapshot.SourceExecutionId,
+            workflowName = snapshot.Snapshot.WorkflowName,
+            workflowVersion = snapshot.Snapshot.WorkflowVersion,
+            environment = snapshot.Snapshot.Environment,
+            json = JsonSerializer.Deserialize<JsonElement>(snapshot.RawJson)
         }));
 
         return $$"""
@@ -217,7 +391,11 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .btn-icon{padding:5px 9px;font-size:14px}
 .report-picker{max-width:360px;min-width:180px;background:var(--btn-bg);color:var(--btn-c);border:1px solid var(--btn-border);padding:5px 11px;border-radius:6px;font-size:12px;font-family:inherit}
 .report-picker:hover{color:var(--btn-hover-c)}
+.snapshot-picker{max-width:300px;min-width:180px;background:var(--btn-bg);color:var(--btn-c);border:1px solid var(--btn-border);padding:5px 11px;border-radius:6px;font-size:12px;font-family:inherit}
+.compare-toggle{display:inline-flex;align-items:center;gap:6px;color:var(--btn-c);font-size:12px;white-space:nowrap}
+.compare-toggle input{accent-color:#38bdf8}
 #file-input{display:none}
+#snapshot-file-input{display:none}
 /* ── Meta / chips ────────────────────────────────────────────────── */
 .meta-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:6px 16px;display:flex;gap:16px;align-items:center;flex-shrink:0;font-size:11.5px;color:var(--text-muted);flex-wrap:wrap;transition:background .2s}
 .meta-bar strong{color:var(--text);font-weight:600}
@@ -230,6 +408,8 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .chip-skipped{background:var(--chip-skip-bg);color:var(--chip-skip-c);border-color:var(--chip-skip-b)}
 .chip-mocked{background:var(--chip-mock-bg);color:var(--chip-mock-c);border-color:var(--chip-mock-b)}
 .chip-retries{background:var(--chip-retry-bg);color:var(--chip-retry-c);border-color:var(--chip-retry-b)}
+.chip-compare{background:#ecfeff;color:#0e7490;border-color:#a5f3fc}
+[data-theme="dark"] .chip-compare{background:#083344;color:#67e8f9;border-color:#155e75}
 /* ── Trace layout ────────────────────────────────────────────────── */
 .trace-container{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0}
 .trace-header{display:flex;background:var(--header-bg);border-bottom:1px solid var(--border-strong);flex-shrink:0;transition:background .2s}
@@ -289,6 +469,8 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 /* timeline bar */
 .trace-right{flex:1;position:relative;overflow:hidden}
 .timeline-span{position:absolute;top:13px;height:18px;min-width:3px;overflow:visible}
+.timeline-ghost{position:absolute;top:7px;height:30px;min-width:3px;border:1px dashed rgba(15,23,42,.45);background:repeating-linear-gradient(135deg,rgba(15,23,42,.08),rgba(15,23,42,.08) 4px,rgba(15,23,42,.02) 4px,rgba(15,23,42,.02) 8px);border-radius:5px;pointer-events:none}
+[data-theme="dark"] .timeline-ghost{border-color:rgba(241,245,249,.5);background:repeating-linear-gradient(135deg,rgba(241,245,249,.14),rgba(241,245,249,.14) 4px,rgba(241,245,249,.04) 4px,rgba(241,245,249,.04) 8px)}
 .span-bar{position:absolute;inset:0;border-radius:4px;display:flex;align-items:center;padding:0 5px;font-size:10px;color:rgba(255,255,255,.9);white-space:nowrap;overflow:hidden;cursor:pointer;transition:filter .1s}
 .span-bar:hover{filter:brightness(1.12)}
 .span-bar-duration{position:absolute;top:0;left:var(--timeline-label-offset,calc(100% + 6px));height:18px;display:flex;align-items:center;font-size:10px;font-weight:600;color:var(--text-muted);white-space:nowrap;pointer-events:none}
@@ -352,8 +534,12 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
   <h1 class="banner-title" id="banner-title">Loading&hellip;</h1>
   <span class="version-badge hidden" id="version-badge" title="This output was generated with a different tool version"></span>
   <select class="report-picker" id="report-picker" title="Select execution"></select>
+  <select class="snapshot-picker hidden" id="snapshot-picker" title="Select baseline snapshot"></select>
+  <label class="compare-toggle hidden" id="compare-toggle-label" title="Toggle baseline comparison"><input type="checkbox" id="compare-toggle" checked> Compare</label>
   <label for="file-input" class="btn">&#128193; Load</label>
   <input type="file" id="file-input" accept=".json">
+  <label for="snapshot-file-input" class="btn" title="Load baseline snapshot JSON">&#128452; Baseline</label>
+  <input type="file" id="snapshot-file-input" accept=".json">
   <button class="btn btn-icon" id="theme-toggle" title="Toggle dark/light mode" onclick="toggleTheme()">🌙</button>
 </div>
 <div class="meta-bar" id="meta-bar"></div>
@@ -392,6 +578,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 
 <script>
 const _reports = {{reportsJson}};
+const _snapshots = {{snapshotsJson}};
 const _initialReportIndex = {{initialReportIndex}};
 const _currentVersion = '{{appVersion}}';
 let _report   = null;
@@ -399,6 +586,9 @@ let _tree     = null;   // root nodes
 let _expanded = new Set();  // indices of expanded workflow rows
 let _selected = -1;
 let _detailResizeState = null;
+let _snapshot = null;
+let _snapshotEntry = null;
+let _comparisonEnabled = true;
 
 /* ── Theme ───────────────────────────────────────────────────────── */
 function applyTheme(dark) {
@@ -503,6 +693,150 @@ function reportOptionLabel(entry) {
   const startedAt = fmtDateShort(entry.startedAtUtc);
   return startedAt ? `${workflow} · ${execution} · ${startedAt}` : `${workflow} · ${execution}`;
 }
+function snapshotOptionLabel(entry) {
+  const name = entry.name || entry.fileName || 'Snapshot';
+  const workflow = entry.workflowName || 'Workflow';
+  const version = entry.workflowVersion ? ` · ${entry.workflowVersion}` : '';
+  return `${name} · ${workflow}${version}`;
+}
+function prop(obj, name) {
+  if (!obj) return undefined;
+  return obj[name] ?? obj[name.charAt(0).toUpperCase() + name.slice(1)];
+}
+function stageKey(stage) {
+  return `${prop(stage,'workflowName') || ''}::${prop(stage,'stageName') || ''}::${prop(stage,'depth') || 0}`;
+}
+function canonicalReport(report) {
+  return {
+    workflow: {
+      WorkflowName: report.WorkflowName,
+      WorkflowId: report.WorkflowId,
+      WorkflowVersion: report.WorkflowVersion,
+      Environment: report.Environment,
+      Mocked: report.Mocked,
+      DryRun: report.DryRun
+    },
+    inputs: sortObject(report.Inputs || {}),
+    result: report.Result,
+    output: sortObject(report.Output || {}),
+    metrics: {
+      TotalStages: report.Metrics?.TotalStages,
+      ExecutedStages: report.Metrics?.ExecutedStages,
+      SkippedStages: report.Metrics?.SkippedStages,
+      FailedStages: report.Metrics?.FailedStages,
+      MockedStages: report.Metrics?.MockedStages,
+      HttpStages: report.Metrics?.HttpStages,
+      WorkflowStages: report.Metrics?.WorkflowStages,
+      JumpedStages: report.Metrics?.JumpedStages,
+      TotalAssertions: report.Metrics?.TotalAssertions,
+      PassedAssertions: report.Metrics?.PassedAssertions,
+      FailedAssertions: report.Metrics?.FailedAssertions,
+      WarningAssertions: report.Metrics?.WarningAssertions
+    },
+    stages: (report.Stages || []).map(stage => ({
+      WorkflowName: stage.WorkflowName,
+      StageName: stage.StageName,
+      StageKind: stage.StageKind,
+      Depth: stage.Depth || 0,
+      Status: stage.Status,
+      Mocked: stage.Mocked,
+      HttpStatusCode: stage.HttpStatusCode,
+      EnsureMode: stage.EnsureMode,
+      EnsureStatus: stage.EnsureStatus,
+      output: sortObject(stage.Output || {}),
+      workflowOutput: sortObject(stage.WorkflowOutput || {}),
+      assertions: (stage.Assertions || []).map(canonicalAssertion)
+    })),
+    assertions: (report.Assertions || []).map(canonicalAssertion),
+    preflight: (report.Preflight?.Operations || []).map(operation => ({
+      OperationType: operation.OperationType,
+      DefinitionName: operation.DefinitionName,
+      Target: operation.Target,
+      Status: operation.Status,
+      Message: operation.Message,
+      RetryCount: operation.RetryCount,
+      attempts: (operation.Attempts || []).map(attempt => ({
+        AttemptNumber: attempt.AttemptNumber,
+        RequestUri: attempt.RequestUri,
+        Status: attempt.Status,
+        HttpStatusCode: attempt.HttpStatusCode,
+        ErrorMessage: attempt.ErrorMessage
+      }))
+    }))
+  };
+}
+function canonicalAssertion(assertion) {
+  return {
+    Scope: assertion.Scope,
+    WorkflowName: assertion.WorkflowName,
+    StageName: assertion.StageName,
+    Name: assertion.Name,
+    Status: assertion.Status,
+    Operator: assertion.Operator,
+    Expression: assertion.Expression,
+    Expected: assertion.Expected,
+    Actual: assertion.Actual,
+    Blocking: assertion.Blocking,
+    Message: assertion.Message,
+    WarningMessage: assertion.WarningMessage
+  };
+}
+function sortObject(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  return Object.keys(value).sort((a,b) => a.localeCompare(b)).reduce((acc,key) => {
+    acc[key] = value[key];
+    return acc;
+  }, {});
+}
+function getActiveComparison(report) {
+  if (!_comparisonEnabled || !_snapshot) return null;
+  const baseline = _snapshot.Baseline || _snapshot.baseline;
+  if (!baseline) return null;
+  const differences = [];
+  compareValues('$', baseline, canonicalReport(report), differences, 50);
+  return {
+    snapshot: _snapshot,
+    entry: _snapshotEntry,
+    differences,
+    stageTimeline: buildSnapshotStageTimeline(_snapshot),
+    baselineStages: buildBaselineStageMap(baseline)
+  };
+}
+function compareValues(path, expected, actual, differences, limit) {
+  if (differences.length >= limit) return;
+  if (JSON.stringify(expected) === JSON.stringify(actual)) return;
+  if (Array.isArray(expected) || Array.isArray(actual)) {
+    if (!Array.isArray(expected) || !Array.isArray(actual)) {
+      differences.push({ path, expected: fmtVal(expected), actual: fmtVal(actual) });
+      return;
+    }
+    if (expected.length !== actual.length) differences.push({ path: `${path}.length`, expected: String(expected.length), actual: String(actual.length) });
+    for (let i = 0; i < Math.min(expected.length, actual.length); i++) compareValues(`${path}[${i}]`, expected[i], actual[i], differences, limit);
+    return;
+  }
+  if (expected == null || actual == null || typeof expected !== 'object' || typeof actual !== 'object') {
+    differences.push({ path, expected: fmtVal(expected), actual: fmtVal(actual) });
+    return;
+  }
+  const keys = Array.from(new Set([...Object.keys(expected), ...Object.keys(actual)])).sort();
+  for (const key of keys) compareValues(`${path}.${key}`, expected[key], actual[key], differences, limit);
+}
+function buildSnapshotStageTimeline(snapshot) {
+  const timeline = snapshot.Timeline || snapshot.timeline;
+  const stages = timeline?.Stages || timeline?.stages || [];
+  const map = new Map();
+  stages.forEach(stage => map.set(stageKey(stage), stage));
+  return { durationMs: timeline?.DurationMs || timeline?.durationMs || 0, stages: map };
+}
+function buildBaselineStageMap(baseline) {
+  const map = new Map();
+  (baseline.stages || baseline.Stages || []).forEach(stage => map.set(stageKey(stage), stage));
+  return map;
+}
+function stageDifferences(stage, comparison) {
+  if (!comparison) return [];
+  return comparison.differences.filter(diff => diff.path.startsWith(`$.stages.`) || diff.path.includes(`.${stage.StageName}`));
+}
 
 /* ── Tree builder ────────────────────────────────────────────────── */
 // A stage's parent is the nearest preceding stage with lower Depth.
@@ -530,6 +864,7 @@ function render(report) {
   const stages  = report.Stages || [];
   const m       = report.Metrics || {};
   const totalMs = Math.max(report.DurationMs || 1, 1);
+  const comparison = getActiveComparison(report);
 
   // Banner
   const rCls = 'result-' + statusCls(report.Result);
@@ -566,6 +901,10 @@ function render(report) {
   if (m.TotalAssertions) chips += `<span class="chip chip-ok">Assertions: ${m.PassedAssertions || 0}/${m.TotalAssertions}</span>`;
   if (m.FailedAssertions) chips += `<span class="chip chip-error">Assertion failures: ${m.FailedAssertions}</span>`;
   if (m.WarningAssertions) chips += `<span class="chip chip-retries">Assertion warnings: ${m.WarningAssertions}</span>`;
+  if (comparison) {
+    const label = comparison.differences.length === 0 ? 'Baseline match' : `Baseline diff: ${comparison.differences.length}`;
+    chips += `<span class="chip chip-compare">${esc(label)}</span>`;
+  }
   document.getElementById('chips').innerHTML = chips;
 
   // Ruler
@@ -577,7 +916,7 @@ function render(report) {
   // Build tree and render
   const startTs = new Date(report.StartedAtUtc).getTime();
   _tree = buildTree(stages);
-  renderTree(_tree, totalMs, startTs);
+  renderTree(_tree, totalMs, startTs, comparison);
 }
 
 function loadReportByIndex(index) {
@@ -620,13 +959,75 @@ function initReportPicker() {
   picker.addEventListener('change', e => loadReportByIndex(Number(e.target.value)));
 }
 
+function loadSnapshotByIndex(index) {
+  if (index < 0 || index >= _snapshots.length) {
+    _snapshot = null;
+    _snapshotEntry = null;
+  } else {
+    _snapshotEntry = _snapshots[index];
+    _snapshot = _snapshotEntry.json;
+  }
+
+  if (_report) render(_report);
+}
+
+function initSnapshotPicker() {
+  const picker = document.getElementById('snapshot-picker');
+  const toggleLabel = document.getElementById('compare-toggle-label');
+  const toggle = document.getElementById('compare-toggle');
+  if (!picker || !toggleLabel || !toggle) return;
+
+  picker.addEventListener('change', e => loadSnapshotByIndex(Number(e.target.value)));
+  toggle.addEventListener('change', e => {
+    _comparisonEnabled = !!e.target.checked;
+    if (_report) render(_report);
+  });
+  refreshSnapshotPicker(_snapshots.length > 0 ? 0 : -1);
+}
+
+function refreshSnapshotPicker(selectedIndex) {
+  const picker = document.getElementById('snapshot-picker');
+  const toggleLabel = document.getElementById('compare-toggle-label');
+  if (!picker || !toggleLabel) return;
+
+  if (_snapshots.length === 0) {
+    picker.classList.add('hidden');
+    toggleLabel.classList.add('hidden');
+    loadSnapshotByIndex(-1);
+    return;
+  }
+
+  picker.classList.remove('hidden');
+  toggleLabel.classList.remove('hidden');
+  picker.innerHTML = _snapshots.map((entry, index) =>
+    `<option value="${index}">${esc(snapshotOptionLabel(entry))}</option>`).join('');
+  const safeIndex = Math.max(0, Math.min(selectedIndex, _snapshots.length - 1));
+  picker.value = String(safeIndex);
+  loadSnapshotByIndex(safeIndex);
+}
+
+function addSnapshotFromFile(file, snapshotJson) {
+  const entry = {
+    path: file.name,
+    fileName: file.name,
+    name: snapshotJson.Name || snapshotJson.name || file.name,
+    sourceExecutionId: snapshotJson.SourceExecutionId || snapshotJson.sourceExecutionId || '',
+    workflowName: snapshotJson.WorkflowName || snapshotJson.workflowName || '',
+    workflowVersion: snapshotJson.WorkflowVersion || snapshotJson.workflowVersion || '',
+    environment: snapshotJson.Environment || snapshotJson.environment || '',
+    json: snapshotJson
+  };
+  _snapshots.push(entry);
+  refreshSnapshotPicker(_snapshots.length - 1);
+}
+
 /* ── Tree renderer ───────────────────────────────────────────────── */
-function renderTree(roots, totalMs, startTs) {
+function renderTree(roots, totalMs, startTs, comparison) {
   if (!roots || roots.length === 0) {
     document.getElementById('trace-rows').innerHTML = '<div class="empty">No stages recorded.</div>';
     return;
   }
-  document.getElementById('trace-rows').innerHTML = buildRows(roots, totalMs, startTs);
+  document.getElementById('trace-rows').innerHTML = buildRows(roots, totalMs, startTs, comparison);
   syncTimelineLabels();
 }
 
@@ -651,21 +1052,21 @@ function syncTimelineLabels() {
   });
 }
 
-function buildRows(nodes, totalMs, startTs) {
+function buildRows(nodes, totalMs, startTs, comparison) {
   let html = '';
   nodes.forEach(node => {
-    html += buildRow(node, totalMs, startTs);
+    html += buildRow(node, totalMs, startTs, comparison);
     if (node.children.length > 0) {
       const open = _expanded.has(node.idx);
       html += `<div class="children-group${open?' open':''}" id="cg-${node.idx}">`;
-      html += buildRows(node.children, totalMs, startTs);
+      html += buildRows(node.children, totalMs, startTs, comparison);
       html += `</div>`;
     }
   });
   return html;
 }
 
-function buildRow(node, totalMs, startTs) {
+function buildRow(node, totalMs, startTs, comparison) {
   const { stage, idx } = node;
   const hasChildren = node.children.length > 0;
   const isWf        = isWfKind(stage);
@@ -732,6 +1133,7 @@ function buildRow(node, totalMs, startTs) {
 
   // Timeline bar
   html += `<div class="trace-right">`;
+  html += buildGhostBar(stage, totalMs, comparison);
   const barTitle = timelineLabel;
   html += `<div class="timeline-span" style="left:calc(${offsetPct} * (100% - var(--timeline-label-gutter)) / 100);width:calc(${widthPct} * (100% - var(--timeline-label-gutter)) / 100)" title="${esc(barTitle)}"${timelineLabel ? ` data-duration-label="${esc(timelineLabel)}"` : ''}>`;
   html += `<div class="span-bar ${bCls}"></div>`;
@@ -743,6 +1145,18 @@ function buildRow(node, totalMs, startTs) {
 
   html += `</div>`;
   return html;
+}
+
+function buildGhostBar(stage, totalMs, comparison) {
+  if (!comparison || !comparison.stageTimeline || !comparison.stageTimeline.stages) return '';
+  const baselineStage = comparison.stageTimeline.stages.get(stageKey(stage));
+  if (!baselineStage) return '';
+  const offsetMs = prop(baselineStage, 'offsetMs') || 0;
+  const durationMs = prop(baselineStage, 'durationMs') || 0;
+  const offsetPct = Math.min((offsetMs / totalMs) * 100, 99.5).toFixed(2);
+  const widthPct = Math.max((durationMs / totalMs) * 100, 0.25).toFixed(2);
+  const title = `Baseline: ${fmtMs(durationMs)} · ${prop(baselineStage, 'status') || ''}`;
+  return `<div class="timeline-ghost" style="left:calc(${offsetPct} * (100% - var(--timeline-label-gutter)) / 100);width:calc(${widthPct} * (100% - var(--timeline-label-gutter)) / 100)" title="${esc(title)}"></div>`;
 }
 
 /* ── Row click: expand workflow or show/hide detail ─────────────── */
@@ -823,8 +1237,10 @@ function showDetail(idx) {
   const hasWorkflowInputs = !!(stage.WorkflowInputs && Object.keys(stage.WorkflowInputs).length > 0);
   const hasWorkflowOutput = !!(stage.WorkflowOutput && Object.keys(stage.WorkflowOutput).length > 0);
   const hasWorkflowResult = !!(stage.WorkflowResult && Object.keys(stage.WorkflowResult).length > 0);
+  const comparison = getActiveComparison(_report);
 
   let body = '';
+  body += renderStageComparison(stage, comparison);
 
   // HTTP request bar (full width)
   if (hasHttp) {
@@ -916,6 +1332,32 @@ function showDetail(idx) {
   syncDetailModal();
 }
 
+function renderStageComparison(stage, comparison) {
+  if (!comparison) return '';
+  const baselineStage = comparison.baselineStages.get(stageKey(stage));
+  if (!baselineStage) {
+    return `<div class="detail-section full-width"><h3>Baseline comparison</h3><div class="output-kv"><span class="out-k">Stage</span><span class="out-v">New in current execution</span></div></div>`;
+  }
+
+  const rows = [];
+  addComparisonRow(rows, 'Status', prop(baselineStage, 'status'), stage.Status);
+  addComparisonRow(rows, 'HTTP', prop(baselineStage, 'httpStatusCode'), stage.HttpStatusCode);
+  addComparisonRow(rows, 'Output', JSON.stringify(prop(baselineStage, 'output') || {}), JSON.stringify(stage.Output || {}));
+  addComparisonRow(rows, 'Workflow output', JSON.stringify(prop(baselineStage, 'workflowOutput') || {}), JSON.stringify(stage.WorkflowOutput || {}));
+  if (rows.length === 0) {
+    rows.push(`<span class="out-k">Stage</span><span class="out-v">Matches baseline</span>`);
+  }
+
+  return `<div class="detail-section full-width"><h3>Baseline comparison</h3><div class="output-kv">${rows.join('')}</div></div>`;
+}
+
+function addComparisonRow(rows, label, expected, actual) {
+  const expectedText = expected == null ? '' : String(expected);
+  const actualText = actual == null ? '' : String(actual);
+  if (expectedText === actualText) return;
+  rows.push(`<span class="out-k">${esc(label)}</span><span class="out-v">baseline <strong>${esc(expectedText || 'n/a')}</strong> → current <strong>${esc(actualText || 'n/a')}</strong></span>`);
+}
+
 function closeDetail() {
   document.getElementById('detail-panel').classList.add('hidden');
   closeDetailModal();
@@ -996,8 +1438,28 @@ document.getElementById('file-input').addEventListener('change', function(e) {
   this.value = '';
 });
 
+document.getElementById('snapshot-file-input').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const snapshot = JSON.parse(ev.target.result);
+      if (!(snapshot.Baseline || snapshot.baseline)) {
+        alert('Invalid snapshot JSON: missing Baseline.');
+        return;
+      }
+      addSnapshotFromFile(file, snapshot);
+    }
+    catch(err) { alert('Invalid snapshot JSON: ' + err.message); }
+  };
+  reader.readAsText(file);
+  this.value = '';
+});
+
 /* ── Boot ────────────────────────────────────────────────────────── */
 initReportPicker();
+initSnapshotPicker();
 initDetailResize();
 loadReportByIndex(_initialReportIndex);
 window.addEventListener('resize', syncTimelineLabels);
@@ -1012,6 +1474,12 @@ window.addEventListener('resize', syncTimelineLabels);
         string FileName,
         string RawJson,
         WorkflowExecutionReport Report) : ExecutionReportHtmlArtifact(Path, FileName, RawJson, Report);
+
+    private sealed record SnapshotArtifact(
+        string Path,
+        string FileName,
+        string RawJson,
+        WorkflowExecutionSnapshot Snapshot) : ExecutionSnapshotHtmlArtifact(Path, FileName, RawJson, Snapshot);
 }
 
 internal record ExecutionReportHtmlArtifact(
@@ -1019,3 +1487,9 @@ internal record ExecutionReportHtmlArtifact(
     string FileName,
     string RawJson,
     WorkflowExecutionReport Report);
+
+internal record ExecutionSnapshotHtmlArtifact(
+    string Path,
+    string FileName,
+    string RawJson,
+    WorkflowExecutionSnapshot Snapshot);

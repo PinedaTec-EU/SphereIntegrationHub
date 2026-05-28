@@ -10,6 +10,11 @@ internal sealed class CliArgumentParser : ICliArgumentParser
             return ParseReportArgs(args);
         }
 
+        if (args.Length > 0 && args[0] == "snapshot")
+        {
+            return ParseSnapshotArgs(args);
+        }
+
         string? workflowPath = null;
         string? environment = null;
         string? catalogPath = null;
@@ -152,6 +157,8 @@ internal sealed class CliArgumentParser : ICliArgumentParser
     {
         string? execPath = null;
         string? outputPath = null;
+        string? snapshotPath = null;
+        string? catalogPath = null;
         var openAfterGenerate = true;
 
         for (var i = 1; i < args.Length; i++)
@@ -171,6 +178,16 @@ internal sealed class CliArgumentParser : ICliArgumentParser
                     if (!TryReadValue(args, ref i, out outputPath))
                         return new InlineArguments(Error: "Missing value for --output.");
                     break;
+                case "--snapshot":
+                case "-s":
+                    if (!TryReadValue(args, ref i, out snapshotPath))
+                        return new InlineArguments(Error: "Missing value for --snapshot.");
+                    break;
+                case "--catalog":
+                case "-c":
+                    if (!TryReadValue(args, ref i, out catalogPath))
+                        return new InlineArguments(Error: "Missing value for --catalog.");
+                    break;
                 case "--no-open":
                     openAfterGenerate = false;
                     break;
@@ -189,8 +206,101 @@ internal sealed class CliArgumentParser : ICliArgumentParser
         return new InlineArguments(
             IsReportCommand: true,
             ExecutionReportPath: execPath,
+            CatalogPath: catalogPath,
             ReportOutputPath: outputPath,
-            OpenAfterGenerate: openAfterGenerate);
+            OpenAfterGenerate: openAfterGenerate,
+            SnapshotPath: snapshotPath);
+    }
+
+    private static InlineArguments ParseSnapshotArgs(string[] args)
+    {
+        if (args.Length == 1)
+        {
+            return new InlineArguments(Error: "Missing snapshot action. Usage: sih snapshot <create|compare> ...");
+        }
+
+        var action = args[1];
+        if (action is "--help" or "-h")
+        {
+            return new InlineArguments(IsSnapshotCommand: true, ShowHelp: true);
+        }
+
+        if (!string.Equals(action, "create", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(action, "compare", StringComparison.OrdinalIgnoreCase))
+        {
+            return new InlineArguments(Error: $"Unknown snapshot action '{action}'. Use create or compare.");
+        }
+
+        string? executionPath = null;
+        string? snapshotPath = null;
+        string? snapshotName = null;
+        string? outputPath = null;
+
+        for (var i = 2; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--help":
+                case "-h":
+                    return new InlineArguments(IsSnapshotCommand: true, ShowHelp: true);
+                case "--execution":
+                case "-x":
+                    if (!TryReadValue(args, ref i, out executionPath))
+                    {
+                        return new InlineArguments(Error: "Missing value for --execution.");
+                    }
+                    break;
+                case "--snapshot":
+                case "-s":
+                    if (!TryReadValue(args, ref i, out snapshotPath))
+                    {
+                        return new InlineArguments(Error: "Missing value for --snapshot.");
+                    }
+                    break;
+                case "--name":
+                case "-n":
+                    if (!TryReadValue(args, ref i, out snapshotName))
+                    {
+                        return new InlineArguments(Error: "Missing value for --name.");
+                    }
+                    break;
+                case "--output":
+                case "-o":
+                    if (!TryReadValue(args, ref i, out outputPath))
+                    {
+                        return new InlineArguments(Error: "Missing value for --output.");
+                    }
+                    break;
+                default:
+                    if (!args[i].StartsWith('-') && executionPath is null)
+                    {
+                        executionPath = args[i];
+                    }
+                    else
+                    {
+                        return new InlineArguments(Error: $"Unknown snapshot argument '{args[i]}'.");
+                    }
+                    break;
+            }
+        }
+
+        if (executionPath is null)
+        {
+            return new InlineArguments(Error: "Missing execution report path. Usage: sih snapshot create <report-json> [--output <path>] [--name <name>]");
+        }
+
+        if (string.Equals(action, "compare", StringComparison.OrdinalIgnoreCase) && snapshotPath is null)
+        {
+            return new InlineArguments(Error: "Missing snapshot path. Usage: sih snapshot compare <report-json> --snapshot <snapshot-json>");
+        }
+
+        return new InlineArguments(
+            IsSnapshotCommand: true,
+            SnapshotAction: action.ToLowerInvariant(),
+            ExecutionReportPath: executionPath,
+            ReportOutputPath: outputPath,
+            SnapshotPath: snapshotPath,
+            SnapshotName: snapshotName);
     }
 
     private static bool TryReadValue(string[] args, ref int index, out string? value)

@@ -42,6 +42,19 @@ public sealed class ApiCatalogFileTests
     }
 
     [Fact]
+    public void Deserialize_ReadsBaselineSnapshot()
+    {
+        var catalog = ApiCatalogFile.Deserialize("""
+        - version: "1.0"
+          baselineSnapshot: ./snapshots/customer-flow.happy-path.workflow.snapshot.json
+          definitions: []
+        """, ApiCatalogFormat.Yaml);
+
+        var version = Assert.Single(catalog);
+        Assert.Equal("./snapshots/customer-flow.happy-path.workflow.snapshot.json", version.BaselineSnapshot);
+    }
+
+    [Fact]
     public void Deserialize_ReadsLatencyProfiles()
     {
         var catalog = ApiCatalogFile.Deserialize("""

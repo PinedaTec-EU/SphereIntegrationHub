@@ -77,6 +77,56 @@ sih report ./output/create-account.01J....workflow.report.json \
   --no-open
 ```
 
+## Regression snapshots
+
+Snapshots turn a known-good execution report into a versionable baseline for regression testing.
+
+Create a snapshot from a report:
+
+```bash
+sih snapshot create \
+  ./output/create-account.01J....workflow.report.json \
+  --name happy-path
+```
+
+Compare a later report against that snapshot:
+
+```bash
+sih snapshot compare \
+  ./output/create-account.01K....workflow.report.json \
+  --snapshot ./snapshots/create-account.happy-path.workflow.snapshot.json
+```
+
+The snapshot baseline intentionally ignores volatile run metadata such as execution id, timestamps, durations, report file paths, and tool version. It keeps stable regression signals: workflow identity, environment, inputs, final result, output, stage statuses, stage outputs, assertion diagnostics, selected metrics, and preflight outcome metadata.
+
+On mismatch, the command exits with `1` and prints JSON-path-like differences such as `$.output.customerId`.
+
+The interactive report viewer loads snapshots automatically from:
+
+- the same directory as the report JSON files;
+- a sibling `snapshots/` directory next to the report output directory;
+- the `api.catalog` `baselineSnapshot` path;
+- an explicit `--snapshot <snapshot-json-or-dir>` argument.
+
+Example:
+
+```bash
+sih report ./output \
+  --catalog ./api.catalog \
+  --snapshot ./snapshots \
+  --no-open
+```
+
+`baselineSnapshot` is a catalog-level convention for the repository baseline. Because `api.catalog` is currently a list of catalog versions, define it on the matching workflow version when that matters, or on one catalog entry as the repository default. SIH first looks for a `baselineSnapshot` on the report workflow version; if none exists, it uses the first `baselineSnapshot` defined in the catalog. The path is resolved relative to the `api.catalog` file unless it is absolute:
+
+```yaml
+- version: "1.0"
+  baselineSnapshot: ./snapshots/create-account.happy-path.workflow.snapshot.json
+  definitions: []
+```
+
+When at least one snapshot is available, the viewer shows a baseline selector and a `Compare` switch enabled by default. The selected baseline is rendered as a ghost timeline layer behind the current execution, and stage details include baseline-vs-current differences. The `Baseline` button can load a snapshot JSON from any local location as a temporary UI override.
+
 ## Reporting configuration
 
 Place reporting defaults in `workflows.config` next to the workflow:

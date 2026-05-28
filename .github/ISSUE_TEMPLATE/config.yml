@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation hub
+    url: https://github.com/PinedaTec-EU/SphereIntegrationHub/blob/main/.doc/index.md
+    about: Start here before opening documentation or usage issues.
+  - name: Local issue index mirror
+    url: https://github.com/PinedaTec-EU/SphereIntegrationHub/blob/main/.doc/github-issues.md
+    about: See the local mirror of GitHub issue references used inside the repository.

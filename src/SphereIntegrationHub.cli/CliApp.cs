@@ -77,6 +77,12 @@ internal sealed class CliApp
             return await generator.GenerateAndOpenAsync(parseResult, CancellationToken.None);
         }
 
+        if (parseResult.IsSnapshotCommand)
+        {
+            var snapshots = new WorkflowExecutionSnapshotService();
+            return await RunSnapshotCommandAsync(snapshots, parseResult, CancellationToken.None);
+        }
+
         if (string.IsNullOrWhiteSpace(parseResult.WorkflowPath) || string.IsNullOrWhiteSpace(parseResult.Environment))
         {
             _output.Error.WriteLine("Missing required parameters.");
@@ -100,5 +106,49 @@ internal sealed class CliApp
             await Task.WhenAny(pingTask, Task.Delay(TimeSpan.FromSeconds(4)));
 
         return runResult.ExitCode;
+    }
+
+    private async Task<int> RunSnapshotCommandAsync(
+        WorkflowExecutionSnapshotService snapshots,
+        InlineArguments parseResult,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (string.Equals(parseResult.SnapshotAction, "create", StringComparison.OrdinalIgnoreCase))
+            {
+                var result = await snapshots.CreateAsync(
+                    parseResult.ExecutionReportPath!,
+                    parseResult.ReportOutputPath,
+                    parseResult.SnapshotName,
+                    cancellationToken);
+                _output.Out.WriteLine($"Snapshot: {result.SnapshotPath}");
+                return 0;
+            }
+
+            var comparison = await snapshots.CompareAsync(
+                parseResult.ExecutionReportPath!,
+                parseResult.SnapshotPath!,
+                cancellationToken);
+
+            if (comparison.Matches)
+            {
+                _output.Out.WriteLine($"Snapshot match: {comparison.SnapshotPath}");
+                return 0;
+            }
+
+            _output.Error.WriteLine($"Snapshot mismatch: {comparison.Differences.Count} difference(s)");
+            foreach (var difference in comparison.Differences)
+            {
+                _output.Error.WriteLine($"- {difference.Path}: expected {difference.Expected}, actual {difference.Actual}");
+            }
+
+            return 1;
+        }
+        catch (Exception ex)
+        {
+            _output.Error.WriteLine($"Snapshot command failed: {ex.Message}");
+            return 1;
+        }
     }
 }

@@ -119,4 +119,51 @@ public sealed class CliArgumentParserTests
 
         Assert.Equal("Invalid value for --assertion-failures-block. Use true or false.", result.Error);
     }
+
+    [Fact]
+    public void ParseArgs_SnapshotCreate_ParsesValues()
+    {
+        ICliArgumentParser parser = new CliArgumentParser();
+
+        var result = parser.ParseArgs(new[]
+        {
+            "snapshot",
+            "create",
+            "report.json",
+            "--output",
+            "baseline.json",
+            "--name",
+            "happy-path"
+        });
+
+        Assert.True(result.IsSnapshotCommand);
+        Assert.Equal("create", result.SnapshotAction);
+        Assert.Equal("report.json", result.ExecutionReportPath);
+        Assert.Equal("baseline.json", result.ReportOutputPath);
+        Assert.Equal("happy-path", result.SnapshotName);
+    }
+
+    [Fact]
+    public void ParseArgs_SnapshotCompare_RequiresSnapshotPath()
+    {
+        ICliArgumentParser parser = new CliArgumentParser();
+
+        var result = parser.ParseArgs(new[] { "snapshot", "compare", "report.json" });
+
+        Assert.Equal("Missing snapshot path. Usage: sih snapshot compare <report-json> --snapshot <snapshot-json>", result.Error);
+    }
+
+    [Fact]
+    public void ParseArgs_ReportCommand_ParsesSnapshotPath()
+    {
+        ICliArgumentParser parser = new CliArgumentParser();
+
+        var result = parser.ParseArgs(new[] { "report", "output", "--catalog", "api.catalog", "--snapshot", "snapshots", "--no-open" });
+
+        Assert.True(result.IsReportCommand);
+        Assert.Equal("output", result.ExecutionReportPath);
+        Assert.Equal("api.catalog", result.CatalogPath);
+        Assert.Equal("snapshots", result.SnapshotPath);
+        Assert.False(result.OpenAfterGenerate);
+    }
 }
