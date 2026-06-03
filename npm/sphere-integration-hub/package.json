@@ -1,6 +1,7 @@
 {
   "name": "@pinedatec.eu/sphere-integration-hub",
   "version": "1.7.22",
+  "sihReleaseVersion": "1.7.22.293",
   "description": "MCP server and CLI for orchestrating API workflows without requiring .NET installed",
   "keywords": [
     "mcp",
