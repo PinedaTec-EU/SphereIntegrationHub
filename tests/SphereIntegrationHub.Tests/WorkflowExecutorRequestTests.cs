@@ -2,6 +2,7 @@ using System.Text.Json;
 
 using SphereIntegrationHub.Definitions;
 using SphereIntegrationHub.Services;
+using SphereIntegrationHub.Services.Interfaces;
 
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
@@ -605,5 +606,124 @@ public sealed class WorkflowExecutorRequestTests
                 new ApiDefinition { Name = "accounts", SwaggerUrl = "http://unused", BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["test"] = baseUrl } }
             }
         };
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ReportUsesMissingPathErrorWhenProblemJsonLacksExpectedSuccessProperty()
+    {
+        using WireMockServer server = WireMockServer.Start();
+        server
+            .Given(Request.Create().WithPath("/api/rentals").UsingPost())
+            .RespondWith(Response.Create()
+                .WithStatusCode(500)
+                .WithHeader("Content-Type", "application/problem+json")
+                .WithBody("""
+                {
+                  "type": "https://tools.ietf.org/html/rfc7231#section-6.6.1",
+                  "title": "Internal Server Error",
+                  "status": 500,
+                  "detail": "Rental start date must be expressed in UTC.",
+                  "instance": "/api/rentals"
+                }
+                """));
+
+        var definition = new WorkflowDefinition
+        {
+            Version = "3.11",
+            Id = "test-workflow",
+            Name = "test-workflow",
+            References = new WorkflowReference
+            {
+                Apis = new List<ApiReferenceItem>
+                {
+                    new()
+                    {
+                        Name = "rentals",
+                        Definition = "rentals"
+                    }
+                }
+            },
+            Stages = new List<WorkflowStageDefinition>
+            {
+                new()
+                {
+                    Name = "first-rental",
+                    Kind = WorkflowStageKind.Endpoint,
+                    ApiRef = "rentals",
+                    Endpoint = "/api/rentals",
+                    HttpVerb = "POST",
+                    ExpectedStatuses = [201],
+                    Output = new Dictionary<string, string>
+                    {
+                        ["rentalId"] = "{{response.body.rentalId}}"
+                    }
+                }
+            }
+        };
+
+        var document = new WorkflowDocument(
+            definition,
+            "/tmp/test.workflow",
+            new Dictionary<string, string>());
+
+        var catalogVersion = new ApiCatalogVersion
+        {
+            Version = "test",
+            Definitions = new List<ApiDefinition>
+            {
+                new ApiDefinition
+                {
+                    Name = "rentals",
+                    SwaggerUrl = "http://unused",
+                    BaseUrl = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["test"] = server.Url!
+                    }
+                }
+            }
+        };
+
+        var reportWriter = new CapturingReportWriter();
+
+        using var httpClient = new HttpClient();
+        var executor = new WorkflowExecutor(
+            httpClient,
+            new DynamicValueService(),
+            reportWriter: reportWriter,
+            reportOptions: new WorkflowExecutionReportOptions(true, ExecutionReportFormat.Json, ExecutionHttpCaptureMode.Bodies, true, false));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => executor.ExecuteAsync(
+            document,
+            catalogVersion,
+            "test",
+            new Dictionary<string, string>(),
+            varsOverrideActive: false,
+            mocked: false,
+            verbose: false,
+            debug: false,
+            cancellationToken: CancellationToken.None));
+
+        Assert.Equal("Response path 'body.rentalId' was not found.", ex.Message);
+
+        var report = Assert.Single(reportWriter.Reports);
+        var stage = Assert.Single(report.Stages);
+        Assert.Equal("Response path 'body.rentalId' was not found.", stage.ErrorMessage);
+        Assert.NotNull(stage.ResponseBody);
+        Assert.Contains("\"detail\":\"Rental start date must be expressed in UTC.\"", stage.ResponseBody, StringComparison.Ordinal);
+    }
+
+    private sealed class CapturingReportWriter : IWorkflowExecutionReportWriter
+    {
+        public List<WorkflowExecutionReport> Reports { get; } = [];
+
+        public Task<WorkflowExecutionArtifacts> WriteAsync(
+            WorkflowExecutionReport report,
+            WorkflowDocument document,
+            WorkflowExecutionReportOptions options,
+            CancellationToken cancellationToken)
+        {
+            Reports.Add(report);
+            return Task.FromResult(new WorkflowExecutionArtifacts(null, null));
+        }
     }
 }

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.30.301] - 2026-06-03
+
+- **Response-body diagnostics now distinguish missing JSON paths from non-JSON bodies**:
+  - Fixed endpoint output resolution for `{{response.body.*}}` tokens so a valid JSON error payload that lacks the expected success field now reports the missing path instead of incorrectly claiming the response was not JSON.
+  - This improves execution-report diagnostics when an API returns `application/problem+json` or any other structured JSON error body.
+  - Added regression coverage for both direct template resolution and workflow execution reporting.
+
 ## [1.7.29.300] - 2026-06-03
 
 - **Dry-run system token validation aligned with runtime offsets**:

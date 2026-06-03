@@ -501,6 +501,8 @@ public sealed class TemplateResolver
                 {
                     return ResolvedTokenValue.FromJson(nestedBody);
                 }
+
+                throw new InvalidOperationException($"Response path '{string.Join(".", segments.Skip(1))}' was not found.");
             }
 
             if (segments.Length == 2)

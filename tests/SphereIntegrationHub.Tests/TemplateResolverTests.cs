@@ -106,6 +106,40 @@ public sealed class TemplateResolverTests
     }
 
     [Fact]
+    public void ResolveTemplate_ResponseBodyPathThrowsMissingPathWhenJsonBodyDoesNotContainProperty()
+    {
+        var resolver = new TemplateResolver();
+        var context = new TemplateContext(
+            new Dictionary<string, string>(),
+            new Dictionary<string, string>(),
+            new Dictionary<string, string>(),
+            new Dictionary<string, IReadOnlyDictionary<string, string>>(),
+            new Dictionary<string, IReadOnlyDictionary<string, string>>(),
+            new Dictionary<string, IReadOnlyDictionary<string, string>>(),
+            new Dictionary<string, string>());
+
+        using var document = JsonDocument.Parse("""
+        {
+          "type": "https://tools.ietf.org/html/rfc7231#section-6.6.1",
+          "title": "Internal Server Error",
+          "status": 500,
+          "detail": "boom"
+        }
+        """);
+
+        var response = new ResponseContext(
+            500,
+            document.RootElement.GetRawText(),
+            new Dictionary<string, string>(),
+            document);
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            resolver.ResolveTemplate("{{response.body.rentalId}}", context, response));
+
+        Assert.Equal("Response path 'body.rentalId' was not found.", ex.Message);
+    }
+
+    [Fact]
     public void ResolveTemplate_ResolvesStageJsonToken()
     {
         var resolver = new TemplateResolver();
