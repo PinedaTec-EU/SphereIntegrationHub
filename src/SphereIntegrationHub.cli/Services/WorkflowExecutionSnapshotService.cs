@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace SphereIntegrationHub.Services;
 
@@ -10,6 +11,7 @@ public sealed class WorkflowExecutionSnapshotService
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
+        PreferredObjectCreationHandling = JsonObjectCreationHandling.Populate,
         WriteIndented = true
     };
 

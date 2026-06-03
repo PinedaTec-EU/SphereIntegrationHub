@@ -28,6 +28,16 @@ public sealed class WorkflowExecutionSnapshotServiceTests
             .GetProperty("output")
             .GetProperty("customerId")
             .GetString());
+        Assert.Equal("create-customer", parsed.RootElement
+            .GetProperty("Baseline")
+            .GetProperty("stages")[0]
+            .GetProperty("StageName")
+            .GetString());
+        Assert.Equal("create-customer", parsed.RootElement
+            .GetProperty("Timeline")
+            .GetProperty("Stages")[0]
+            .GetProperty("StageName")
+            .GetString());
     }
 
     [Fact]

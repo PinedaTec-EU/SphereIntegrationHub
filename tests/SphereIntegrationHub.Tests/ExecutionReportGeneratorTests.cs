@@ -40,7 +40,8 @@ public sealed class ExecutionReportGeneratorTests
         Assert.Contains("01KNGXHCZZZZ6KMC3DZDZAJRTJ", html, StringComparison.Ordinal);
         Assert.Contains("Sphere Integration Hub (SIH)", html, StringComparison.Ordinal);
         Assert.Contains("aria-label=\"Sphere Integration Hub icon\"", html, StringComparison.Ordinal);
-        Assert.Contains("Stages:</span>", html, StringComparison.Ordinal);
+        Assert.Contains("Summary:</span>", html, StringComparison.Ordinal);
+        Assert.Contains("Details:</span>", html, StringComparison.Ordinal);
         Assert.Contains("<link rel=\"icon\" type=\"image/svg+xml\" href=\"data:image/svg+xml,", html, StringComparison.Ordinal);
         Assert.True(
             html.IndexOf("id=\"version-badge\"", StringComparison.Ordinal) <
@@ -201,6 +202,37 @@ public sealed class ExecutionReportGeneratorTests
     }
 
     [Fact]
+    public async Task GenerateAndOpenAsync_WithStageAssertions_RendersAssertionStatusMarks()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"sih-report-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+
+        var reportPath = Path.Combine(root, "sample.01KNGXHCZZZZ6KMC3DZDZAJRTJ.workflow.report.json");
+        await File.WriteAllTextAsync(reportPath, CreateAssertionReportJson());
+
+        var output = new TestOutputProvider();
+        var generator = new ExecutionReportGenerator(output);
+
+        var result = await generator.GenerateAndOpenAsync(
+            new InlineArguments(
+                IsReportCommand: true,
+                ExecutionReportPath: root,
+                OpenAfterGenerate: false),
+            CancellationToken.None);
+
+        Assert.Equal(0, result);
+
+        var htmlPath = Path.Combine(root, $"{Path.GetFileName(root)}.reports.workflow.report.html");
+        var html = await File.ReadAllTextAsync(htmlPath);
+        Assert.Contains("function renderAssertions(assertions)", html, StringComparison.Ordinal);
+        Assert.Contains("function assertionStatusMark(status)", html, StringComparison.Ordinal);
+        Assert.Contains("if (normalized === 'passed') return '✅';", html, StringComparison.Ordinal);
+        Assert.Contains("if (normalized === 'failed') return '❌';", html, StringComparison.Ordinal);
+        Assert.Contains("payload is returned", html, StringComparison.Ordinal);
+        Assert.Contains("payload is active", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task GenerateAndOpenAsync_RendersResizableDetailPanelAndPopup()
     {
         var root = Path.Combine(Path.GetTempPath(), $"sih-report-{Guid.NewGuid():N}");
@@ -266,9 +298,28 @@ public sealed class ExecutionReportGeneratorTests
         Assert.Contains("const _snapshots =", html, StringComparison.Ordinal);
         Assert.Contains("happy-path", html, StringComparison.Ordinal);
         Assert.Contains("snapshot-picker", html, StringComparison.Ordinal);
+        Assert.Contains("context-bar", html, StringComparison.Ordinal);
+        Assert.Contains("context-modal-backdrop", html, StringComparison.Ordinal);
+        Assert.Contains("openContextModal", html, StringComparison.Ordinal);
+        Assert.Contains("updateContextSummary", html, StringComparison.Ordinal);
+        Assert.Contains("constellation-modal-backdrop", html, StringComparison.Ordinal);
+        Assert.Contains("openConstellationModal", html, StringComparison.Ordinal);
+        Assert.Contains("renderConstellation", html, StringComparison.Ordinal);
+        Assert.Contains("layoutConstellation", html, StringComparison.Ordinal);
+        Assert.Contains("Workflow constellation", html, StringComparison.Ordinal);
         Assert.Contains("compare-toggle", html, StringComparison.Ordinal);
-        Assert.Contains("timeline-ghost", html, StringComparison.Ordinal);
+        Assert.Contains("compare-switch", html, StringComparison.Ordinal);
+        Assert.Contains("chips-details", html, StringComparison.Ordinal);
+        Assert.Contains("More metrics", html, StringComparison.Ordinal);
+        Assert.Contains("toggleMetricsDetails", html, StringComparison.Ordinal);
+        Assert.Contains("timeline-baseline-end-marker", html, StringComparison.Ordinal);
+        Assert.Contains("detail-timeline-compare", html, StringComparison.Ordinal);
+        Assert.Contains("renderDetailTimelineComparison", html, StringComparison.Ordinal);
+        Assert.Contains("comparisonDeltaText", html, StringComparison.Ordinal);
         Assert.Contains("Baseline comparison", html, StringComparison.Ordinal);
+        Assert.Contains("execution-grid", html, StringComparison.Ordinal);
+        Assert.Contains("renderExecutionGrid", html, StringComparison.Ordinal);
+        Assert.Contains("Object.assign(window", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -595,6 +646,70 @@ public sealed class ExecutionReportGeneratorTests
                 MaxMs = 200
             }
         });
+
+        return System.Text.Json.JsonSerializer.Serialize(report, new System.Text.Json.JsonSerializerOptions
+        {
+            WriteIndented = true
+        });
+    }
+
+    private static string CreateAssertionReportJson()
+    {
+        var report = new WorkflowExecutionReport
+        {
+            ExecutionId = "01KNGXHCZZZZ6KMC3DZDZAJRTJ",
+            WorkflowName = "Assertion Workflow",
+            WorkflowId = "wf-assertions",
+            WorkflowVersion = "1.0.0",
+            WorkflowPath = "/tmp/assertions.workflow",
+            Environment = "local",
+            StartedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:00Z"),
+            FinishedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:02Z"),
+            DurationMs = 2000,
+            Result = "Error",
+            Output = new Dictionary<string, object?>()
+        };
+
+        var stage = new WorkflowStageExecutionRecord
+        {
+            WorkflowName = "Assertion Workflow",
+            StageName = "create-account",
+            StageKind = "Endpoint",
+            StartedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:00Z"),
+            FinishedAtUtc = DateTimeOffset.Parse("2026-04-06T10:00:01Z"),
+            DurationMs = 1000,
+            Status = "Error"
+        };
+        stage.Assertions.Add(new WorkflowAssertionExecutionRecord
+        {
+            Scope = "Stage",
+            WorkflowName = "Assertion Workflow",
+            StageName = "create-account",
+            Name = "payload is returned",
+            Status = "Passed",
+            Operator = "notEmpty",
+            Blocking = true
+        });
+        stage.Assertions.Add(new WorkflowAssertionExecutionRecord
+        {
+            Scope = "Stage",
+            WorkflowName = "Assertion Workflow",
+            StageName = "create-account",
+            Name = "payload is active",
+            Status = "Failed",
+            Operator = "equals",
+            Blocking = true,
+            Message = "Assertion evaluated to false."
+        });
+
+        report.Stages.Add(stage);
+        report.Assertions.AddRange(stage.Assertions);
+        report.Metrics.TotalStages = 1;
+        report.Metrics.ExecutedStages = 1;
+        report.Metrics.FailedStages = 1;
+        report.Metrics.TotalAssertions = 2;
+        report.Metrics.PassedAssertions = 1;
+        report.Metrics.FailedAssertions = 1;
 
         return System.Text.Json.JsonSerializer.Serialize(report, new System.Text.Json.JsonSerializerOptions
         {

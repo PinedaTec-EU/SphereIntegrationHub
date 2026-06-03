@@ -384,22 +384,63 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .version-badge{font-size:11px;font-weight:600;color:#a16207;background:#fefce8;border:1px solid #fef08a;border-radius:4px;padding:1px 7px;white-space:nowrap;flex-shrink:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.02em;cursor:default}
 [data-theme="dark"] .version-badge{color:#fcd34d;background:#422006;border-color:#713f12}
 .hidden{display:none!important}
-.banner-title{margin:0;font-size:14px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.banner-title{margin:0;flex:1;min-width:12px}
 .result-ok{color:#4ade80}.result-error{color:#f87171}.result-running{color:#60a5fa}
 .btn{background:var(--btn-bg);color:var(--btn-c);border:1px solid var(--btn-border);padding:5px 11px;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap;transition:background .15s,color .15s;display:inline-flex;align-items:center;gap:5px}
 .btn:hover{background:var(--btn-hover-bg);color:var(--btn-hover-c)}
 .btn-icon{padding:5px 9px;font-size:14px}
-.report-picker{max-width:360px;min-width:180px;background:var(--btn-bg);color:var(--btn-c);border:1px solid var(--btn-border);padding:5px 11px;border-radius:6px;font-size:12px;font-family:inherit}
+.report-picker{width:100%;background:var(--btn-bg);color:var(--btn-c);border:1px solid var(--btn-border);padding:6px 9px;border-radius:6px;font-size:12px;font-family:inherit}
 .report-picker:hover{color:var(--btn-hover-c)}
-.snapshot-picker{max-width:300px;min-width:180px;background:var(--btn-bg);color:var(--btn-c);border:1px solid var(--btn-border);padding:5px 11px;border-radius:6px;font-size:12px;font-family:inherit}
-.compare-toggle{display:inline-flex;align-items:center;gap:6px;color:var(--btn-c);font-size:12px;white-space:nowrap}
-.compare-toggle input{accent-color:#38bdf8}
+.snapshot-picker{width:100%;background:var(--btn-bg);color:var(--btn-c);border:1px solid var(--btn-border);padding:6px 9px;border-radius:6px;font-size:12px;font-family:inherit}
+.compare-toggle{display:inline-flex;align-items:center;gap:7px;color:var(--btn-c);font-size:12px;white-space:nowrap;cursor:pointer;user-select:none}
+.compare-toggle input{position:absolute;opacity:0;pointer-events:none}
+.compare-switch{position:relative;display:inline-flex;width:34px;height:20px;flex-shrink:0;border-radius:999px;background:#334155;border:1px solid rgba(148,163,184,.28);transition:background .18s,border-color .18s,box-shadow .18s}
+.compare-switch::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#f8fafc;box-shadow:0 1px 3px rgba(0,0,0,.32);transition:transform .18s}
+.compare-toggle input:checked + .compare-switch{background:#34c759;border-color:#34c759;box-shadow:0 0 0 2px rgba(52,199,89,.16)}
+.compare-toggle input:checked + .compare-switch::after{transform:translateX(14px)}
+.compare-toggle input:focus-visible + .compare-switch{outline:2px solid #38bdf8;outline-offset:2px}
 #file-input{display:none}
 #snapshot-file-input{display:none}
+.context-bar{display:flex;gap:6px;padding:5px 16px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;transition:background .2s}
+.context-pill{display:inline-flex;align-items:center;gap:5px;max-width:100%;padding:2px 8px;border-radius:999px;background:var(--header-bg);border:1px solid var(--border);color:var(--text-muted);font-size:11px;white-space:nowrap}
+.context-pill strong{color:var(--text);font-weight:700}
+.context-pill span{overflow:visible;text-overflow:clip}
+.context-modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:40;display:flex;align-items:center;justify-content:center;padding:24px}
+.context-modal{width:min(620px,calc(100vw - 48px));background:var(--surface);color:var(--text);border:1px solid var(--border-strong);border-radius:8px;box-shadow:0 24px 80px rgba(0,0,0,.35);overflow:hidden}
+.context-modal-header{display:flex;align-items:center;gap:12px;padding:11px 14px;background:var(--row-selected);border-bottom:1px solid var(--border)}
+.context-modal-header h2{margin:0;font-size:13px;flex:1}
+.context-modal-body{display:grid;gap:14px;padding:14px}
+.context-field{display:grid;gap:6px}
+.context-field label{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;font-weight:800;color:var(--text-subtle)}
+.context-actions{display:flex;gap:8px;flex-wrap:wrap;padding-top:2px}
+.constellation-modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,.72);z-index:45;display:flex;align-items:center;justify-content:center;padding:24px}
+.constellation-modal{width:min(1180px,calc(100vw - 48px));height:min(760px,calc(100vh - 48px));background:var(--surface);color:var(--text);border:1px solid var(--border-strong);border-radius:8px;box-shadow:0 24px 80px rgba(0,0,0,.38);overflow:hidden;display:flex;flex-direction:column}
+.constellation-header{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--row-selected);border-bottom:1px solid var(--border)}
+.constellation-header h2{margin:0;font-size:13px;flex:1}
+.constellation-meta{color:var(--text-muted);font-size:11px;white-space:nowrap}
+.constellation-canvas{flex:1;min-height:0;background:radial-gradient(circle at 18px 18px,rgba(148,163,184,.14) 1px,transparent 1px);background-size:32px 32px;overflow:hidden}
+.constellation-svg{display:block;width:100%;height:100%}
+.constellation-edge{fill:none;stroke:var(--border-strong);stroke-width:1.5;opacity:.85}
+.constellation-edge.is-child{stroke:#38bdf8;stroke-dasharray:5 4}
+.constellation-node rect{fill:var(--code-bg);stroke:var(--border-strong);stroke-width:1.2}
+.constellation-node.is-workflow rect{fill:var(--chip-total-bg);stroke:var(--chip-total-b)}
+.constellation-node.is-error rect{fill:var(--chip-err-bg);stroke:var(--chip-err-b)}
+.constellation-node.is-ok rect{fill:var(--chip-ok-bg);stroke:var(--chip-ok-b)}
+.constellation-node.is-skipped rect{fill:var(--chip-skip-bg);stroke:var(--chip-skip-b)}
+.constellation-node text{font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;fill:var(--text);font-size:11px;font-weight:700}
+.constellation-node .node-subtitle{fill:var(--text-muted);font-size:9.5px;font-weight:600;text-transform:uppercase}
+.constellation-node .node-status{fill:var(--text-subtle);font-size:9.5px;font-weight:700}
+.constellation-node[onclick]{cursor:pointer}
+.constellation-node[onclick]:hover rect{stroke:#38bdf8;stroke-width:2}
+.constellation-empty{height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-subtle);font-size:14px}
 /* ── Meta / chips ────────────────────────────────────────────────── */
 .meta-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:6px 16px;display:flex;gap:16px;align-items:center;flex-shrink:0;font-size:11.5px;color:var(--text-muted);flex-wrap:wrap;transition:background .2s}
 .meta-bar strong{color:var(--text);font-weight:600}
 .chips{display:flex;gap:5px;padding:7px 16px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;transition:background .2s}
+.chips.is-expanded .chips-details{display:flex}
+.chips-details{display:none;gap:5px;flex-wrap:wrap;width:100%;padding-top:5px}
+.chips-toggle{margin-left:auto;background:var(--btn-bg);color:var(--btn-c);border:1px solid var(--btn-border);padding:2px 8px;border-radius:999px;cursor:pointer;font-size:11px;font-family:inherit;font-weight:700}
+.chips-toggle:hover{background:var(--btn-hover-bg);color:var(--btn-hover-c)}
 .chips-label{display:flex;align-items:center;font-size:10.5px;font-weight:700;letter-spacing:.5px;color:var(--text-subtle);text-transform:uppercase;margin-right:4px}
 .chip{padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid}
 .chip-total{background:var(--chip-total-bg);color:var(--chip-total-c);border-color:var(--chip-total-b)}
@@ -422,7 +463,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .trace-rows::-webkit-scrollbar-track{background:transparent}
 .trace-rows::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:3px}
 /* ── Rows ────────────────────────────────────────────────────────── */
-.trace-row{display:flex;height:44px;border-bottom:1px solid var(--row-border);cursor:pointer;transition:background .1s}
+.trace-row{display:flex;height:52px;border-bottom:1px solid var(--row-border);cursor:pointer;transition:background .1s}
 .trace-row:hover{background:var(--row-hover)}
 .trace-row.selected{background:var(--row-selected)}
 .trace-row.wf-row{background:var(--wf-row-bg)}
@@ -468,9 +509,11 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 [data-theme="dark"] .s-5xx{background:#4a0d0d;color:#fca5a5}
 /* timeline bar */
 .trace-right{flex:1;position:relative;overflow:hidden}
-.timeline-span{position:absolute;top:13px;height:18px;min-width:3px;overflow:visible}
-.timeline-ghost{position:absolute;top:7px;height:30px;min-width:3px;border:1px dashed rgba(15,23,42,.45);background:repeating-linear-gradient(135deg,rgba(15,23,42,.08),rgba(15,23,42,.08) 4px,rgba(15,23,42,.02) 4px,rgba(15,23,42,.02) 8px);border-radius:5px;pointer-events:none}
-[data-theme="dark"] .timeline-ghost{border-color:rgba(241,245,249,.5);background:repeating-linear-gradient(135deg,rgba(241,245,249,.14),rgba(241,245,249,.14) 4px,rgba(241,245,249,.04) 4px,rgba(241,245,249,.04) 8px)}
+.timeline-span{position:absolute;top:17px;height:18px;min-width:3px;overflow:visible}
+.timeline-baseline-end-marker{position:absolute;top:4px;height:32px;width:0;border-left:2px solid #0ea5e9;pointer-events:none;z-index:3}
+.timeline-baseline-end-marker::before{content:"";position:absolute;left:-6px;top:-5px;width:10px;height:10px;border-radius:999px;background:var(--surface);border:2px solid #0ea5e9;box-shadow:0 0 0 2px rgba(14,165,233,.14)}
+[data-theme="dark"] .timeline-baseline-end-marker{border-left-color:#7dd3fc}
+[data-theme="dark"] .timeline-baseline-end-marker::before{background:var(--surface);border-color:#7dd3fc;box-shadow:0 0 0 2px rgba(125,211,252,.16)}
 .span-bar{position:absolute;inset:0;border-radius:4px;display:flex;align-items:center;padding:0 5px;font-size:10px;color:rgba(255,255,255,.9);white-space:nowrap;overflow:hidden;cursor:pointer;transition:filter .1s}
 .span-bar:hover{filter:brightness(1.12)}
 .span-bar-duration{position:absolute;top:0;left:var(--timeline-label-offset,calc(100% + 6px));height:18px;display:flex;align-items:center;font-size:10px;font-weight:600;color:var(--text-muted);white-space:nowrap;pointer-events:none}
@@ -506,6 +549,14 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .kv-row{display:flex;gap:8px;align-items:baseline}
 .kv-k{color:var(--text-muted);min-width:100px;flex-shrink:0;font-size:11px}
 .kv-v{color:var(--text);word-break:break-all;font-size:12px}
+.execution-grid{display:grid;grid-template-columns:minmax(74px,1fr) minmax(58px,.8fr) minmax(58px,.8fr) minmax(48px,.7fr);gap:4px 8px;align-items:center;font-size:11.5px}
+.execution-grid .head{color:var(--text-subtle);font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px}
+.execution-grid .metric{color:var(--text-muted)}
+.execution-grid .value{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--text);font-weight:700;white-space:nowrap}
+.execution-grid .delta{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--text-muted);font-weight:800;white-space:nowrap}
+.execution-grid .delta.is-slower{color:#ef4444}
+.execution-grid .delta.is-faster{color:#0ea5e9}
+.execution-grid .delta.is-equal{color:#22c55e}
 .code-block{background:var(--code-bg);border:1px solid var(--code-border);border-radius:6px;padding:7px 10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--code-text);white-space:pre-wrap;word-break:break-word;max-height:140px;overflow-y:auto;margin-top:2px;transition:background .2s,border-color .2s}
 .full-width{grid-column:1/-1}
 .http-req-bar{display:flex;align-items:center;gap:10px;background:var(--code-bg);border:1px solid var(--code-border);border-radius:8px;padding:9px 14px;flex-wrap:wrap;transition:background .2s,border-color .2s}
@@ -521,6 +572,31 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
 .output-kv{display:grid;grid-template-columns:auto 1fr;gap:4px 16px}
 .out-k{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--text-muted);white-space:nowrap}
 .out-v{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--text);word-break:break-all}
+.detail-timeline-compare{display:grid;grid-template-columns:minmax(220px,390px) auto;gap:14px;align-items:center;width:min(560px,100%);margin-inline:auto;background:var(--code-bg);border:1px solid var(--code-border);border-radius:8px;padding:22px 14px 10px;overflow:visible}
+.detail-compare-ruler{position:relative;height:58px;margin:0 16px}
+.detail-compare-axis{position:absolute;left:0;right:0;top:28px;height:2px;background:var(--border-strong);border-radius:999px}
+.detail-compare-tick{position:absolute;top:20px;width:1px;height:16px;background:var(--text-subtle)}
+.detail-compare-tick.is-minor{top:24px;height:8px;opacity:.72}
+.detail-compare-tick-label{position:absolute;top:-16px;transform:translateX(-50%);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;font-weight:700;color:var(--text-muted);white-space:nowrap}
+.detail-compare-marker{position:absolute;top:19px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:3px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.detail-compare-dot{width:14px;height:14px;border-radius:999px;border:2px solid var(--surface);box-shadow:0 0 0 1px rgba(0,0,0,.22)}
+.detail-compare-b .detail-compare-dot{background:#0ea5e9}
+.detail-compare-c .detail-compare-dot{background:#ef4444}
+.detail-compare-c.is-equal .detail-compare-dot{background:#22c55e}
+.detail-compare-pill{width:22px;height:22px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900}
+.detail-compare-b .detail-compare-pill{border:2px solid #0ea5e9;color:#0ea5e9;background:rgba(14,165,233,.1)}
+.detail-compare-c .detail-compare-pill{border:2px solid #ef4444;color:#ef4444;background:rgba(239,68,68,.1)}
+.detail-compare-c.is-equal .detail-compare-pill{border-color:#22c55e;color:#22c55e;background:rgba(34,197,94,.1)}
+.detail-compare-value{font-size:12.5px;font-weight:800;white-space:nowrap}
+.detail-compare-b .detail-compare-value{color:#0ea5e9}
+.detail-compare-c .detail-compare-value{color:#ef4444}
+.detail-compare-c.is-equal .detail-compare-value{color:#22c55e}
+.detail-compare-summary{min-width:86px;display:flex;flex-direction:column;align-items:center;gap:5px}
+.detail-compare-delta{padding:5px 10px;border-radius:9px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;font-weight:900;white-space:nowrap}
+.detail-compare-delta.is-slower{background:rgba(239,68,68,.18);border:1px solid rgba(239,68,68,.5);color:#ef4444}
+.detail-compare-delta.is-faster{background:rgba(14,165,233,.16);border:1px solid rgba(14,165,233,.45);color:#0ea5e9}
+.detail-compare-delta.is-equal{background:rgba(34,197,94,.16);border:1px solid rgba(34,197,94,.45);color:#22c55e}
+.detail-compare-summary-label{font-size:11px;font-weight:800;color:var(--text-muted);white-space:nowrap}
 .empty{color:var(--text-subtle);padding:40px;text-align:center;font-size:14px}
 </style>
 </head>
@@ -533,17 +609,53 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
   <span class="banner-version" id="banner-version">v{{appVersion}}</span>
   <h1 class="banner-title" id="banner-title">Loading&hellip;</h1>
   <span class="version-badge hidden" id="version-badge" title="This output was generated with a different tool version"></span>
-  <select class="report-picker" id="report-picker" title="Select execution"></select>
-  <select class="snapshot-picker hidden" id="snapshot-picker" title="Select baseline snapshot"></select>
-  <label class="compare-toggle hidden" id="compare-toggle-label" title="Toggle baseline comparison"><input type="checkbox" id="compare-toggle" checked> Compare</label>
-  <label for="file-input" class="btn">&#128193; Load</label>
-  <input type="file" id="file-input" accept=".json">
-  <label for="snapshot-file-input" class="btn" title="Load baseline snapshot JSON">&#128452; Baseline</label>
-  <input type="file" id="snapshot-file-input" accept=".json">
+  <button class="btn" id="constellation-open-button" onclick="openConstellationModal()" title="Open workflow constellation">Graph</button>
+  <button class="btn" id="context-open-button" onclick="openContextModal()" title="Select execution and baseline">&#9881; Context</button>
+  <label class="compare-toggle hidden" id="compare-toggle-label" title="Toggle baseline comparison"><input type="checkbox" id="compare-toggle" checked><span class="compare-switch" aria-hidden="true"></span><span>Compare</span></label>
   <button class="btn btn-icon" id="theme-toggle" title="Toggle dark/light mode" onclick="toggleTheme()">🌙</button>
+</div>
+<div class="context-bar" id="context-bar">
+  <span class="context-pill" title="Selected execution"><strong>Report</strong><span id="context-report-label">Loading&hellip;</span></span>
+  <span class="context-pill" title="Selected baseline snapshot"><strong>Baseline</strong><span id="context-baseline-label">None</span></span>
 </div>
 <div class="meta-bar" id="meta-bar"></div>
 <div class="chips" id="chips"></div>
+
+<div class="context-modal-backdrop hidden" id="context-modal-backdrop" onclick="backdropCloseContextModal(event)">
+  <div class="context-modal" role="dialog" aria-modal="true" aria-labelledby="context-modal-title">
+    <div class="context-modal-header">
+      <h2 id="context-modal-title">Execution context</h2>
+      <button class="detail-action" onclick="closeContextModal()" title="Close" aria-label="Close context selector">&#10005;</button>
+    </div>
+    <div class="context-modal-body">
+      <div class="context-field">
+        <label for="report-picker">Report execution</label>
+        <select class="report-picker" id="report-picker" title="Select execution"></select>
+      </div>
+      <div class="context-field">
+        <label for="snapshot-picker">Baseline snapshot</label>
+        <select class="snapshot-picker hidden" id="snapshot-picker" title="Select baseline snapshot"></select>
+      </div>
+      <div class="context-actions">
+        <label for="file-input" class="btn">&#128193; Load report JSON</label>
+        <input type="file" id="file-input" accept=".json">
+        <label for="snapshot-file-input" class="btn" title="Load baseline snapshot JSON">&#128452; Load baseline JSON</label>
+        <input type="file" id="snapshot-file-input" accept=".json">
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="constellation-modal-backdrop hidden" id="constellation-modal-backdrop" onclick="backdropCloseConstellationModal(event)">
+  <div class="constellation-modal" role="dialog" aria-modal="true" aria-labelledby="constellation-modal-title">
+    <div class="constellation-header">
+      <h2 id="constellation-modal-title">Workflow constellation</h2>
+      <span class="constellation-meta" id="constellation-meta"></span>
+      <button class="detail-action" onclick="closeConstellationModal()" title="Close" aria-label="Close workflow constellation">&#10005;</button>
+    </div>
+    <div class="constellation-canvas" id="constellation-canvas"></div>
+  </div>
+</div>
 
 <div class="trace-container">
   <div class="trace-header">
@@ -867,11 +979,9 @@ function render(report) {
   const comparison = getActiveComparison(report);
 
   // Banner
-  const rCls = 'result-' + statusCls(report.Result);
-  document.getElementById('banner-title').innerHTML =
-    `<span style="color:var(--banner-muted)">${esc(report.WorkflowName)}</span>`+
-    ` <span class="${rCls}">${esc(report.ExecutionId)}</span>`;
+  document.getElementById('banner-title').textContent = '';
   document.title = `${report.WorkflowName} — ${report.ExecutionId}`;
+  updateContextSummary();
 
   // Meta bar
   const maxDepth = stages.reduce((d,s) => Math.max(d, s.Depth||0), 0);
@@ -888,23 +998,30 @@ function render(report) {
     `<span>Depth: <strong>${maxDepth}</strong></span>`+
     `<span>Status: <strong><span class="${badgeCls(report.Result)}">${esc(report.Result)}</span></strong></span>`;
 
-  // Chips
+  // Metrics summary
   let chips =
-    `<span class="chips-label">Stages:</span>`+
-    `<span class="chip chip-total">Total: ${m.TotalStages ?? stages.length}</span>`+
-    `<span class="chip chip-ok">Executed: ${m.ExecutedStages ?? 0}</span>`;
-  if (m.FailedStages)  chips += `<span class="chip chip-error">Failed: ${m.FailedStages}</span>`;
-  if (m.SkippedStages) chips += `<span class="chip chip-skipped">Not executed: ${m.SkippedStages}</span>`;
-  if (m.MockedStages)  chips += `<span class="chip chip-mocked">Mocked: ${m.MockedStages}</span>`;
-  if (m.TotalRetries)  chips += `<span class="chip chip-retries">Retries: ${m.TotalRetries}</span>`;
-  if (m.HttpStages)    chips += `<span class="chip chip-total">HTTP: ${m.HttpStages}</span>`;
-  if (m.TotalAssertions) chips += `<span class="chip chip-ok">Assertions: ${m.PassedAssertions || 0}/${m.TotalAssertions}</span>`;
-  if (m.FailedAssertions) chips += `<span class="chip chip-error">Assertion failures: ${m.FailedAssertions}</span>`;
-  if (m.WarningAssertions) chips += `<span class="chip chip-retries">Assertion warnings: ${m.WarningAssertions}</span>`;
+    `<span class="chips-label">Summary:</span>`+
+    `<span class="chip chip-total">Stages: ${m.ExecutedStages ?? 0}/${m.TotalStages ?? stages.length}</span>`;
+  if (m.FailedStages) chips += `<span class="chip chip-error">Failed: ${m.FailedStages}</span>`;
+  if (m.TotalAssertions) chips += `<span class="${m.FailedAssertions ? 'chip chip-error' : 'chip chip-ok'}">Assertions: ${m.PassedAssertions || 0}/${m.TotalAssertions}</span>`;
   if (comparison) {
     const label = comparison.differences.length === 0 ? 'Baseline match' : `Baseline diff: ${comparison.differences.length}`;
     chips += `<span class="chip chip-compare">${esc(label)}</span>`;
   }
+  chips += `<button type="button" class="chips-toggle" id="chips-toggle" aria-expanded="false">More metrics</button>`;
+  chips += `<span class="chips-details" id="chips-details">`;
+  chips += `<span class="chips-label">Details:</span>`;
+  chips += `<span class="chip chip-total">Total stages: ${m.TotalStages ?? stages.length}</span>`;
+  chips += `<span class="chip chip-ok">Executed: ${m.ExecutedStages ?? 0}</span>`;
+  if (m.SkippedStages) chips += `<span class="chip chip-skipped">Not executed: ${m.SkippedStages}</span>`;
+  if (m.MockedStages) chips += `<span class="chip chip-mocked">Mocked: ${m.MockedStages}</span>`;
+  if (m.TotalRetries) chips += `<span class="chip chip-retries">Retries: ${m.TotalRetries}</span>`;
+  if (m.HttpStages) chips += `<span class="chip chip-total">HTTP: ${m.HttpStages}</span>`;
+  if (workflowTotal) chips += `<span class="chip chip-total">Workflow stages: ${workflowTotal}</span>`;
+  if (m.TotalAssertions) chips += `<span class="chip chip-ok">Assertion passed: ${m.PassedAssertions || 0}</span>`;
+  if (m.FailedAssertions) chips += `<span class="chip chip-error">Assertion failures: ${m.FailedAssertions}</span>`;
+  if (m.WarningAssertions) chips += `<span class="chip chip-retries">Assertion warnings: ${m.WarningAssertions}</span>`;
+  chips += `</span>`;
   document.getElementById('chips').innerHTML = chips;
 
   // Ruler
@@ -917,6 +1034,9 @@ function render(report) {
   const startTs = new Date(report.StartedAtUtc).getTime();
   _tree = buildTree(stages);
   renderTree(_tree, totalMs, startTs, comparison);
+  if (!document.getElementById('constellation-modal-backdrop').classList.contains('hidden')) {
+    renderConstellation();
+  }
 }
 
 function loadReportByIndex(index) {
@@ -949,13 +1069,12 @@ function updateVersionBadge(reportToolVersion) {
 function initReportPicker() {
   const picker = document.getElementById('report-picker');
   if (!picker) return;
-  if (_reports.length <= 1) {
-    picker.style.display = 'none';
-    return;
-  }
-
   picker.innerHTML = _reports.map((entry, index) =>
     `<option value="${index}">${esc(reportOptionLabel(entry))}</option>`).join('');
+  if (_reports.length <= 1) {
+    picker.style.display = 'none';
+  }
+
   picker.addEventListener('change', e => loadReportByIndex(Number(e.target.value)));
 }
 
@@ -981,6 +1100,7 @@ function initSnapshotPicker() {
   toggle.addEventListener('change', e => {
     _comparisonEnabled = !!e.target.checked;
     if (_report) render(_report);
+    updateContextSummary();
   });
   refreshSnapshotPicker(_snapshots.length > 0 ? 0 : -1);
 }
@@ -994,6 +1114,7 @@ function refreshSnapshotPicker(selectedIndex) {
     picker.classList.add('hidden');
     toggleLabel.classList.add('hidden');
     loadSnapshotByIndex(-1);
+    updateContextSummary();
     return;
   }
 
@@ -1004,6 +1125,7 @@ function refreshSnapshotPicker(selectedIndex) {
   const safeIndex = Math.max(0, Math.min(selectedIndex, _snapshots.length - 1));
   picker.value = String(safeIndex);
   loadSnapshotByIndex(safeIndex);
+  updateContextSummary();
 }
 
 function addSnapshotFromFile(file, snapshotJson) {
@@ -1019,6 +1141,234 @@ function addSnapshotFromFile(file, snapshotJson) {
   };
   _snapshots.push(entry);
   refreshSnapshotPicker(_snapshots.length - 1);
+}
+
+function updateContextSummary() {
+  const reportLabel = document.getElementById('context-report-label');
+  const baselineLabel = document.getElementById('context-baseline-label');
+  const reportPicker = document.getElementById('report-picker');
+  const snapshotPicker = document.getElementById('snapshot-picker');
+  if (reportLabel) {
+    const reportIndex = reportPicker && reportPicker.value !== '' ? Number(reportPicker.value) : -1;
+    const entry = reportIndex >= 0 ? _reports[reportIndex] : null;
+    reportLabel.textContent = entry ? compactReportLabel(entry) : 'None';
+  }
+  if (baselineLabel) {
+    const enabledText = _comparisonEnabled ? '' : ' (disabled)';
+    if (!_snapshotEntry) {
+      baselineLabel.textContent = 'None';
+    } else {
+      baselineLabel.textContent = compactSnapshotLabel(_snapshotEntry) + enabledText;
+    }
+  }
+}
+
+function compactReportLabel(entry) {
+  const workflow = entry.workflowName || 'Workflow';
+  const execution = entry.executionId || entry.fileName || 'Execution';
+  return `${workflow} · ${execution}`;
+}
+
+function compactSnapshotLabel(entry) {
+  const name = entry.name || entry.fileName || 'Snapshot';
+  const workflow = entry.workflowName || 'Workflow';
+  return `${name} · ${workflow}`;
+}
+
+/* ── Workflow constellation ──────────────────────────────────────── */
+function openConstellationModal() {
+  if (!_report) return;
+  document.getElementById('constellation-modal-backdrop').classList.remove('hidden');
+  renderConstellation();
+}
+
+function closeConstellationModal() {
+  document.getElementById('constellation-modal-backdrop').classList.add('hidden');
+}
+
+function backdropCloseConstellationModal(event) {
+  if (event.target && event.target.id === 'constellation-modal-backdrop') closeConstellationModal();
+}
+
+function renderConstellation() {
+  const canvas = document.getElementById('constellation-canvas');
+  const meta = document.getElementById('constellation-meta');
+  if (!canvas || !_report) return;
+
+  const stages = _report.Stages || [];
+  if (stages.length === 0) {
+    canvas.innerHTML = '<div class="constellation-empty">No stages recorded.</div>';
+    if (meta) meta.textContent = '';
+    return;
+  }
+
+  const model = buildConstellationModel(stages);
+  const width = Math.max(canvas.clientWidth || 0, 760);
+  const height = Math.max(canvas.clientHeight || 0, 420);
+  const layout = layoutConstellation(model, width, height);
+  const nodesById = new Map(layout.nodes.map(node => [node.id, node]));
+  const edgeMarkup = model.edges.map(edge => {
+    const from = nodesById.get(edge.from);
+    const to = nodesById.get(edge.to);
+    if (!from || !to) return '';
+    const x1 = from.x + from.width;
+    const y1 = from.y + from.height / 2;
+    const x2 = to.x;
+    const y2 = to.y + to.height / 2;
+    const mid = Math.max(x1 + 42, (x1 + x2) / 2);
+    const cls = edge.kind === 'child' ? ' is-child' : '';
+    return `<path class="constellation-edge${cls}" d="M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}"/>`;
+  }).join('');
+  const nodeMarkup = layout.nodes.map(node => {
+    const title = esc(node.title || node.label);
+    const click = node.stageIndex == null ? '' : ` onclick="rowClick(${node.stageIndex}); closeConstellationModal();"`;
+    return `<g class="constellation-node ${esc(node.cssClass)}" transform="translate(${node.x} ${node.y})"${click}>`+
+      `<title>${title}</title>`+
+      `<rect width="${node.width}" height="${node.height}" rx="7"></rect>`+
+      `<text x="12" y="18">${esc(truncateLabel(node.label, 23))}</text>`+
+      `<text class="node-subtitle" x="12" y="34">${esc(truncateLabel(node.subtitle, 26))}</text>`+
+      `<text class="node-status" x="12" y="50">${esc(truncateLabel(node.status, 28))}</text>`+
+      `</g>`;
+  }).join('');
+
+  canvas.innerHTML = `<svg class="constellation-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Workflow invocation graph">${edgeMarkup}${nodeMarkup}</svg>`;
+  if (meta) meta.textContent = `${model.workflowCount} workflows · ${stages.length} stages · depth ${model.maxDepth}`;
+}
+
+function buildConstellationModel(stages) {
+  const workflowIndexes = new Map();
+  const workflows = [];
+  const stageNodes = [];
+  const edges = [];
+  const stackByWorkflow = new Map();
+  const lastStageByWorkflow = new Map();
+  let maxDepth = 0;
+
+  function ensureWorkflow(name) {
+    const workflowName = name || _report.WorkflowName || 'Workflow';
+    if (workflowIndexes.has(workflowName)) return workflowIndexes.get(workflowName);
+    const index = workflows.length;
+    workflowIndexes.set(workflowName, index);
+    workflows.push({
+      id: `workflow-${index}`,
+      workflowIndex: index,
+      depth: 0,
+      order: 0,
+      label: workflowName,
+      subtitle: 'Workflow',
+      status: '0 stages',
+      cssClass: 'is-workflow',
+      stageCount: 0,
+      hasError: false,
+      hasSkipped: false
+    });
+    stackByWorkflow.set(workflowName, []);
+    return index;
+  }
+
+  stages.forEach((stage, stageIndex) => {
+    const workflowName = stage.WorkflowName || _report.WorkflowName || 'Workflow';
+    const workflowIndex = ensureWorkflow(workflowName);
+    const workflow = workflows[workflowIndex];
+    const localDepth = Math.max(0, stage.Depth || 0);
+    maxDepth = Math.max(maxDepth, localDepth + 1);
+    workflow.stageCount += 1;
+    workflow.hasError = workflow.hasError || statusCls(stage.Status) === 'error';
+    workflow.hasSkipped = workflow.hasSkipped || statusCls(stage.Status) === 'skipped';
+
+    const stack = stackByWorkflow.get(workflowName) || [];
+    const node = {
+      id: `stage-${stageIndex}`,
+      workflowIndex,
+      depth: localDepth + 1,
+      order: workflow.stageCount,
+      label: stage.StageName || `Stage ${stageIndex + 1}`,
+      subtitle: getConstellationSubtitle(stage),
+      status: getConstellationStatus(stage),
+      cssClass: `is-${statusCls(stage.Status)}`,
+      stageIndex,
+      title: `${stage.WorkflowName || 'Workflow'} · ${stage.StageName || 'Stage'}`
+    };
+    stageNodes.push(node);
+
+    const previousAtDepth = localDepth > 0 ? stack[localDepth - 1] : null;
+    const previousStage = localDepth === 0 ? lastStageByWorkflow.get(workflowName) : null;
+    const parentId = previousAtDepth || previousStage || workflow.id;
+    edges.push({ from: parentId, to: node.id, kind: previousAtDepth ? 'child' : 'sequence' });
+
+    stack[localDepth] = node.id;
+    stack.length = localDepth + 1;
+    lastStageByWorkflow.set(workflowName, node.id);
+  });
+
+  workflows.forEach(workflow => {
+    workflow.status = workflow.hasError
+      ? `${workflow.stageCount} stages · error`
+      : workflow.hasSkipped
+        ? `${workflow.stageCount} stages · partial`
+        : `${workflow.stageCount} stages`;
+  });
+
+  return {
+    nodes: [...workflows, ...stageNodes],
+    edges,
+    workflowCount: workflows.length,
+    maxDepth
+  };
+}
+
+function getConstellationSubtitle(stage) {
+  if (isWfKind(stage)) return 'Workflow call';
+  const method = stage.HttpMethod ? `${stage.HttpMethod} ` : '';
+  return `${method}${stage.StageKind || 'Stage'}`;
+}
+
+function getConstellationStatus(stage) {
+  const status = statusText(stage.Status);
+  const duration = stage.DurationMs ? ` · ${fmtMs(stage.DurationMs)}` : '';
+  const http = stage.HttpStatusCode != null ? ` · HTTP ${stage.HttpStatusCode}` : '';
+  return `${status}${duration}${http}`;
+}
+
+function layoutConstellation(model, width, height) {
+  const nodeWidth = 154;
+  const nodeHeight = 58;
+  const marginX = 28;
+  const marginY = 30;
+  const maxDepth = Math.max(1, model.maxDepth);
+  const columnGap = Math.max(170, (width - marginX * 2 - nodeWidth) / maxDepth);
+  const workflows = Array.from(new Set(model.nodes.map(node => node.workflowIndex))).sort((a,b) => a - b);
+  const availableHeight = Math.max(height - marginY * 2, 260);
+  const laneHeight = Math.max(150, availableHeight / Math.max(workflows.length, 1));
+  const workflowCounts = workflows.reduce((acc, workflowIndex) => {
+    acc.set(workflowIndex, model.nodes.filter(node => node.workflowIndex === workflowIndex && node.stageIndex != null).length);
+    return acc;
+  }, new Map());
+
+  const nodes = model.nodes.map(node => {
+    const laneIndex = workflows.indexOf(node.workflowIndex);
+    const laneTop = marginY + laneIndex * laneHeight;
+    const stageCount = Math.max(workflowCounts.get(node.workflowIndex) || 1, 1);
+    const rowGap = Math.max(70, Math.min(96, (laneHeight - nodeHeight - 28) / Math.max(stageCount, 1)));
+    const x = marginX + node.depth * columnGap;
+    const y = node.stageIndex == null
+      ? laneTop + Math.max(0, (laneHeight - nodeHeight) / 2)
+      : laneTop + 20 + (node.order - 1) * rowGap;
+    return {
+      ...node,
+      x: Math.round(Math.min(x, width - marginX - nodeWidth)),
+      y: Math.round(Math.min(y, height - marginY - nodeHeight)),
+      width: nodeWidth,
+      height: nodeHeight
+    };
+  });
+
+  return { nodes };
+}
+
+function truncateLabel(value, maxLength) {
+  const text = String(value || '');
+  return text.length > maxLength ? text.slice(0, Math.max(1, maxLength - 1)) + '…' : text;
 }
 
 /* ── Tree renderer ───────────────────────────────────────────────── */
@@ -1133,7 +1483,7 @@ function buildRow(node, totalMs, startTs, comparison) {
 
   // Timeline bar
   html += `<div class="trace-right">`;
-  html += buildGhostBar(stage, totalMs, comparison);
+  html += buildBaselineEndMarker(stage, totalMs, comparison);
   const barTitle = timelineLabel;
   html += `<div class="timeline-span" style="left:calc(${offsetPct} * (100% - var(--timeline-label-gutter)) / 100);width:calc(${widthPct} * (100% - var(--timeline-label-gutter)) / 100)" title="${esc(barTitle)}"${timelineLabel ? ` data-duration-label="${esc(timelineLabel)}"` : ''}>`;
   html += `<div class="span-bar ${bCls}"></div>`;
@@ -1147,16 +1497,68 @@ function buildRow(node, totalMs, startTs, comparison) {
   return html;
 }
 
-function buildGhostBar(stage, totalMs, comparison) {
+function buildBaselineEndMarker(stage, totalMs, comparison) {
   if (!comparison || !comparison.stageTimeline || !comparison.stageTimeline.stages) return '';
   const baselineStage = comparison.stageTimeline.stages.get(stageKey(stage));
   if (!baselineStage) return '';
   const offsetMs = prop(baselineStage, 'offsetMs') || 0;
-  const durationMs = prop(baselineStage, 'durationMs') || 0;
-  const offsetPct = Math.min((offsetMs / totalMs) * 100, 99.5).toFixed(2);
-  const widthPct = Math.max((durationMs / totalMs) * 100, 0.25).toFixed(2);
-  const title = `Baseline: ${fmtMs(durationMs)} · ${prop(baselineStage, 'status') || ''}`;
-  return `<div class="timeline-ghost" style="left:calc(${offsetPct} * (100% - var(--timeline-label-gutter)) / 100);width:calc(${widthPct} * (100% - var(--timeline-label-gutter)) / 100)" title="${esc(title)}"></div>`;
+  const baselineDurationMs = prop(baselineStage, 'durationMs') || 0;
+  const baselineEndMs = offsetMs + baselineDurationMs;
+  const baselineEndPct = Math.min((baselineEndMs / totalMs) * 100, 99.5).toFixed(2);
+  const title = `Baseline end: ${fmtMs(baselineDurationMs)}`;
+  return `<span class="timeline-baseline-end-marker" style="left:calc(${baselineEndPct} * (100% - var(--timeline-label-gutter)) / 100)" title="${esc(title)}"></span>`;
+}
+
+function getComparisonState(deltaMs) {
+  if (!Number.isFinite(deltaMs) || Math.abs(deltaMs) < 1) return 'equal';
+  return deltaMs > 0 ? 'slower' : 'faster';
+}
+
+function comparisonDeltaText(deltaMs) {
+  if (!Number.isFinite(deltaMs) || Math.abs(deltaMs) < 1) return 'equal';
+  return deltaMs > 0 ? `+${fmtMs(deltaMs)}` : `B +${fmtMs(Math.abs(deltaMs))}`;
+}
+
+function comparisonDeltaLabel(deltaMs) {
+  if (!Number.isFinite(deltaMs) || Math.abs(deltaMs) < 1) return 'equal';
+  return deltaMs > 0 ? 'slower' : 'baseline slower';
+}
+
+function renderDetailTimelineComparison(stage, comparison) {
+  if (!comparison || !comparison.stageTimeline || !comparison.stageTimeline.stages) return '';
+  const baselineStage = comparison.stageTimeline.stages.get(stageKey(stage));
+  if (!baselineStage) return '';
+
+  const baselineDurationMs = prop(baselineStage, 'durationMs') || 0;
+  const currentDurationMs = stage.DurationMs || 0;
+  const deltaMs = currentDurationMs - baselineDurationMs;
+  const state = getComparisonState(deltaMs);
+  const maxDurationMs = Math.max(baselineDurationMs, currentDurationMs, 1);
+  const rulerMaxMs = Math.max(500, Math.ceil(maxDurationMs / 500) * 500);
+  const baselinePct = detailMarkerPct(baselineDurationMs, rulerMaxMs);
+  const currentPct = detailMarkerPct(currentDurationMs, rulerMaxMs);
+  const currentStateClass = state === 'equal' ? ' is-equal' : '';
+  const tickCount = Math.max(1, Math.round(rulerMaxMs / 500));
+  const ticks = Array.from({ length: tickCount + 1 }, (_, index) => index / tickCount)
+    .map(position => {
+      const tickMs = rulerMaxMs * position;
+      return `<span class="detail-compare-tick" style="left:${position * 100}%"></span><span class="detail-compare-tick-label" style="left:${position * 100}%">${esc(fmtMs(tickMs))}</span>`;
+    })
+    .join('');
+  const minorTicks = Array.from({ length: tickCount }, (_, index) => (index + 0.5) / tickCount)
+    .map(position => `<span class="detail-compare-tick is-minor" style="left:${position * 100}%"></span>`)
+    .join('');
+
+  return `<div class="detail-section full-width"><h3>Timeline comparison</h3><div class="detail-timeline-compare">`+
+    `<div class="detail-compare-ruler"><div class="detail-compare-axis"></div>${ticks}${minorTicks}`+
+    `<span class="detail-compare-marker detail-compare-b" style="left:${baselinePct}%"><span class="detail-compare-dot"></span><span class="detail-compare-pill">B</span><span class="detail-compare-value">${esc(fmtMs(baselineDurationMs))}</span></span>`+
+    `<span class="detail-compare-marker detail-compare-c${currentStateClass}" style="left:${currentPct}%"><span class="detail-compare-dot"></span><span class="detail-compare-pill">C</span><span class="detail-compare-value">${esc(fmtMs(currentDurationMs))}</span></span>`+
+    `</div><div class="detail-compare-summary"><span class="detail-compare-delta is-${state}">${esc(comparisonDeltaText(deltaMs))}</span><span class="detail-compare-summary-label">${esc(comparisonDeltaLabel(deltaMs))}</span></div>`+
+    `</div></div>`;
+}
+
+function detailMarkerPct(durationMs, rulerMaxMs) {
+  return Math.max(0, Math.min((durationMs / rulerMaxMs) * 100, 100)).toFixed(2);
 }
 
 /* ── Row click: expand workflow or show/hide detail ─────────────── */
@@ -1241,6 +1643,7 @@ function showDetail(idx) {
 
   let body = '';
   body += renderStageComparison(stage, comparison);
+  body += renderDetailTimelineComparison(stage, comparison);
 
   // HTTP request bar (full width)
   if (hasHttp) {
@@ -1264,13 +1667,8 @@ function showDetail(idx) {
   if (stage.ErrorMessage)body += kv('Error', `<span style="color:#ef4444">${esc(stage.ErrorMessage)}</span>`);
   body += `</div></div>`;
 
-  body += `<div class="detail-section"><h3>Execution</h3><div class="kv">`;
-  body += kv('Executed', statusCls(stage.Status) === 'skipped' ? 'No' : 'Yes');
-  body += kv('Start offset', fmtMs(offsetMs));
-  body += kv('Duration', fmtMs(stage.DurationMs));
-  if (latency) body += kv('Latency', `${esc(latency.Label || latency.BandName)} (${esc(latency.ProfileName)})`);
-  if (stage.RetryCount) body += kv('Retries', stage.RetryCount);
-  body += `</div></div>`;
+  const baselineTimelineStage = comparison?.stageTimeline?.stages?.get(stageKey(stage));
+  body += renderExecutionGrid(stage, offsetMs, baselineTimelineStage, latency);
 
   if (hasWorkflowResult) {
     body += `<div class="detail-section"><h3>Workflow Result</h3><div class="output-kv">`;
@@ -1281,15 +1679,7 @@ function showDetail(idx) {
   }
 
   if (hasAssertions) {
-    body += `<div class="detail-section full-width"><h3>Assertions</h3><div class="output-kv">`;
-    stage.Assertions.forEach(a => {
-      const status = `<span class="${badgeCls(a.Status)}">${esc(a.Status || '')}</span>`;
-      const blocking = a.Blocking === false ? 'non-blocking' : 'blocking';
-      const warning = a.WarningMessage ? ` Warning: ${a.WarningMessage}` : '';
-      const detail = a.Message || `${a.Operator || a.Expression || ''}`;
-      body += `<span class="out-k">${esc(a.Name || '')}</span><span class="out-v">${status} <strong>${esc(blocking)}</strong> ${esc(detail)}${esc(warning)}</span>`;
-    });
-    body += `</div></div>`;
+    body += renderAssertions(stage.Assertions);
   }
 
   // Request / Response
@@ -1358,6 +1748,61 @@ function addComparisonRow(rows, label, expected, actual) {
   rows.push(`<span class="out-k">${esc(label)}</span><span class="out-v">baseline <strong>${esc(expectedText || 'n/a')}</strong> → current <strong>${esc(actualText || 'n/a')}</strong></span>`);
 }
 
+function renderExecutionGrid(stage, offsetMs, baselineTimelineStage, latency) {
+  const currentExecuted = statusCls(stage.Status) === 'skipped' ? 'No' : 'Yes';
+  const baselineExecuted = baselineTimelineStage
+    ? (statusCls(prop(baselineTimelineStage, 'status')) === 'skipped' ? 'No' : 'Yes')
+    : null;
+  const currentStart = fmtMs(offsetMs);
+  const baselineStartMs = baselineTimelineStage ? (prop(baselineTimelineStage, 'offsetMs') || 0) : null;
+  const currentDurationMs = stage.DurationMs || 0;
+  const baselineDurationMs = baselineTimelineStage ? (prop(baselineTimelineStage, 'durationMs') || 0) : null;
+
+  let rows = '';
+  rows += executionGridRow('Executed', baselineExecuted, currentExecuted, baselineExecuted == null ? '—' : (baselineExecuted === currentExecuted ? 'same' : 'changed'), 'equal');
+  rows += executionGridRow('Start', baselineStartMs == null ? null : fmtMs(baselineStartMs), currentStart, baselineStartMs == null ? '—' : comparisonDeltaText(offsetMs - baselineStartMs), getComparisonState(offsetMs - (baselineStartMs || 0)));
+  rows += executionGridRow('Duration', baselineDurationMs == null ? null : fmtMs(baselineDurationMs), fmtMs(currentDurationMs), baselineDurationMs == null ? '—' : comparisonDeltaText(currentDurationMs - baselineDurationMs), getComparisonState(currentDurationMs - (baselineDurationMs || 0)));
+  if (latency) {
+    rows += executionGridRow('Latency', null, `${latency.Label || latency.BandName}`, latency.ProfileName || '—', 'equal');
+  }
+  if (stage.RetryCount) {
+    rows += executionGridRow('Retries', null, String(stage.RetryCount), '—', 'equal');
+  }
+
+  return `<div class="detail-section"><h3>Execution</h3><div class="execution-grid">`+
+    `<span></span><span class="head">Baseline</span><span class="head">Current</span><span class="head">Δ</span>`+
+    rows+
+    `</div></div>`;
+}
+
+function executionGridRow(metric, baseline, current, delta, state) {
+  return `<span class="metric">${esc(metric)}</span>`+
+    `<span class="value">${esc(baseline ?? '—')}</span>`+
+    `<span class="value">${esc(current ?? '—')}</span>`+
+    `<span class="delta is-${esc(state || 'equal')}">${esc(delta ?? '—')}</span>`;
+}
+
+function renderAssertions(assertions) {
+  let rows = '';
+  assertions.forEach(a => {
+    const mark = assertionStatusMark(a.Status);
+    const status = `<span class="${badgeCls(a.Status)}">${esc(a.Status || '')}</span>`;
+    const blocking = a.Blocking === false ? 'non-blocking' : 'blocking';
+    const warning = a.WarningMessage ? ` Warning: ${a.WarningMessage}` : '';
+    const detail = a.Message || a.Operator || a.Expression || '';
+    rows += `<span class="out-k">${mark} ${esc(a.Name || '')}</span><span class="out-v">${status} <strong>${esc(blocking)}</strong> ${esc(detail)}${esc(warning)}</span>`;
+  });
+
+  return `<div class="detail-section full-width"><h3>Assertions</h3><div class="output-kv">${rows}</div></div>`;
+}
+
+function assertionStatusMark(status) {
+  const normalized = String(status || '').toLowerCase();
+  if (normalized === 'passed') return '✅';
+  if (normalized === 'failed') return '❌';
+  return '';
+}
+
 function closeDetail() {
   document.getElementById('detail-panel').classList.add('hidden');
   closeDetailModal();
@@ -1377,6 +1822,27 @@ function closeDetailModal() {
 
 function backdropCloseDetailModal(event) {
   if (event.target && event.target.id === 'detail-modal-backdrop') closeDetailModal();
+}
+
+function openContextModal() {
+  document.getElementById('context-modal-backdrop').classList.remove('hidden');
+}
+
+function closeContextModal() {
+  document.getElementById('context-modal-backdrop').classList.add('hidden');
+}
+
+function backdropCloseContextModal(event) {
+  if (event.target && event.target.id === 'context-modal-backdrop') closeContextModal();
+}
+
+function toggleMetricsDetails() {
+  const chips = document.getElementById('chips');
+  const button = document.getElementById('chips-toggle');
+  if (!chips || !button) return;
+  const expanded = chips.classList.toggle('is-expanded');
+  button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  button.textContent = expanded ? 'Less metrics' : 'More metrics';
 }
 
 function syncDetailModal() {
@@ -1457,12 +1923,37 @@ document.getElementById('snapshot-file-input').addEventListener('change', functi
   this.value = '';
 });
 
+Object.assign(window, {
+  toggleTheme,
+  rowClick,
+  openDetailModal,
+  closeDetail,
+  closeDetailModal,
+  backdropCloseDetailModal,
+  openContextModal,
+  closeContextModal,
+  backdropCloseContextModal,
+  openConstellationModal,
+  closeConstellationModal,
+  backdropCloseConstellationModal,
+  toggleMetricsDetails
+});
+
+document.addEventListener('click', event => {
+  const target = event.target && event.target.closest ? event.target.closest('#chips-toggle') : null;
+  if (target) toggleMetricsDetails();
+});
+
 /* ── Boot ────────────────────────────────────────────────────────── */
 initReportPicker();
 initSnapshotPicker();
 initDetailResize();
 loadReportByIndex(_initialReportIndex);
 window.addEventListener('resize', syncTimelineLabels);
+window.addEventListener('resize', () => {
+  const modal = document.getElementById('constellation-modal-backdrop');
+  if (modal && !modal.classList.contains('hidden')) renderConstellation();
+});
 </script>
 </body>
 </html>
