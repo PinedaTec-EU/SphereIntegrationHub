@@ -58,6 +58,22 @@ dotnet tool install -g SphereIntegrationHub.Mcp.Tool
 
 NuGet packages: [CLI](https://www.nuget.org/packages/SphereIntegrationHub.Tool/) · [MCP](https://www.nuget.org/packages/SphereIntegrationHub.Mcp.Tool/)
 
+## Release integrity
+
+When publishing the npm package, the npm semver and the GitHub release tag are intentionally not identical:
+
+- npm publishes `major.minor.patch`
+- GitHub releases publish `major.minor.patch.build`
+- `npm/sphere-integration-hub/package.json` must persist that four-part release as `sihReleaseVersion`
+
+Release publication is only valid when all three checks pass:
+
+- the GitHub release tag `v<sihReleaseVersion>` exists before `npm publish`
+- the published npm package contains `sihReleaseVersion` with that exact four-part value
+- the npm postinstall regression test passes before publication
+
+The canonical release path is `./scripts/release.sh`, which enforces these checks before publishing npm.
+
 ## First run
 
 Validate a workflow without calling endpoints:

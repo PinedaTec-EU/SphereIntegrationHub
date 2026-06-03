@@ -26,7 +26,8 @@
     "sih-mcp": "./run-mcp.js"
   },
   "scripts": {
-    "postinstall": "node postinstall.js"
+    "postinstall": "node postinstall.js",
+    "test:postinstall": "node --test postinstall.test.js"
   },
   "os": [
     "linux",

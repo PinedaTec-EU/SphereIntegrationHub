@@ -58,12 +58,28 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 # ─── Prerrequisitos ───────────────────────────────────────────────────────────
 check_cmd() { command -v "$1" &>/dev/null || { echo "Error: '$1' no encontrado en PATH"; exit 1; }; }
+validate_release_version() {
+  [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+    echo "Error: la versión de release debe tener 4 partes (ej: 1.7.22.291)"
+    exit 1
+  }
+}
+
+validate_github_release() {
+  gh release view "$TAG" &>/dev/null || {
+    echo "Error: GitHub Release $TAG no existe; se aborta npm publish para no publicar un paquete roto"
+    exit 1
+  }
+}
+
 check_cmd dotnet
 check_cmd zip
 if [ "$BUILD_ONLY" = false ]; then
   check_cmd gh
   check_cmd npm
 fi
+
+validate_release_version
 
 cd "$REPO_ROOT"
 
@@ -143,12 +159,28 @@ else
   echo "  ✓ GitHub Release creado"
 fi
 
+validate_github_release
+
 # ─── npm publish ──────────────────────────────────────────────────────────────
 echo ""
 echo "▸ Publicando en npm como $NPM_VERSION..."
 
 cd "$NPM_PKG_DIR"
 npm version "$NPM_VERSION" --no-git-tag-version --allow-same-version
+npm pkg set sihReleaseVersion="$VERSION"
+ACTUAL_NPM_VERSION="$(node -p "require('./package.json').version")"
+ACTUAL_RELEASE_VERSION="$(node -p "require('./package.json').sihReleaseVersion")"
+
+if [ "$ACTUAL_NPM_VERSION" != "$NPM_VERSION" ]; then
+  echo "Error: package.json quedó con npm version '$ACTUAL_NPM_VERSION' y se esperaba '$NPM_VERSION'"
+  exit 1
+fi
+
+if [ "$ACTUAL_RELEASE_VERSION" != "$VERSION" ]; then
+  echo "Error: package.json quedó con sihReleaseVersion '$ACTUAL_RELEASE_VERSION' y se esperaba '$VERSION'"
+  exit 1
+fi
+
 npm publish --access public
 
 echo "  ✓ Publicado en npm"
