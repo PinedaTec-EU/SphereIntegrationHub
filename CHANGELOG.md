@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.7.28.299] - 2026-06-03
+## [1.7.29.300] - 2026-06-03
 
 - **Dry-run system token validation aligned with runtime offsets**:
   - Fixed a dry-run validation mismatch where `initStage.variables[].value` rejected `system` tokens with ISO 8601 duration offsets such as `{{system:datetime.utcnow - P3D}}`.
