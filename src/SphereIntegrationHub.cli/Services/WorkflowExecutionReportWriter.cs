@@ -8,6 +8,8 @@ namespace SphereIntegrationHub.Services;
 
 public sealed class WorkflowExecutionReportWriter : IWorkflowExecutionReportWriter
 {
+    private static readonly ExecutionReportHtmlRenderer HtmlRenderer = new();
+
     public async Task<WorkflowExecutionArtifacts> WriteAsync(
         WorkflowExecutionReport report,
         WorkflowDocument document,
@@ -59,6 +61,6 @@ public sealed class WorkflowExecutionReportWriter : IWorkflowExecutionReportWrit
             rawJson,
             report);
 
-        return ExecutionReportGenerator.BuildHtml([artifact], 0, appVersion);
+        return HtmlRenderer.Render([artifact], 0, appVersion);
     }
 }
