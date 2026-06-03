@@ -49,6 +49,7 @@ internal sealed class CliUsagePrinter : ICliUsagePrinter
         writer.WriteLine("  -s, --snapshot                 Snapshot path to compare against.");
         writer.WriteLine("  -o, --output                   Snapshot output path for create.");
         writer.WriteLine("  -n, --name                     Optional snapshot name. Default: workflow version.");
+        writer.WriteLine("      Note: a snapshot is derived from a report JSON, but it is not the same artifact. It removes volatile per-run metadata and keeps stable baseline signals.");
         writer.WriteLine("  Examples:");
         writer.WriteLine("    sih snapshot create ./output/my.workflow.report.json --name happy-path");
         writer.WriteLine("    sih snapshot compare ./output/new.workflow.report.json --snapshot ./snapshots/my.happy-path.workflow.snapshot.json");

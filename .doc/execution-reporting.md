@@ -83,6 +83,13 @@ sih report ./output/create-account.01J....workflow.report.json \
 
 Snapshots turn a known-good execution report into a versionable baseline for regression testing.
 
+They are derived from execution reports, but they are not the same artifact:
+
+- `*.workflow.report.json` is the full per-run execution record.
+- `*.workflow.snapshot.json` is a normalized baseline built from that report.
+- The snapshot intentionally strips volatile run metadata such as execution id, timestamps, durations, report file paths, and tool version.
+- The snapshot keeps stable regression signals: workflow identity, environment, inputs, final result, output, stage statuses, stage outputs, assertion diagnostics, selected metrics, and preflight outcome metadata.
+
 Create a snapshot from a report:
 
 ```bash
@@ -98,8 +105,6 @@ sih snapshot compare \
   ./output/create-account.01K....workflow.report.json \
   --snapshot ./snapshots/create-account.happy-path.workflow.snapshot.json
 ```
-
-The snapshot baseline intentionally ignores volatile run metadata such as execution id, timestamps, durations, report file paths, and tool version. It keeps stable regression signals: workflow identity, environment, inputs, final result, output, stage statuses, stage outputs, assertion diagnostics, selected metrics, and preflight outcome metadata.
 
 On mismatch, the command exits with `1` and prints JSON-path-like differences such as `$.output.customerId`.
 
