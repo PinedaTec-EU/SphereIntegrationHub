@@ -63,3 +63,29 @@ sih report ./output --snapshot ./snapshots --no-open
 - Repo and full docs: https://github.com/PinedaTec-EU/SphereIntegrationHub
 - Getting started: https://github.com/PinedaTec-EU/SphereIntegrationHub/blob/main/.doc/getting-started.md
 - MCP authoring quick reference: https://github.com/PinedaTec-EU/SphereIntegrationHub/blob/main/.doc/mcp-authoring-quick-reference.md
+
+## If you are an AI model or coding agent
+
+If you reached SIH through `sih-mcp`, do not stop at this npm README. The repo contains the operational detail you need to generate or validate good workflows:
+
+- MCP quick reference: https://github.com/PinedaTec-EU/SphereIntegrationHub/blob/main/.doc/mcp-authoring-quick-reference.md
+- MCP server guide: https://github.com/PinedaTec-EU/SphereIntegrationHub/blob/main/.doc/mcp-server.md
+- Workflow schema: https://github.com/PinedaTec-EU/SphereIntegrationHub/blob/main/.doc/workflow-schema.md
+- Runtime semantics: https://github.com/PinedaTec-EU/SphereIntegrationHub/blob/main/.doc/runtime-semantics.md
+- Variables and context: https://github.com/PinedaTec-EU/SphereIntegrationHub/blob/main/.doc/variables.md
+- Dry-run behavior: https://github.com/PinedaTec-EU/SphereIntegrationHub/blob/main/.doc/dry-run.md
+
+Those documents describe the runtime contract that should guide workflow generation, token usage, validation expectations, and troubleshooting.
+
+## If you are a developer
+
+If you installed the npm package to use SIH in a project or pipeline, the repo is where the full product contract lives:
+
+- Start here for onboarding: https://github.com/PinedaTec-EU/SphereIntegrationHub/blob/main/.doc/getting-started.md
+- Understand workflow authoring: https://github.com/PinedaTec-EU/SphereIntegrationHub/blob/main/.doc/workflow-schema.md
+- Understand catalog and contract validation: https://github.com/PinedaTec-EU/SphereIntegrationHub/blob/main/.doc/swagger-catalog.md
+- Understand reports and baselines: https://github.com/PinedaTec-EU/SphereIntegrationHub/blob/main/.doc/execution-reporting.md
+- Understand plugins and integrations: https://github.com/PinedaTec-EU/SphereIntegrationHub/blob/main/.doc/plugins.md
+- Browse runnable samples: https://github.com/PinedaTec-EU/SphereIntegrationHub/tree/main/samples
+
+This npm package is the delivery vehicle. The repository documentation explains how to model workflows, structure catalogs, interpret dry-run results, and integrate SIH into CI/CD or AI-assisted authoring flows.
