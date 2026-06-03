@@ -561,6 +561,11 @@ public sealed class TemplateResolver
         }
     }
 
+    public static bool IsValidSystemToken(string token)
+    {
+        return !string.IsNullOrWhiteSpace(token) && SystemTokenRegex.IsMatch(token.Trim());
+    }
+
     private ResolvedTokenValue ResolveWorkflowVarValue(string[] segments, TemplateContext context, string token)
     {
         if (segments.Length < 2)

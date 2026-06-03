@@ -199,6 +199,42 @@ public sealed class WorkflowValidatorTests
     }
 
     [Fact]
+    public void Validate_AllowsSystemOffsetTokensInInitStageVariableValues()
+    {
+        var definition = new WorkflowDefinition
+        {
+            Version = "1.0",
+            Id = "01",
+            Name = "test",
+            InitStage = new WorkflowInitStage
+            {
+                Variables = new List<WorkflowVariableDefinition>
+                {
+                    new()
+                    {
+                        Name = "startDate",
+                        Type = RandomValueType.Fixed,
+                        Value = "{{system:datetime.utcnow - P3D}}"
+                    }
+                }
+            },
+            EndStage = new WorkflowEndStage
+            {
+                Output = new Dictionary<string, string>
+                {
+                    ["startDate"] = "{{global.startDate}}"
+                }
+            }
+        };
+
+        var document = new WorkflowDocument(definition, "/tmp/test.workflow", new Dictionary<string, string>());
+        var validator = new WorkflowValidator(new WorkflowLoader());
+        var errors = validator.Validate(document);
+
+        Assert.DoesNotContain(errors, e => e.Contains("system:datetime.utcnow - P3D", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Validate_FlagsUnknownRandFunction()
     {
         var definition = new WorkflowDefinition

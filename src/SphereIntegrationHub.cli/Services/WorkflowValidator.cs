@@ -897,12 +897,7 @@ public sealed class WorkflowValidator
                     }
                     break;
                 case "system":
-                    if (segments.Length < 3 ||
-                        (!segments[1].Equals("datetime", StringComparison.OrdinalIgnoreCase) &&
-                         !segments[1].Equals("date", StringComparison.OrdinalIgnoreCase) &&
-                         !segments[1].Equals("time", StringComparison.OrdinalIgnoreCase)) ||
-                        (!segments[2].Equals("now", StringComparison.OrdinalIgnoreCase) &&
-                         !segments[2].Equals("utcnow", StringComparison.OrdinalIgnoreCase)))
+                    if (!TemplateResolver.IsValidSystemToken(token))
                     {
                         errors.Add($"Invalid token '{token}' in {location}.");
                     }
