@@ -10,6 +10,7 @@ This file is a local mirror of references only. Keep full issue content in GitHu
 - `SIB-002` - Issue [#4](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues/4) - closed - execution report hierarchy and not-executed bars are hard to read.
 - `SIB-003` - Issue [#15](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues/15) - open - prevent onStatus message leakage in parallel forEach.
 - `SIB-004` - Issue [#19](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues/19) - open - update vulnerable OpenTelemetry dependencies.
+- `SIB-005` - Issue [#20](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues/20) - open - npm installer points to missing release tag; local `1.7.25` npm artifacts include `sihReleaseVersion=1.7.25.294`, but the issue should remain open until GitHub release `v1.7.25.294` and npm publication `1.7.25` are completed.
 
 ## Roadmap backlog
 

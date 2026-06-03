@@ -2,7 +2,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <ReleaseVersion>1.7.22.293</ReleaseVersion>
+    <ReleaseVersion>1.7.25.294</ReleaseVersion>
     <AssemblyVersion>$(ReleaseVersion)</AssemblyVersion>
     <FileVersion>$(ReleaseVersion)</FileVersion>
     <Version>$(ReleaseVersion)</Version>
@@ -11,9 +11,9 @@
     <ToolCommandName>sih-mcp</ToolCommandName>
     <PackageId>SphereIntegrationHub.Mcp.Tool</PackageId>
     <PackageTitle>SphereIntegrationHub MCP Tool</PackageTitle>
-    <Description>Model Context Protocol server for SphereIntegrationHub providing AI-assisted workflow development.</Description>
+    <Description>Model Context Protocol server for AI-assisted API workflow authoring, integration testing, and OpenAPI validation with SphereIntegrationHub.</Description>
     <Authors>PinedaTec</Authors>
-    <PackageTags>mcp;dotnet-tool;ai;workflows;openapi;swagger;integration</PackageTags>
+    <PackageTags>mcp;dotnet-tool;ai;api-testing;api-integration-testing;contract-testing;openapi-validation;workflow-authoring;workflows;openapi;swagger;integration</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
   <ItemGroup>

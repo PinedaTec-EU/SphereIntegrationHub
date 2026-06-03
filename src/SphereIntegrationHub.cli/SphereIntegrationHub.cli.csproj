@@ -2,7 +2,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <ReleaseVersion>1.7.22.293</ReleaseVersion>
+    <ReleaseVersion>1.7.25.294</ReleaseVersion>
     <AssemblyVersion>$(ReleaseVersion)</AssemblyVersion>
     <FileVersion>$(ReleaseVersion)</FileVersion>
     <Version>$(ReleaseVersion)</Version>
@@ -10,9 +10,9 @@
     <ToolCommandName>sih</ToolCommandName>
     <PackageId>SphereIntegrationHub.Tool</PackageId>
     <PackageTitle>SphereIntegrationHub CLI Tool</PackageTitle>
-    <Description>CLI tool to orchestrate API calls using versioned Swagger catalogs and YAML workflows.</Description>
+    <Description>CLI tool for API integration testing, reproducible API workflows, and OpenAPI contract validation in CI/CD.</Description>
     <Authors>PinedaTec</Authors>
-    <PackageTags>cli;dotnet-tool;workflows;openapi;swagger;integration</PackageTags>
+    <PackageTags>cli;dotnet-tool;api-testing;api-integration-testing;contract-testing;openapi-validation;ci-cd;smoke-tests;workflows;openapi;swagger;integration</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
   <ItemGroup>

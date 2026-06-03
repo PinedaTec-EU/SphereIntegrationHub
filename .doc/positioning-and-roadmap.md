@@ -130,20 +130,25 @@ SphereIntegrationHub is currently strongest as a local-first API orchestration r
 - `bodyFile`, `dataFile`, and `forEach` for large payloads and collection bootstraps
 - Aggregated `forEach` result state via `foreach_results`, `foreach_success_count`, and `foreach_failed_count`
 - JSON and HTML execution reports with stage timelines and summary output
-- Interactive HTML trace report with per-stage drill-down and historical execution loading
+- Interactive HTML trace report with per-stage drill-down, historical execution loading, assertions, baseline comparison, compact metrics, and workflow graph navigation
+- Regression snapshots for known-good executions, including `sih snapshot create`, `sih snapshot compare`, visual report baselines, and `api.catalog` `baselineSnapshot` defaults
 - Versioned plugin contract with plugin-declared capabilities and non-OpenAPI `connections`
 - Built-in `http`, `openai`, and `vaultwarden` plugins
 - MCP server with 35 implemented tools across authoring and analysis workflows
 - GitHub Action support for workflow execution in CI/CD
 
+## Recently delivered
+
+1. [`SIF-001`](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues/5) - delivered in `1.7.25`: assertions and regression diagnostics on execution reports.
+2. [`SIF-002`](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues/6) - delivered in `1.7.25`: snapshot authoring, snapshot comparison, baseline loading, and visual baseline comparison in the report viewer.
+
 ## Near-term priorities
 
 Canonical backlog tracking now lives in GitHub. This document keeps local references only.
 
-1. [`SIF-001`](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues/5): add assertions and regression diagnostics on execution reports.
-2. [`SIF-002`](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues/6): support snapshot authoring and regression-testing workflows.
-3. [`SIF-003`](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues/7): package and diagnose third-party stage plugins.
-4. [`SIF-004`](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues/8): add transport-level retry controls beyond readiness policies.
+1. [`SIF-003`](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues/7): package and diagnose third-party stage plugins.
+2. [`SIF-004`](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues/8): add transport-level retry controls beyond readiness policies.
+3. [`SIB-005`](https://github.com/PinedaTec-EU/SphereIntegrationHub/issues/20): publish npm/release artifacts so the npm installer resolves a matching GitHub release tag.
 
 ## Mid-term roadmap
 

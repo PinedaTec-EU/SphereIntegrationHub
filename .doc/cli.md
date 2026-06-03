@@ -20,7 +20,7 @@ Basic options:
 
 Subcommands:
 
-- `report <path-to-json-or-dir>`: generates an interactive HTML report from one report JSON file or a directory of reports. It also loads `*.workflow.snapshot.json` files from the same directory, a sibling `snapshots/` directory, or the repo baseline declared as `api.catalog` `baselineSnapshot`.
+- `report <path-to-json-or-dir>`: generates an interactive HTML report from one report JSON file or a directory of reports. It also loads `*.workflow.snapshot.json` files from the same directory, a sibling `snapshots/` directory, an explicit `--snapshot` path, or the repo baseline declared as `api.catalog` `baselineSnapshot`.
 - `snapshot create <path-to-report-json>`: creates a stable regression snapshot from a known-good execution report.
 - `snapshot compare <path-to-report-json> --snapshot <snapshot-json>`: compares a later execution report against a stored snapshot.
 
@@ -130,7 +130,7 @@ sih report ./output \
 
 Because `api.catalog` is currently a list of catalog versions, SIH first looks for `baselineSnapshot` on the report workflow version; if none exists, it uses the first `baselineSnapshot` in the catalog as the repo default.
 
-When snapshots are present, the report viewer shows a baseline selector and a `Compare` switch enabled by default. The timeline overlays the selected snapshot as a ghost baseline while the detail panel shows per-stage differences. The UI also has a `Baseline` file button to load a snapshot from another local path.
+When snapshots are present, the report viewer shows report/baseline labels in the context row and exposes report/baseline selection from the `Context` modal. `Compare` is enabled by default. The timeline keeps the active execution as a solid bar and shows the selected baseline as a vertical timing marker over the same rail. The detail panel shows per-stage differences, a timeline comparison widget, and a compact baseline/current execution grid. The UI also has a `Load baseline JSON` action to load a snapshot from another local path.
 
 Vars file auto-detection:
 
@@ -174,6 +174,8 @@ The report contains:
 - execution metadata and result
 - stage timeline with durations
 - skipped, jumped, mocked, and failed stage states
+- assertion diagnostics and assertion metrics when workflows define assertions
+- baseline comparison data when a snapshot is selected in the viewer
 - retry counts and ensure status
 - HTTP request/response summary according to `captureHttp`
 - output values as resolved at the end of the run
@@ -211,9 +213,12 @@ sih report ./output/create-account.01J....workflow.report.json \
 
 The generated `*.workflow.report.html` is fully self-contained (no CDN dependencies) and includes:
 
-- **Header**: workflow name, execution ID, result status, and environment.
-- **Meta bar**: start time, total duration, version, stage count, and nesting depth.
-- **Metrics chips**: total, executed, failed, skipped, mocked, and retry counts.
-- **Jaeger-style timeline**: each stage is rendered as a horizontal bar positioned at its real start offset and sized proportionally to its duration. Bars are color-coded (green = ok, red = error, grey = skipped, purple = mocked) and include the HTTP method badge and workflow nesting indent.
-- **Stage detail panel**: clicking any bar shows the stage's full metadata — kind, status, HTTP method/URI/status code, request and response headers and body, ensure config, jump target, and stage output values.
-- **Load another execution**: the HTML includes a file picker to load any other `.workflow.report.json` and re-render the trace without generating a new file.
+- **Compact header**: application version, `Graph`, `Context`, `Compare`, and theme controls.
+- **Context row**: selected report execution and selected baseline snapshot.
+- **Meta bar**: start time, total duration, environment, workflow version, stage count, workflow count, depth, and result status.
+- **Summary chips**: high-signal stage, failure, assertion, and baseline-diff state, with a right-aligned `More metrics` control for detailed counts.
+- **Jaeger-style timeline**: each current stage is rendered as a solid horizontal bar positioned at its real start offset and sized proportionally to its duration. Bars are color-coded (green = ok, red = error, grey = skipped, purple = mocked) and include the HTTP method badge and workflow nesting indent.
+- **Baseline markers**: when comparison is enabled, the selected baseline snapshot is rendered as a compact vertical timing marker over the current stage rail.
+- **Workflow constellation graph**: `Graph` opens a modal with an auto-laid-out SVG of workflow/stage relationships; stage nodes jump back to the trace detail.
+- **Stage detail panel**: clicking any bar shows the stage's full metadata — kind, status, HTTP method/URI/status code, request and response headers and body, ensure config, assertions, baseline differences, timeline comparison, jump target, and output values.
+- **Context loading**: `Context` lets the user switch report executions and baseline snapshots. Report JSON and baseline snapshot JSON can also be loaded from another local path.

@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.7.25] - 2026-05-29
+
+- **Execution report baselines and regression snapshots**:
+  - Added `sih snapshot create` to turn a known-good `.workflow.report.json` artifact into a stable `.workflow.snapshot.json` baseline.
+  - Added `sih snapshot compare` for JSON-path-like regression differences between a later report and a stored snapshot.
+  - `sih report` now loads baseline snapshots from the report directory, sibling `snapshots/` directories, an explicit `--snapshot` path, or the `api.catalog` `baselineSnapshot` convention.
+  - `api.catalog` can define a repository default `baselineSnapshot`, resolved relative to the catalog file unless absolute.
+- **Interactive report baseline comparison**:
+  - The report viewer now has a `Compare` switch enabled by default when a baseline is available.
+  - Current execution timelines keep their original solid bars; baseline timing is shown as compact vertical end markers over the same rail.
+  - Stage details include baseline-vs-current differences, a centered timeline comparison widget, and a compact execution comparison grid for start time, duration, and execution state.
+  - The context selector was moved into a compact modal so report and baseline selection no longer crowd the header.
+  - A local baseline JSON can be loaded from any path in the viewer as a temporary UI override.
+- **Assertions in reports**:
+  - Execution reports now surface assertion totals in the summary metrics and assertion diagnostics in the stage detail panel.
+  - Stage assertions display passed/failed status, blocking/non-blocking behavior, and warning text when applicable.
+- **Report navigation and scalability**:
+  - Added a workflow constellation graph modal for a zoomed-out view of workflow/stage relationships, useful when executions include many API calls or nested workflows.
+  - Summary metrics were condensed to the highest-signal chips, with a right-aligned `More metrics` expander for detailed stage/plugin/assertion counts.
+  - The report header was made more compact, with report/baseline labels moved to a secondary context row.
+- **Distribution**:
+  - Prepared NuGet and npm release artifacts for `1.7.25`.
+  - Added an npm package README so the packed npm artifact includes package-level documentation.
+
 ## [1.7.20] – 2026-04-30
 
 - **Plugin system extended with named connections**:

@@ -180,7 +180,6 @@ if [ "$ACTUAL_RELEASE_VERSION" != "$VERSION" ]; then
   echo "Error: package.json quedó con sihReleaseVersion '$ACTUAL_RELEASE_VERSION' y se esperaba '$VERSION'"
   exit 1
 fi
-
 npm publish --access public
 
 echo "  ✓ Publicado en npm"

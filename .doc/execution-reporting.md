@@ -29,9 +29,11 @@ The generated HTML report is fully self-contained and focused on execution analy
 It includes:
 
 - Timeline overview of nested workflows and stage durations.
-- Status and metrics summary for executed, skipped, failed, mocked, and retried stages.
-- Stage detail panel with workflow result, resolved inputs, execution timing, assertions, and HTTP metadata.
+- Compact status and metrics summary for executed, failed, assertion, and baseline-diff state, with a right-aligned expander for detailed stage/plugin counts.
+- Stage detail panel with workflow result, resolved inputs, execution timing, assertions, baseline comparison, and HTTP metadata.
 - Execution switcher when multiple report artifacts exist in the same output folder.
+- Baseline selector, local baseline JSON loader, and compare switch when snapshots are available.
+- Workflow constellation graph for a zoomed-out view of workflow/stage relationships.
 
 ### Timeline overview
 
@@ -125,7 +127,16 @@ sih report ./output \
   definitions: []
 ```
 
-When at least one snapshot is available, the viewer shows a baseline selector and a `Compare` switch enabled by default. The selected baseline is rendered as a ghost timeline layer behind the current execution, and stage details include baseline-vs-current differences. The `Baseline` button can load a snapshot JSON from any local location as a temporary UI override.
+When at least one snapshot is available, the viewer shows the selected report and baseline in the context row, exposes report/baseline selection from the `Context` modal, and enables the `Compare` switch by default. The selected baseline is rendered as a compact vertical timing marker over the current execution rail, preserving the active execution bar while still showing where the baseline ended. Stage details include baseline-vs-current differences, a centered timeline comparison widget, and an execution comparison grid for start offset, duration, and executed state. The `Load baseline JSON` action can load a snapshot JSON from any local location as a temporary UI override.
+
+## Report UI navigation
+
+The HTML viewer is designed for reports that may include many plugin stage kinds (`HTTP`, `LLM`, custom plugins) and nested workflows.
+
+- The top summary row keeps only high-signal chips visible by default: stages, failures, assertions, and baseline diff. Use `More metrics` to expand detailed counts such as HTTP stages, workflow stages, retries, assertion failures, and warning assertions.
+- `Context` opens a modal for report execution and baseline selection, keeping the header compact.
+- `Graph` opens the workflow constellation modal. The graph uses the report's workflow name, stage order, and nesting depth to lay out a self-contained SVG. Click a stage node to jump back to its detailed trace row.
+- `Compare` toggles baseline rendering without changing the selected report or baseline.
 
 ## Reporting configuration
 

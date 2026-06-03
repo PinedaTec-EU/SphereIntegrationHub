@@ -1,11 +1,13 @@
 # Why SphereIntegrationHub (SIH)
 
-SphereIntegrationHub (SIH) is a CLI-first, YAML-driven API orchestration tool built for reproducibility, validation, and GitOps workflows. It targets teams that want deterministic, versioned API flows without building and maintaining custom code or GUI-based automations.
+SphereIntegrationHub (SIH) is a CLI-first, YAML-driven API integration testing and workflow automation tool built for reproducibility, OpenAPI validation, and GitOps workflows.
+
+It targets teams that want contract-aware API smoke tests, reproducible API workflows, and CI/CD-friendly API validation without building and maintaining custom scripts or GUI-exported automation assets.
 
 ## When SIH is a fit
 
-- You need repeatable API workflows for seeding, smoke tests, regression flows, or scripted scenarios.
-- You want contract validation against versioned OpenAPI contracts before execution.
+- You need repeatable API workflows for CI smoke tests, regression flows, environment seeding, or scripted scenarios.
+- You want API contract validation against versioned OpenAPI contracts before execution.
 - You prefer Git-friendly YAML over GUI-only or code-only pipelines.
 - You need offline execution with local caches and no external services.
 

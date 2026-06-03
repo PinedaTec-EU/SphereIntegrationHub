@@ -1,16 +1,25 @@
 {
   "name": "@pinedatec.eu/sphere-integration-hub",
-  "version": "1.7.22",
-  "sihReleaseVersion": "1.7.22.293",
-  "description": "MCP server and CLI for orchestrating API workflows without requiring .NET installed",
+  "version": "1.7.25",
+  "sihReleaseVersion": "1.7.25.294",
+  "description": "CLI and MCP server for API integration testing, reproducible API workflows, and OpenAPI contract validation in CI/CD",
   "keywords": [
+    "api-testing",
+    "api-integration-testing",
+    "contract-testing",
+    "openapi-validation",
+    "ci-cd",
+    "smoke-tests",
+    "api-workflows",
+    "workflow-automation",
+    "reproducible-workflows",
+    "yaml-workflows",
     "mcp",
     "cli",
     "workflows",
     "openapi",
     "swagger",
-    "integration",
-    "sphere"
+    "integration"
   ],
   "homepage": "https://github.com/PinedaTec-EU/SphereIntegrationHub#readme",
   "repository": {
