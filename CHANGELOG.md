@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.28.299] - 2026-06-03
+
+- **Dry-run system token validation aligned with runtime offsets**:
+  - Fixed a dry-run validation mismatch where `initStage.variables[].value` rejected `system` tokens with ISO 8601 duration offsets such as `{{system:datetime.utcnow - P3D}}`.
+  - Dry-run now accepts the same `system:<datetime|date|time>.<now|utcnow> +/- <duration>` syntax already supported by runtime template resolution.
+  - This restores the documented pattern of centralizing derived runtime dates in init-stage globals without external preprocessing.
+
 ## [1.7.25] - 2026-05-29
 
 - **Execution report baselines and regression snapshots**:
