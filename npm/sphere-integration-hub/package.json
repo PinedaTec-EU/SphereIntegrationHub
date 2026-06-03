@@ -1,7 +1,7 @@
 {
   "name": "@pinedatec.eu/sphere-integration-hub",
-  "version": "1.7.26",
-  "sihReleaseVersion": "1.7.26.295",
+  "version": "1.7.27",
+  "sihReleaseVersion": "1.7.27.297",
   "description": "CLI and MCP server for API integration testing, reproducible API workflows, and OpenAPI contract validation in CI/CD",
   "keywords": [
     "api-testing",
