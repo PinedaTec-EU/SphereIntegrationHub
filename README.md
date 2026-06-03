@@ -61,6 +61,7 @@ The runtime stays focused on API workflow orchestration. Protocol and channel be
 - [`Getting started`](.doc/getting-started.md)
 - [`Workflow runtime semantics`](.doc/runtime-semantics.md)
 - [`Workflow schema`](.doc/workflow-schema.md)
+- [`MCP authoring quick reference`](.doc/mcp-authoring-quick-reference.md)
 - [`MCP Server`](.doc/mcp-server.md)
 - [`SDK language hosts`](.doc/sdk-language-hosts.md)
 - [`Plugins`](.doc/plugins.md)
@@ -206,6 +207,7 @@ More examples and usage patterns live in [`getting-started.md`](.doc/getting-sta
 - [`Conditional expressions`](.doc/conditional-expressions.md)
 - [`OpenAPI catalog`](.doc/swagger-catalog.md)
 - [`SDK language hosts`](.doc/sdk-language-hosts.md)
+- [`MCP authoring quick reference`](.doc/mcp-authoring-quick-reference.md)
 
 ### Integrations
 

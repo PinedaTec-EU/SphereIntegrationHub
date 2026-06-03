@@ -29,6 +29,7 @@ The MCP server is **production-ready** and ships as a separate dotnet tool (`Sph
 - [Technical Architecture](#technical-architecture)
 - [Usage Examples](#usage-examples)
 - [Getting Started](#getting-started)
+- [MCP Authoring Quick Reference](#mcp-authoring-quick-reference)
 - [Configuration Examples](#configuration-examples)
 - [Verifying the Setup](#verifying-the-setup)
 
@@ -419,7 +420,7 @@ New runtime authoring features exposed through MCP:
           "endpoint": "GET /api/organizations",
           "httpVerb": "GET",
           "apiName": "accounts",
-          "responseField": "items[0].id",
+          "responseField": "items.0.id",
           "confidence": 0.95,
           "reasoning": "Field name match + type match (uuid)"
         },
@@ -1146,7 +1147,7 @@ If advanced services fail (e.g., semantic analyzer), MCP falls back to basic too
 
       e. Data Flow Synthesis
          - Adds bindings: {{stage:auth.output.token}}
-         - Adds bindings: {{stage:search.output.rooms[0].id}}
+         - Adds bindings: {{stage:search.output.rooms.0.id}}
          - Adds bindings: {{stage:booking.output.id}}
 
       f. Resilience Configuration
@@ -1305,7 +1306,7 @@ After opening the project (or saving manual configuration), restart or reload th
 
 1. **Launch** the MCP server process (`dotnet run ...`)
 2. **Connect** via stdio (JSON-RPC 2.0 over stdin/stdout)
-3. **Discover** the 26 available tools by calling `tools/list`
+3. **Discover** the 35 available tools by calling `tools/list`
 4. **Incorporate** them as native tools alongside its built-in capabilities
 
 ### Step 4 - Start talking naturally
@@ -1318,6 +1319,20 @@ No special syntax. Just ask your AI assistant what you need:
 > *"Build a complete hotel booking system with search, reservation, and payment"*
 
 The agent decides which MCP tools to call and when. You don't invoke them directly.
+
+## MCP Authoring Quick Reference
+
+When the assistant needs a short answer instead of a long explanation, use [`mcp-authoring-quick-reference.md`](mcp-authoring-quick-reference.md).
+
+It covers:
+
+- canonical token syntax
+- array indexing syntax such as `items.0.id`
+- common `response`, `stage`, `env`, and `var` patterns
+- safe navigation with `?`
+- the most common first-run mistakes
+
+Use the quick reference for immediate authoring doubts. Use the rest of this page and the runtime docs when you need broader behavior, full tool coverage, or advanced branching semantics.
 
 ### How it works under the hood
 

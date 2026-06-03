@@ -17,6 +17,7 @@ Use this page as the documentation entry point. The root `README.md` stays inten
 
 ## Workflow authoring
 
+- [`mcp-authoring-quick-reference.md`](mcp-authoring-quick-reference.md)
 - [`workflow-schema.md`](workflow-schema.md)
 - [`variables.md`](variables.md)
 - [`conditional-expressions.md`](conditional-expressions.md)
