@@ -307,9 +307,9 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
         <select class="snapshot-picker hidden" id="snapshot-picker" title="Select baseline snapshot"></select>
       </div>
       <div class="context-actions">
-        <label for="file-input" class="btn">&#128193; Load report JSON</label>
+        <button type="button" class="btn" id="load-report-button">&#128193; Load report JSON</button>
         <input type="file" id="file-input" accept=".json">
-        <label for="snapshot-file-input" class="btn" title="Load baseline snapshot JSON">&#128452; Load baseline JSON</label>
+        <button type="button" class="btn" id="load-baseline-button" title="Load baseline snapshot JSON">&#128452; Load baseline JSON</button>
         <input type="file" id="snapshot-file-input" accept=".json">
       </div>
     </div>
@@ -371,6 +371,10 @@ let _detailResizeState = null;
 let _snapshot = null;
 let _snapshotEntry = null;
 let _comparisonEnabled = true;
+let _activeReportEntry = null;
+let _activeReportPickerHandle = null;
+let _lastReportPickerHandle = null;
+let _lastSnapshotPickerHandle = null;
 
 /* ── Theme ───────────────────────────────────────────────────────── */
 function applyTheme(dark) {
@@ -455,6 +459,108 @@ function uriPath(uri) {
   if (!uri) return '';
   try { const u = new URL(uri); return u.pathname + (u.search || ''); }
   catch { return uri.length > 60 ? uri.slice(0,60)+'…' : uri; }
+}
+function pathDirectory(path) {
+  if (!path) return '';
+  const normalized = String(path).replace(/\\/g, '/').replace(/\/+$/g, '');
+  const index = normalized.lastIndexOf('/');
+  return index > 0 ? normalized.slice(0, index) : '';
+}
+function pickerId(kind, path) {
+  const directory = pathDirectory(path);
+  if (!directory) return `sih-${kind}-picker`;
+  const key = directory.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return `sih-${kind}-${key || 'picker'}`.slice(0, 96);
+}
+function currentReportEntry() {
+  return _activeReportEntry;
+}
+function currentReportPath() {
+  return currentReportEntry()?.path || '';
+}
+function setActiveReportEntry(entry, fileHandle) {
+  _activeReportEntry = entry || null;
+  _activeReportPickerHandle = fileHandle || null;
+  if (fileHandle) {
+    _lastReportPickerHandle = fileHandle;
+  }
+}
+function supportedPickerOptions(kind) {
+  const options = {
+    excludeAcceptAllOption: false,
+    id: pickerId(kind, currentReportPath()),
+    multiple: false,
+    types: [
+      {
+        description: 'JSON files',
+        accept: {
+          'application/json': ['.json']
+        }
+      }
+    ]
+  };
+
+  const preferredHandle = _activeReportPickerHandle
+    || (kind === 'snapshot' ? _lastSnapshotPickerHandle : null)
+    || _lastReportPickerHandle;
+  if (preferredHandle) {
+    options.startIn = preferredHandle;
+  }
+
+  return options;
+}
+function createReportEntryFromJson(path, fileName, reportJson) {
+  return {
+    path: path || fileName || '',
+    fileName: fileName || path || 'Execution',
+    executionId: reportJson.ExecutionId || reportJson.executionId || '',
+    workflowName: reportJson.WorkflowName || reportJson.workflowName || '',
+    result: reportJson.Result || reportJson.result || '',
+    startedAtUtc: reportJson.StartedAtUtc || reportJson.startedAtUtc || '',
+    toolVersion: reportJson.ToolVersion || reportJson.toolVersion || '',
+    json: reportJson
+  };
+}
+async function loadReportFromFile(file, fileHandle) {
+  const text = await file.text();
+  const reportJson = JSON.parse(text);
+  const entry = createReportEntryFromJson(fileHandle?.name || file.name, file.name, reportJson);
+  setActiveReportEntry(entry, fileHandle || null);
+  render(reportJson);
+  updateVersionBadge(entry.toolVersion);
+}
+async function loadSnapshotFromFile(file, fileHandle) {
+  const text = await file.text();
+  const snapshot = JSON.parse(text);
+  if (!(snapshot.Baseline || snapshot.baseline)) {
+    throw new Error('missing Baseline.');
+  }
+  if (fileHandle) {
+    _lastSnapshotPickerHandle = fileHandle;
+  }
+  addSnapshotFromFile(file, snapshot, fileHandle);
+}
+async function pickAndLoadJson(kind) {
+  if (typeof window.showOpenFilePicker !== 'function') {
+    const input = document.getElementById(kind === 'report' ? 'file-input' : 'snapshot-file-input');
+    if (input) input.click();
+    return;
+  }
+
+  try {
+    const [fileHandle] = await window.showOpenFilePicker(supportedPickerOptions(kind));
+    if (!fileHandle) return;
+    const file = await fileHandle.getFile();
+    if (kind === 'report') {
+      await loadReportFromFile(file, fileHandle);
+    } else {
+      await loadSnapshotFromFile(file, fileHandle);
+    }
+  }
+  catch (err) {
+    if (err && err.name === 'AbortError') return;
+    alert(`Could not load ${kind === 'report' ? 'report' : 'baseline'} JSON: ${err.message}`);
+  }
 }
 function tryPrettyJson(s) {
   if (!s) return '';
@@ -715,6 +821,7 @@ function loadReportByIndex(index) {
   if (!entry) return;
   const picker = document.getElementById('report-picker');
   if (picker) picker.value = String(safeIndex);
+  setActiveReportEntry(entry, null);
   render(entry.json);
   updateVersionBadge(entry.toolVersion);
 }
@@ -798,9 +905,9 @@ function refreshSnapshotPicker(selectedIndex) {
   updateContextSummary();
 }
 
-function addSnapshotFromFile(file, snapshotJson) {
+function addSnapshotFromFile(file, snapshotJson, fileHandle) {
   const entry = {
-    path: file.name,
+    path: fileHandle?.name || file.name,
     fileName: file.name,
     name: snapshotJson.Name || snapshotJson.name || file.name,
     sourceExecutionId: snapshotJson.SourceExecutionId || snapshotJson.sourceExecutionId || '',
@@ -816,11 +923,8 @@ function addSnapshotFromFile(file, snapshotJson) {
 function updateContextSummary() {
   const reportLabel = document.getElementById('context-report-label');
   const baselineLabel = document.getElementById('context-baseline-label');
-  const reportPicker = document.getElementById('report-picker');
-  const snapshotPicker = document.getElementById('snapshot-picker');
   if (reportLabel) {
-    const reportIndex = reportPicker && reportPicker.value !== '' ? Number(reportPicker.value) : -1;
-    const entry = reportIndex >= 0 ? _reports[reportIndex] : null;
+    const entry = currentReportEntry();
     reportLabel.textContent = entry ? compactReportLabel(entry) : 'None';
   }
   if (baselineLabel) {
@@ -1562,35 +1666,25 @@ function initDetailResize() {
 document.getElementById('file-input').addEventListener('change', function(e) {
   const file = e.target.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    try {
-      _report = null;
-      render(JSON.parse(ev.target.result));
-    }
-    catch(err) { alert('Invalid JSON: ' + err.message); }
-  };
-  reader.readAsText(file);
+  loadReportFromFile(file, null)
+    .catch(err => alert('Invalid JSON: ' + err.message));
   this.value = '';
 });
 
 document.getElementById('snapshot-file-input').addEventListener('change', function(e) {
   const file = e.target.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    try {
-      const snapshot = JSON.parse(ev.target.result);
-      if (!(snapshot.Baseline || snapshot.baseline)) {
-        alert('Invalid snapshot JSON: missing Baseline.');
-        return;
-      }
-      addSnapshotFromFile(file, snapshot);
-    }
-    catch(err) { alert('Invalid snapshot JSON: ' + err.message); }
-  };
-  reader.readAsText(file);
+  loadSnapshotFromFile(file, null)
+    .catch(err => alert('Invalid snapshot JSON: ' + err.message));
   this.value = '';
+});
+
+document.getElementById('load-report-button').addEventListener('click', () => {
+  pickAndLoadJson('report');
+});
+
+document.getElementById('load-baseline-button').addEventListener('click', () => {
+  pickAndLoadJson('snapshot');
 });
 
 Object.assign(window, {

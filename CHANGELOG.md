@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.30.302] - 2026-06-04
+
+- **Context picker now reuses the active report context more consistently**:
+  - The execution report viewer tracks the active report entry even when a report JSON is loaded manually from the Context modal.
+  - Context actions now use the File System Access picker when available, reusing the active report file handle as the preferred `startIn` location for both report and baseline selection.
+  - Browsers without `showOpenFilePicker` support keep the existing hidden file-input fallback.
+
 ## [1.7.30.301] - 2026-06-03
 
 - **Response-body diagnostics now distinguish missing JSON paths from non-JSON bodies**:

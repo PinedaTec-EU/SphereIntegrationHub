@@ -302,6 +302,12 @@ public sealed class ExecutionReportGeneratorTests
         Assert.Contains("context-modal-backdrop", html, StringComparison.Ordinal);
         Assert.Contains("openContextModal", html, StringComparison.Ordinal);
         Assert.Contains("updateContextSummary", html, StringComparison.Ordinal);
+        Assert.Contains("load-report-button", html, StringComparison.Ordinal);
+        Assert.Contains("load-baseline-button", html, StringComparison.Ordinal);
+        Assert.Contains("showOpenFilePicker", html, StringComparison.Ordinal);
+        Assert.Contains("supportedPickerOptions", html, StringComparison.Ordinal);
+        Assert.Contains("setActiveReportEntry", html, StringComparison.Ordinal);
+        Assert.Contains("currentReportEntry()", html, StringComparison.Ordinal);
         Assert.Contains("constellation-modal-backdrop", html, StringComparison.Ordinal);
         Assert.Contains("openConstellationModal", html, StringComparison.Ordinal);
         Assert.Contains("renderConstellation", html, StringComparison.Ordinal);
