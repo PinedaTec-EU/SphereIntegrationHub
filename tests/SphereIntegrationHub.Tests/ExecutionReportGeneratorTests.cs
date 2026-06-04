@@ -309,6 +309,10 @@ public sealed class ExecutionReportGeneratorTests
         Assert.Contains("Workflow constellation", html, StringComparison.Ordinal);
         Assert.Contains("compare-toggle", html, StringComparison.Ordinal);
         Assert.Contains("compare-switch", html, StringComparison.Ordinal);
+        Assert.Contains("generate-baseline-button", html, StringComparison.Ordinal);
+        Assert.Contains("function generateBaseline()", html, StringComparison.Ordinal);
+        Assert.Contains("configureBaselineInCatalog", html, StringComparison.Ordinal);
+        Assert.Contains("updateCatalogBaselineSnapshot", html, StringComparison.Ordinal);
         Assert.Contains("chips-details", html, StringComparison.Ordinal);
         Assert.Contains("More metrics", html, StringComparison.Ordinal);
         Assert.Contains("toggleMetricsDetails", html, StringComparison.Ordinal);
@@ -320,6 +324,7 @@ public sealed class ExecutionReportGeneratorTests
         Assert.Contains("execution-grid", html, StringComparison.Ordinal);
         Assert.Contains("renderExecutionGrid", html, StringComparison.Ordinal);
         Assert.Contains("Object.assign(window", html, StringComparison.Ordinal);
+        Assert.Contains("\"snapshotJson\":", html, StringComparison.Ordinal);
     }
 
     [Fact]

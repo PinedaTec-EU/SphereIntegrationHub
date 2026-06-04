@@ -4,6 +4,8 @@ namespace SphereIntegrationHub.Services;
 
 internal sealed class ExecutionReportHtmlRenderer
 {
+    private static readonly WorkflowExecutionSnapshotService SnapshotService = new();
+
     public string Render(
         IReadOnlyList<ExecutionReportHtmlArtifact> reports,
         int initialReportIndex,
@@ -39,6 +41,7 @@ internal sealed class ExecutionReportHtmlRenderer
             result = report.Report.Result,
             startedAtUtc = report.Report.StartedAtUtc,
             toolVersion = report.Report.ToolVersion,
+            snapshotJson = SnapshotService.CreateSnapshot(report.Report),
             json = JsonSerializer.Deserialize<JsonElement>(report.RawJson)
         }));
     }

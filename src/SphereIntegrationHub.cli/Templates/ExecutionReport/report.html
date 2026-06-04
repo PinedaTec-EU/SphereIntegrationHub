@@ -281,6 +281,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
   <span class="version-badge hidden" id="version-badge" title="This output was generated with a different tool version"></span>
   <button class="btn" id="constellation-open-button" onclick="openConstellationModal()" title="Open workflow constellation">Graph</button>
   <button class="btn" id="context-open-button" onclick="openContextModal()" title="Select execution and baseline">&#9881; Context</button>
+  <button class="btn" id="generate-baseline-button" onclick="generateBaseline()" title="Generate a baseline snapshot from the open report">&#128190; Generate baseline</button>
   <label class="compare-toggle hidden" id="compare-toggle-label" title="Toggle baseline comparison"><input type="checkbox" id="compare-toggle" checked><span class="compare-switch" aria-hidden="true"></span><span>Compare</span></label>
   <button class="btn btn-icon" id="theme-toggle" title="Toggle dark/light mode" onclick="toggleTheme()">🌙</button>
 </div>
@@ -311,6 +312,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFo
         <input type="file" id="file-input" accept=".json">
         <label for="snapshot-file-input" class="btn" title="Load baseline snapshot JSON">&#128452; Load baseline JSON</label>
         <input type="file" id="snapshot-file-input" accept=".json">
+        <input type="file" id="catalog-file-input" accept=".catalog,.yaml,.yml" class="hidden">
       </div>
     </div>
   </div>
@@ -371,6 +373,7 @@ let _detailResizeState = null;
 let _snapshot = null;
 let _snapshotEntry = null;
 let _comparisonEnabled = true;
+let _reportEntry = null;
 
 /* ── Theme ───────────────────────────────────────────────────────── */
 function applyTheme(dark) {
@@ -713,6 +716,7 @@ function loadReportByIndex(index) {
   const safeIndex = Math.max(0, Math.min(index, _reports.length - 1));
   const entry = _reports[safeIndex];
   if (!entry) return;
+  _reportEntry = entry;
   const picker = document.getElementById('report-picker');
   if (picker) picker.value = String(safeIndex);
   render(entry.json);
@@ -813,6 +817,22 @@ function addSnapshotFromFile(file, snapshotJson) {
   refreshSnapshotPicker(_snapshots.length - 1);
 }
 
+function addGeneratedSnapshot(path, snapshotJson) {
+  const fileName = String(path || defaultSnapshotFileName(_report, snapshotJson));
+  const entry = {
+    path: fileName,
+    fileName,
+    name: snapshotJson.Name || snapshotJson.name || fileName,
+    sourceExecutionId: snapshotJson.SourceExecutionId || snapshotJson.sourceExecutionId || '',
+    workflowName: snapshotJson.WorkflowName || snapshotJson.workflowName || '',
+    workflowVersion: snapshotJson.WorkflowVersion || snapshotJson.workflowVersion || '',
+    environment: snapshotJson.Environment || snapshotJson.environment || '',
+    json: snapshotJson
+  };
+  _snapshots.push(entry);
+  refreshSnapshotPicker(_snapshots.length - 1);
+}
+
 function updateContextSummary() {
   const reportLabel = document.getElementById('context-report-label');
   const baselineLabel = document.getElementById('context-baseline-label');
@@ -843,6 +863,294 @@ function compactSnapshotLabel(entry) {
   const name = entry.name || entry.fileName || 'Snapshot';
   const workflow = entry.workflowName || 'Workflow';
   return `${name} · ${workflow}`;
+}
+
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function sanitizePathSegment(value) {
+  const text = String(value || '')
+    .trim()
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '-')
+    .replace(/\s+/g, '-');
+  return text || 'snapshot';
+}
+
+function sortDictionary(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.keys(value)
+    .sort((a, b) => a.localeCompare(b))
+    .reduce((acc, key) => {
+      acc[key] = value[key];
+      return acc;
+    }, {});
+}
+
+function buildSnapshotFromReport(report) {
+  if (!report) throw new Error('No open report is available.');
+
+  const entry = _reportEntry;
+  if (entry && entry.snapshotJson) {
+    return cloneJson(entry.snapshotJson);
+  }
+
+  const name = String(report.WorkflowVersion || 'snapshot');
+  const startedAtUtc = report.StartedAtUtc || new Date().toISOString();
+  const reportStart = new Date(startedAtUtc);
+  return {
+    SnapshotSchemaVersion: '1.0',
+    Name: name,
+    CreatedAtUtc: new Date().toISOString(),
+    SourceExecutionId: report.ExecutionId || '',
+    WorkflowName: report.WorkflowName || '',
+    WorkflowId: report.WorkflowId || '',
+    WorkflowVersion: report.WorkflowVersion || '',
+    Environment: report.Environment || '',
+    Timeline: {
+      DurationMs: report.DurationMs || 0,
+      Stages: (report.Stages || []).map(stage => ({
+        WorkflowName: stage.WorkflowName,
+        StageName: stage.StageName,
+        StageKind: stage.StageKind,
+        Depth: stage.Depth || 0,
+        Status: stage.Status,
+        HttpStatusCode: stage.HttpStatusCode,
+        OffsetMs: Math.max(0, new Date(stage.StartedAtUtc || startedAtUtc).getTime() - reportStart.getTime()),
+        DurationMs: stage.DurationMs || 0
+      }))
+    },
+    Baseline: {
+      workflow: {
+        WorkflowName: report.WorkflowName,
+        WorkflowId: report.WorkflowId,
+        WorkflowVersion: report.WorkflowVersion,
+        Environment: report.Environment,
+        Mocked: !!report.Mocked,
+        DryRun: !!report.DryRun
+      },
+      inputs: sortDictionary(report.Inputs || {}),
+      result: report.Result,
+      output: sortDictionary(report.Output || {}),
+      metrics: {
+        TotalStages: report.Metrics?.TotalStages || 0,
+        ExecutedStages: report.Metrics?.ExecutedStages || 0,
+        SkippedStages: report.Metrics?.SkippedStages || 0,
+        FailedStages: report.Metrics?.FailedStages || 0,
+        MockedStages: report.Metrics?.MockedStages || 0,
+        HttpStages: report.Metrics?.HttpStages || 0,
+        WorkflowStages: report.Metrics?.WorkflowStages || 0,
+        JumpedStages: report.Metrics?.JumpedStages || 0,
+        TotalAssertions: report.Metrics?.TotalAssertions || 0,
+        PassedAssertions: report.Metrics?.PassedAssertions || 0,
+        FailedAssertions: report.Metrics?.FailedAssertions || 0,
+        WarningAssertions: report.Metrics?.WarningAssertions || 0
+      },
+      stages: (report.Stages || []).map(stage => ({
+        WorkflowName: stage.WorkflowName,
+        StageName: stage.StageName,
+        StageKind: stage.StageKind,
+        Depth: stage.Depth || 0,
+        Status: stage.Status,
+        Mocked: !!stage.Mocked,
+        HttpStatusCode: stage.HttpStatusCode,
+        EnsureMode: stage.EnsureMode,
+        EnsureStatus: stage.EnsureStatus,
+        output: sortDictionary(stage.Output || {}),
+        workflowOutput: sortDictionary(stage.WorkflowOutput || {}),
+        assertions: (stage.Assertions || []).map(canonicalAssertion)
+      })),
+      assertions: (report.Assertions || []).map(canonicalAssertion),
+      preflight: ((report.Preflight && report.Preflight.Operations) || []).map(operation => ({
+        OperationType: operation.OperationType,
+        DefinitionName: operation.DefinitionName,
+        Target: operation.Target,
+        Status: operation.Status,
+        Message: operation.Message,
+        RetryCount: operation.RetryCount,
+        attempts: (operation.Attempts || []).map(attempt => ({
+          AttemptNumber: attempt.AttemptNumber,
+          RequestUri: attempt.RequestUri,
+          Status: attempt.Status,
+          HttpStatusCode: attempt.HttpStatusCode,
+          ErrorMessage: attempt.ErrorMessage
+        }))
+      }))
+    }
+  };
+}
+
+function defaultSnapshotFileName(report, snapshot) {
+  const workflow = sanitizePathSegment(report?.WorkflowName || snapshot?.WorkflowName || 'workflow');
+  const name = sanitizePathSegment(snapshot?.Name || report?.WorkflowVersion || 'snapshot');
+  return `${workflow}.${name}.workflow.snapshot.json`;
+}
+
+async function saveTextFile(content, suggestedName) {
+  if (window.showSaveFilePicker) {
+    const handle = await window.showSaveFilePicker({
+      suggestedName,
+      types: [{
+        description: 'Workflow snapshot JSON',
+        accept: { 'application/json': ['.json'] }
+      }]
+    });
+    const writable = await handle.createWritable();
+    await writable.write(content);
+    await writable.close();
+    return { fileName: handle.name || suggestedName, exactSave: true };
+  }
+
+  const blob = new Blob([content], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = suggestedName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return { fileName: suggestedName, exactSave: false };
+}
+
+async function generateBaseline() {
+  if (!_report) {
+    alert('No open report is available to convert into a baseline.');
+    return;
+  }
+
+  try {
+    const snapshot = buildSnapshotFromReport(_report);
+    const suggestedName = defaultSnapshotFileName(_report, snapshot);
+    const saveResult = await saveTextFile(`${JSON.stringify(snapshot, null, 2)}\n`, suggestedName);
+    addGeneratedSnapshot(saveResult.fileName, snapshot);
+
+    const promptMessage = saveResult.exactSave
+      ? `Baseline saved as ${saveResult.fileName}. Configure it in api.catalog now?`
+      : `Baseline download started as ${saveResult.fileName}. Configure it in api.catalog now?`;
+    if (window.confirm(promptMessage)) {
+      await configureBaselineInCatalog(saveResult.fileName);
+    }
+  } catch (err) {
+    alert(`Could not generate baseline: ${err.message}`);
+  }
+}
+
+function yamlString(value) {
+  return JSON.stringify(String(value));
+}
+
+function parseYamlScalar(value) {
+  const text = String(value || '').trim();
+  if ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'"))) {
+    return text.slice(1, -1);
+  }
+  return text;
+}
+
+function updateCatalogBaselineSnapshot(catalogText, version, baselinePath) {
+  const versionBlocks = [...catalogText.matchAll(/^- version:[^\n]*$/gm)];
+  if (versionBlocks.length === 0) {
+    throw new Error('The selected file does not look like an api.catalog YAML file.');
+  }
+
+  const normalizedVersion = String(version || '').trim();
+  for (let index = 0; index < versionBlocks.length; index++) {
+    const start = versionBlocks[index].index;
+    const end = index + 1 < versionBlocks.length ? versionBlocks[index + 1].index : catalogText.length;
+    const block = catalogText.slice(start, end);
+    const versionLine = block.match(/^- version:\s*(.+)\s*$/m);
+    if (!versionLine) continue;
+    if (parseYamlScalar(versionLine[1]) !== normalizedVersion) continue;
+
+    const nextBlock = /^  baselineSnapshot:/m.test(block)
+      ? block.replace(/^  baselineSnapshot:.*$/m, `  baselineSnapshot: ${yamlString(baselinePath)}`)
+      : block.replace(/^- version:[^\n]*\n/, match => `${match}  baselineSnapshot: ${yamlString(baselinePath)}\n`);
+
+    return `${catalogText.slice(0, start)}${nextBlock}${catalogText.slice(end)}`;
+  }
+
+  throw new Error(`api.catalog does not contain a version entry for ${normalizedVersion}.`);
+}
+
+function chooseCatalogBaselinePath(savedFileName) {
+  const suggested = `./snapshots/${savedFileName}`;
+  const value = window.prompt(
+    'Enter the baselineSnapshot path to write into api.catalog. Use a path relative to the catalog file when possible.',
+    suggested);
+  return value == null ? null : value.trim();
+}
+
+async function pickCatalogFile() {
+  if (window.showOpenFilePicker) {
+    const [handle] = await window.showOpenFilePicker({
+      multiple: false,
+      types: [{
+        description: 'API catalog YAML',
+        accept: { 'application/yaml': ['.catalog', '.yaml', '.yml'], 'text/yaml': ['.catalog', '.yaml', '.yml'] }
+      }]
+    });
+    const file = await handle.getFile();
+    return {
+      name: file.name,
+      text: await file.text(),
+      async write(content) {
+        const writable = await handle.createWritable();
+        await writable.write(content);
+        await writable.close();
+      }
+    };
+  }
+
+  const input = document.getElementById('catalog-file-input');
+  if (!input) throw new Error('Catalog file picker is not available.');
+
+  return await new Promise((resolve, reject) => {
+    input.value = '';
+    input.onchange = async event => {
+      try {
+        const file = event.target.files && event.target.files[0];
+        if (!file) {
+          resolve(null);
+          return;
+        }
+        resolve({
+          name: file.name,
+          text: await file.text(),
+          async write(content) {
+            const blob = new Blob([content], { type: 'application/yaml' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = file.name;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+          }
+        });
+      } catch (err) {
+        reject(err);
+      }
+    };
+    input.click();
+  });
+}
+
+async function configureBaselineInCatalog(savedFileName) {
+  if (!_report || !_report.WorkflowVersion) {
+    throw new Error('The open report does not declare WorkflowVersion, so the matching catalog entry cannot be resolved.');
+  }
+
+  const baselinePath = chooseCatalogBaselinePath(savedFileName);
+  if (!baselinePath) return;
+
+  const catalog = await pickCatalogFile();
+  if (!catalog) return;
+
+  const updatedCatalog = updateCatalogBaselineSnapshot(catalog.text, _report.WorkflowVersion, baselinePath);
+  await catalog.write(updatedCatalog);
+  alert(`Updated ${catalog.name} with baselineSnapshot ${baselinePath} for version ${_report.WorkflowVersion}.`);
 }
 
 /* ── Workflow constellation ──────────────────────────────────────── */
@@ -1566,6 +1874,7 @@ document.getElementById('file-input').addEventListener('change', function(e) {
   reader.onload = ev => {
     try {
       _report = null;
+      _reportEntry = null;
       render(JSON.parse(ev.target.result));
     }
     catch(err) { alert('Invalid JSON: ' + err.message); }
@@ -1606,7 +1915,8 @@ Object.assign(window, {
   openConstellationModal,
   closeConstellationModal,
   backdropCloseConstellationModal,
-  toggleMetricsDetails
+  toggleMetricsDetails,
+  generateBaseline
 });
 
 document.addEventListener('click', event => {
