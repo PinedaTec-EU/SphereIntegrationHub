@@ -36,6 +36,19 @@ public sealed class WorkflowExecutionSnapshotService
         return new WorkflowSnapshotCreateResult(outputPath, snapshot.Name, report.ExecutionId);
     }
 
+    public WorkflowExecutionSnapshot CreateSnapshot(
+        WorkflowExecutionReport report,
+        string? snapshotName = null)
+    {
+        ArgumentNullException.ThrowIfNull(report);
+
+        var name = string.IsNullOrWhiteSpace(snapshotName)
+            ? report.WorkflowVersion
+            : snapshotName.Trim();
+
+        return BuildSnapshot(report, name);
+    }
+
     public async Task<WorkflowSnapshotComparisonResult> CompareAsync(
         string executionReportPath,
         string snapshotPath,
