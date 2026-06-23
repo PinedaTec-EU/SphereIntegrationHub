@@ -49,6 +49,196 @@ Start the MCP server:
 sih-mcp
 ```
 
+## Minimum project shape
+
+For normal SIH usage, keep these files together:
+
+- `*.workflow`: the main YAML workflow definition.
+- `*.wfvars` (optional): input values passed to the workflow.
+- `workflows.config` (optional but recommended): plugin activation, reporting defaults, secret providers, and runtime defaults.
+
+Typical layout:
+
+```text
+./workflows.config
+./workflows/create-account.workflow
+./workflows/create-account.wfvars
+```
+
+Minimum `workflows.config` for normal HTTP workflows:
+
+```yaml
+plugins:
+  - http
+```
+
+## Compact workflow contract
+
+This is the minimum schema an agent or developer should assume when authoring SIH workflows from the npm package alone.
+
+### Top-level fields
+
+- `version` (required): catalog version to validate against.
+- `id` (required): workflow ULID.
+- `name` (required): workflow name.
+- `description` (optional): human description.
+- `output` (optional bool): whether to write `{name}.{executionId}.workflow.output`.
+- `references` (optional): external API/workflow references and optional `environmentFile`.
+- `input` (optional): declared workflow inputs.
+- `initStage` (optional): initial globals and shared context.
+- `vars` (optional): lazily evaluated derived variables addressable as `{{var:name}}`.
+- `resilience` (optional): reusable retry/circuit-breaker policies.
+- `stages` (required in practice): workflow stages.
+- `endStage` (optional): final output, context updates, and assertions.
+
+### Canonical token syntax
+
+- Inputs: `{{input.username}}`
+- Globals: `{{global.accountId}}`
+- Context: `{{context.tokenId}}`
+- Environment variables: `{{env:API_BASE_URL}}`
+- Derived vars: `{{var:subscriptionId}}`
+- Endpoint status: `{{response.status}}`
+- Endpoint body: `{{response.body}}`
+- Endpoint body field: `{{response.body.account.id}}`
+- Response header: `{{response.headers.Authorization}}`
+- Stage output: `{{stage:create-account.output.accountId}}`
+- Child workflow output: `{{stage:child.workflow.output.accountId}}`
+- Child workflow result: `{{stage:child.workflow.result.status}}`
+
+Rules that matter:
+
+- Use `{{ ... }}` syntax everywhere.
+- Arrays use dot notation, not brackets: `{{response.body.items.0.id}}`.
+- `response.*` tokens are valid only inside `Endpoint` stages.
+- Use safe navigation with `?` when a segment may be missing: `{{response.body.account.status?}}`.
+
+### Common helpers
+
+Use these in expressions such as `runIf`:
+
+- `exists({{stage:create.output.accountId}})`
+- `empty({{input.optionalValue}})`
+- `coalesce({{stage:a.output.id}}, {{stage:b.output.id}}, 'pending')`
+- `jsonLength({{response.body.items}}) > 0`
+- `!isEmptyJson({{response.body}})`
+
+Use these in template values:
+
+- `{{coalesce(stage:create.output.accountId, stage:lookup.output.accountId)}}`
+- `{{rand:guid()}}`
+- `{{rand:number(1,25)}}`
+- `{{system:date.utcnow + P7D}}`
+
+### Endpoint stage shape
+
+For direct API calls, the normal happy-path stage is:
+
+```yaml
+stages:
+  - name: "create-account"
+    kind: "Endpoint"
+    apiRef: "accounts"
+    endpoint: "/api/accounts"
+    httpVerb: "POST"
+    expectedStatus: 201
+    headers:
+      Authorization: "Bearer {{env:API_TOKEN}}"
+    body: |
+      {
+        "email": "{{input.email}}",
+        "name": "{{input.name}}"
+      }
+    output:
+      accountId: "{{response.body.id}}"
+      accountStatus: "{{response.body.status?}}"
+    assertions:
+      - name: "account id returned"
+        actual: "{{stage:create-account.output.accountId}}"
+        operator: "notEmpty"
+```
+
+Common stage fields:
+
+- `expectedStatus` or `expectedStatuses`
+- `headers`, `query`, `body`, `bodyFile`
+- `output`, `assertions`, `secretOutputs`
+- `runIf`, `delaySeconds`
+- `retry`, `circuitBreaker`
+- `forEach`, `forEachSequential`, `itemName`, `indexName`, `dataFile`
+- `onStatus`, `jumpOnStatus`, `ensure`
+
+### Child workflow stage shape
+
+Use `kind: "Workflow"` when one workflow calls another:
+
+```yaml
+references:
+  workflows:
+    - name: "create-account-child"
+      path: "./create-account-child.workflow"
+
+stages:
+  - name: "create-account-child"
+    kind: "Workflow"
+    workflowRef: "create-account-child"
+    inputs:
+      email: "{{input.email}}"
+      name: "{{input.name}}"
+    output:
+      accountId: "{{stage:create-account-child.workflow.output.accountId}}"
+```
+
+Important differences from endpoint stages:
+
+- Use `workflowRef`, not `apiRef` / `endpoint` / `httpVerb`.
+- Child workflow outputs are read from `{{stage:<name>.workflow.output.*}}`.
+- Child workflow result metadata is read from `{{stage:<name>.workflow.result.*}}`.
+
+### Minimal runnable workflow
+
+```yaml
+version: "1.0"
+id: "01JEXAMPLE000000000000000001"
+name: "create-account"
+description: "Creates an account and returns its id."
+references:
+  apis:
+    - name: "accounts"
+      definition: "accounts"
+input:
+  - name: "email"
+    type: "Text"
+    required: true
+  - name: "name"
+    type: "Text"
+    required: true
+stages:
+  - name: "create-account"
+    kind: "Endpoint"
+    apiRef: "accounts"
+    endpoint: "/api/accounts"
+    httpVerb: "POST"
+    expectedStatus: 201
+    body: |
+      {
+        "email": "{{input.email}}",
+        "name": "{{input.name}}"
+      }
+    output:
+      accountId: "{{response.body.id}}"
+endStage:
+  output:
+    accountId: "{{stage:create-account.output.accountId}}"
+```
+
+Matching `.wfvars`:
+
+```yaml
+email: "ada@example.com"
+name: "Ada Lovelace"
+```
+
 ## Report and regression tooling
 
 The CLI can generate JSON/HTML execution reports, create regression snapshots from known-good runs, compare later executions against those snapshots, and open an interactive report viewer with assertion diagnostics and baseline comparison.
@@ -78,7 +268,7 @@ sih report ./output --snapshot ./snapshots --no-open
 
 ## If you are an AI model or coding agent
 
-If you reached SIH through `sih-mcp`, do not stop at this npm README. The repo contains the operational detail you need to generate or validate good workflows:
+If you reached SIH through `sih-mcp`, this README should be enough for first-pass workflow authoring. Go to the repo docs when you need advanced semantics such as plugin-specific configuration, branching patterns, runtime edge cases, report internals, or deeper validation behavior:
 
 - MCP quick reference: https://github.com/PinedaTec-EU/SphereIntegrationHub/blob/main/.doc/mcp-authoring-quick-reference.md
 - MCP server guide: https://github.com/PinedaTec-EU/SphereIntegrationHub/blob/main/.doc/mcp-server.md
@@ -87,7 +277,7 @@ If you reached SIH through `sih-mcp`, do not stop at this npm README. The repo c
 - Variables and context: https://github.com/PinedaTec-EU/SphereIntegrationHub/blob/main/.doc/variables.md
 - Dry-run behavior: https://github.com/PinedaTec-EU/SphereIntegrationHub/blob/main/.doc/dry-run.md
 
-Those documents describe the runtime contract that should guide workflow generation, token usage, validation expectations, and troubleshooting.
+Those documents remain the full source of truth for the runtime contract, validation semantics, and troubleshooting paths.
 
 ## If you are a developer
 
