@@ -1,6 +1,6 @@
 ---
 name: web-color-tokens
-description: "Enforce semantic theme tokens and visual checks when creating or changing a browser UI."
+description: "Require Product Design for portal design work, semantic theme tokens, and browser visual checks."
 ---
 
 <!-- ai-skills-bootstrap:managed -->

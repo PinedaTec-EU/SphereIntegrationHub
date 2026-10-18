@@ -1,6 +1,6 @@
 ---
 name: owner-pr-review
-description: "Reconcile and review a pull request authored by the local GitHub CLI user; keep rejected rounds unpublished, publish only a strict current-head PASS, and route explicitly authorized private merges through the self-approval workflow."
+description: "Reconcile and review a pull request authored by the local GitHub CLI user; keep rejected rounds unpublished, publish only a strict current-head PASS, and route explicitly authorized private or LeonardoMD merges through the self-approval workflow."
 ---
 
 <!-- ai-skills-bootstrap:managed -->
