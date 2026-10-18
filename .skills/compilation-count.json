@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "mode": "local",
+  "commands": [
+    [
+      "dotnet",
+      "build"
+    ],
+    [
+      "dotnet",
+      "test"
+    ],
+    [
+      "dotnet",
+      "publish"
+    ],
+    [
+      "dotnet",
+      "run"
+    ]
+  ],
+  "notes": "Record successful commands; allocate each count through dotnet tool restore; then dotnet tool run versionbumper at the existing version milestone, preserving dedicated version commits. Reconcile the recorded count against the refreshed canonical base before --allocate-local. Governance-only adapter changes do not bump runtime versions."
+}
