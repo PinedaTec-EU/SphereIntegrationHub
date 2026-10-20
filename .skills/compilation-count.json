@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "mode": "local",
+  "commands": [
+    [
+      "dotnet",
+      "build"
+    ],
+    [
+      "dotnet",
+      "test"
+    ],
+    [
+      "dotnet",
+      "publish"
+    ],
+    [
+      "dotnet",
+      "run"
+    ]
+  ],
+  "notes": "Record one successful outer compiler invocation, including repeated validations; failures and skipped compilation count zero. At the existing version milestone allocate each unallocated count through the repository’s canonical dotnet versionbumper, preserving its version shape and dedicated commit rules. Reconcile the refreshed canonical base before --allocate-local. Governance-only skill routing does not compile or bump runtime versions."
+}
