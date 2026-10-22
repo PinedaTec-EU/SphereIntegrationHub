@@ -155,7 +155,7 @@ If SphereIntegrationHub is helping your team integrate APIs faster, let us know!
 
 ### Prerequisites
 
-**No .NET required.** Node.js 18+ is the only dependency for the npm distribution.
+**No .NET required.** Node.js >=26.12.1 <27 is the only dependency for the npm distribution.
 
 If you prefer to build from source, [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) or higher is needed.
 

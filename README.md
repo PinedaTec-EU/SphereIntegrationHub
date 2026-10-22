@@ -85,6 +85,10 @@ npm install -g @pinedatec.eu/sphere-integration-hub
 sih --version
 ```
 
+Requires Node.js >=26.12.1 <27. For repository development and release packaging,
+use Node.js 26.12.1 (`nvm install` and `nvm use` from the repository root).
+The npm scripts wrap self-contained .NET binaries; those binaries do not embed Node.js.
+
 ```bash
 npx @pinedatec.eu/sphere-integration-hub
 ```

@@ -1,0 +1,42 @@
+name: npm package
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: npm/sphere-integration-hub
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          check-latest: true
+      - name: Verify effective runtime
+        run: node -e "const fs = require('node:fs'); const expected = fs.readFileSync('../../.nvmrc', 'utf8').trim(); console.log(process.version); if (process.version !== 'v' + expected) process.exit(1);"
+      - name: Install package dependencies
+        run: npm install --ignore-scripts --package-lock=false
+      - name: Test installer release resolution
+        run: npm run test:postinstall
+      - name: Build npm archive
+        run: npm pack --ignore-scripts
+      - name: Install archive and smoke-test CLI
+        shell: bash
+        run: |
+          npm install --prefix "$RUNNER_TEMP/sih-smoke" --engine-strict --no-package-lock ./pinedatec.eu-sphere-integration-hub-*.tgz
+          node "$RUNNER_TEMP/sih-smoke/node_modules/@pinedatec.eu/sphere-integration-hub/run-cli.js" --version
